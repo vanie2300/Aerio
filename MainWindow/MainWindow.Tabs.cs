@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -33,6 +34,8 @@ public partial class MainWindow
     private int _tabDropInsertIndex = -1;
     private double _dragOffsetX;
     private bool _tabIsDragging;
+    private bool _tabDragDetaching;
+    private Window? _ghostWindow;
     private AnimatedTabPanel? _tabPanel;
     private const double TabDragThreshold = 6.0;
 
@@ -599,7 +602,7 @@ public partial class MainWindow
             if (tab.WebView is not null)
             {
                 tab.RunCleanup();
-                WebViewHost.Children.Remove(tab.WebView);
+                RemoveElementFromParent(tab.WebView);
                 tab.WebView.Dispose();
                 tab.WebView = null;
                 tab.IsWebViewInitialized = false;
@@ -609,6 +612,11 @@ public partial class MainWindow
                     lock (_initializationLock) _profile = null;
                     _extensionsLoaded = false;
                 }
+            }
+
+            if (IsSplitActive && (ReferenceEquals(tab, _splitPrimaryTab) || ReferenceEquals(tab, _splitSecondaryTab)))
+            {
+                ClearSplitView();
             }
 
             if (_tabs.Count == 0)
@@ -678,9 +686,10 @@ public partial class MainWindow
                 if (tab.WebView is not null)
                 {
                     tab.RunCleanup();
-                    WebViewHost.Children.Remove(tab.WebView);
+                    RemoveElementFromParent(tab.WebView);
                     tab.WebView.Dispose();
                     tab.WebView = null;
+                    tab.IsWebViewInitialized = false;
                 }
             }
         }
@@ -765,16 +774,49 @@ public partial class MainWindow
         var panel = GetTabPanel();
         if (panel is null) return;
 
-        _dragOffsetX = pos.X - _tabDragStartPoint.X;
-        var panelPos = e.GetPosition(panel);
-        var insertIndex = panel.GetInsertIndex(panelPos);
-        _tabDropInsertIndex = insertIndex;
-        panel.UpdateInsertion(_tabDragFromIndex, insertIndex, _dragOffsetX, panelPos);
+        var belowTabStrip = pos.Y > TabStrip.ActualHeight + 10;
+        _tabDragDetaching = belowTabStrip && !IsSplitActive;
+
+        if (belowTabStrip)
+        {
+            panel.UpdateInsertion(_tabDragFromIndex, _tabDragFromIndex, 0, default);
+
+            if (!IsSplitActive)
+            {
+                ShowGhostPreview(e.GetPosition(this));
+            }
+            else
+            {
+                HideGhostPreview();
+            }
+        }
+        else
+        {
+            HideGhostPreview();
+            _dragOffsetX = pos.X - _tabDragStartPoint.X;
+            var panelPos = e.GetPosition(panel);
+            var insertIndex = panel.GetInsertIndex(panelPos);
+            _tabDropInsertIndex = insertIndex;
+            panel.UpdateInsertion(_tabDragFromIndex, insertIndex, _dragOffsetX, panelPos);
+        }
     }
 
     private void TabStrip_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (_tabDragFromIndex < 0) return;
+
+        if (_tabIsDragging && _tabDragDetaching)
+        {
+            HideGhostPreview();
+            var draggedTab = _tabs[_tabDragFromIndex];
+            var url = draggedTab.RestoredUrl ?? draggedTab.Address;
+            _ = CloseTabAsync(draggedTab);
+            new MainWindow(false, url, null, false).Show();
+
+            AbortDrag();
+            TabStrip.ReleaseMouseCapture();
+            return;
+        }
 
         if (_tabIsDragging)
             EndDrag(e);
@@ -802,6 +844,7 @@ public partial class MainWindow
     private void EndDrag(MouseEventArgs e)
     {
         GetTabPanel()?.EndDrag();
+        HideGhostPreview();
 
         var from = _tabDragFromIndex;
         var to = _tabDropInsertIndex;
@@ -813,16 +856,86 @@ public partial class MainWindow
         _tabDragFromIndex = -1;
         _tabDropInsertIndex = -1;
         _tabIsDragging = false;
+        _tabDragDetaching = false;
     }
 
     private void AbortDrag()
     {
         GetTabPanel()?.AbortDrag();
+        HideGhostPreview();
         _tabDragFromIndex = -1;
         _tabDropInsertIndex = -1;
         _tabIsDragging = false;
+        _tabDragDetaching = false;
     }
 
+    private void ShowGhostPreview(Point windowPos)
+    {
+        var tab = _tabs[_tabDragFromIndex];
+        var screenPos = PointToScreen(windowPos);
+
+        if (_ghostWindow is null)
+        {
+            var border = new Border
+            {
+                Width = 150,
+                Height = 30,
+                CornerRadius = new CornerRadius(6),
+                Background = TryFindResource("TabBg") as Brush ?? new SolidColorBrush(Color.FromArgb(200, 40, 40, 40)),
+                BorderBrush = TryFindResource("SubtleStroke") as Brush ?? new SolidColorBrush(Color.FromArgb(100, 180, 180, 180)),
+                BorderThickness = new Thickness(1),
+                Opacity = 0.85,
+                Effect = new DropShadowEffect
+                {
+                    BlurRadius = 12,
+                    Opacity = 0.5,
+                    ShadowDepth = 3,
+                    Color = Colors.Black
+                },
+                Child = new TextBlock
+                {
+                    Text = tab.Title,
+                    Foreground = TryFindResource("Text") as Brush ?? Brushes.White,
+                    FontSize = 12,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                }
+            };
+            _ghostWindow = new Window
+            {
+                Content = border,
+                Width = 150,
+                Height = 30,
+                AllowsTransparency = true,
+                WindowStyle = WindowStyle.None,
+                ResizeMode = ResizeMode.NoResize,
+                ShowInTaskbar = false,
+                Topmost = true,
+                IsHitTestVisible = false,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Background = Brushes.Transparent
+            };
+            _ghostWindow.Left = screenPos.X;
+            _ghostWindow.Top = screenPos.Y;
+            _ghostWindow.Show();
+        }
+        else
+        {
+            ((TextBlock)((Border)_ghostWindow.Content).Child).Text = tab.Title;
+            _ghostWindow.Left = screenPos.X;
+            _ghostWindow.Top = screenPos.Y;
+        }
+    }
+
+    private void HideGhostPreview()
+    {
+        if (_ghostWindow is not null)
+        {
+            _ghostWindow.Close();
+            _ghostWindow = null;
+        }
+    }
 }
 
 

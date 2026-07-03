@@ -463,10 +463,8 @@ public partial class MainWindow : Window
         {
             var url = tab.RestoredUrl ?? tab.Address;
             await CloseTabAsync(tab);
-            var exePath = Environment.ProcessPath ?? "TabloidBrowser.exe";
-            var args = url is not null ? $"\"{url}\"" : "";
-            try { Process.Start(new ProcessStartInfo(exePath, args) { UseShellExecute = true }); }
-            catch { }
+            var window = new MainWindow(false, url, null, false);
+            window.Show();
         }
     }
 
