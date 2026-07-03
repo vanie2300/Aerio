@@ -1411,7 +1411,7 @@ public partial class MainWindow
         {
             _closeCleanupComplete = true;
             Closing -= MainWindow_Closing;
-            Dispatcher.BeginInvoke(() => Close());
+            _ = Dispatcher.BeginInvoke(() => Close());
         }
     }
 

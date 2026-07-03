@@ -254,7 +254,7 @@ public partial class MainWindow
         SplitLoadingOverlay.Visibility = secondary.IsLoading ? Visibility.Visible : Visibility.Collapsed;
 
         var focusedWebView = ReferenceEquals(focusedTab, secondary) ? secondary.WebView : primary.WebView;
-        Dispatcher.BeginInvoke(() => focusedWebView.Focus(), DispatcherPriority.ApplicationIdle);
+        _ = Dispatcher.BeginInvoke(() => focusedWebView.Focus(), DispatcherPriority.ApplicationIdle);
         return true;
     }
 
