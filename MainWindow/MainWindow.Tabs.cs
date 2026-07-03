@@ -792,7 +792,7 @@ public partial class MainWindow
 
             if (!IsSplitActive)
             {
-                ShowGhostPreview(e.GetPosition(this));
+                ShowGhostPreview();
             }
             else
             {
@@ -887,13 +887,14 @@ public partial class MainWindow
         _tabDragDetaching = false;
     }
 
-    private void ShowGhostPreview(Point windowPos)
+    private void ShowGhostPreview()
     {
         var tab = _dragTab;
         if (tab is null && _tabDragFromIndex >= 0 && _tabDragFromIndex < _tabs.Count)
             tab = _tabs[_tabDragFromIndex];
         if (tab is null) return;
-        var screenPos = PointToScreen(windowPos);
+        var mouseInTabStrip = Mouse.GetPosition(TabStrip);
+        var screenPos = TabStrip.PointToScreen(mouseInTabStrip);
 
         if (_ghostWindow is null)
         {
@@ -937,15 +938,15 @@ public partial class MainWindow
                 WindowStartupLocation = WindowStartupLocation.Manual,
                 Background = Brushes.Transparent
             };
-            _ghostWindow.Left = screenPos.X;
-            _ghostWindow.Top = screenPos.Y;
+            _ghostWindow.Left = screenPos.X - 75;
+            _ghostWindow.Top = screenPos.Y - 15;
             _ghostWindow.Show();
         }
         else
         {
             ((TextBlock)((Border)_ghostWindow.Content).Child).Text = tab.Title;
-            _ghostWindow.Left = screenPos.X;
-            _ghostWindow.Top = screenPos.Y;
+            _ghostWindow.Left = screenPos.X - 75;
+            _ghostWindow.Top = screenPos.Y - 15;
         }
     }
 
