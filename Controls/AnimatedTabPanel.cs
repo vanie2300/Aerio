@@ -12,6 +12,8 @@ public class AnimatedTabPanel : Panel
     private double _tabWidth = 210;
     private double _grabOffset;
 
+    public double CurrentTabWidth => _tabWidth;
+
     public void BeginDrag(int tabIndex, Point panelPos)
     {
         _dragIndex = tabIndex;
@@ -44,10 +46,19 @@ public class AnimatedTabPanel : Panel
         }
     }
 
+    public void SetDetaching(bool isDetaching)
+    {
+        if (GetChild(_dragIndex) is { } child)
+        {
+            child.Visibility = isDetaching ? Visibility.Hidden : Visibility.Visible;
+        }
+    }
+
     public void EndDrag()
     {
         if (GetChild(_dragIndex) is { } child)
         {
+            child.Visibility = Visibility.Visible;
             SetZIndex(child, 0);
             child.RenderTransform = null;
         }
@@ -61,6 +72,7 @@ public class AnimatedTabPanel : Panel
     {
         if (GetChild(_dragIndex) is { } child)
         {
+            child.Visibility = Visibility.Visible;
             SetZIndex(child, 0);
             child.RenderTransform = null;
         }

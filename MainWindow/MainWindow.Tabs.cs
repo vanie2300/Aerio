@@ -14,6 +14,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Shapes;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Wpf;
@@ -798,6 +799,7 @@ public partial class MainWindow
 
         if (belowTabStrip)
         {
+            panel.SetDetaching(true);
             panel.UpdateInsertion(currentIndex, currentIndex, default);
 
             if (!IsSplitActive)
@@ -811,6 +813,7 @@ public partial class MainWindow
         }
         else
         {
+            panel.SetDetaching(false);
             HideGhostPreview();
             var panelPos = e.GetPosition(panel);
             var insertIndex = panel.GetInsertIndex(panelPos);
@@ -908,38 +911,57 @@ public partial class MainWindow
         var toWpf = source?.CompositionTarget?.TransformFromDevice;
         var wpfPos = toWpf?.Transform(new Point(pt.X, pt.Y)) ?? new Point(pt.X, pt.Y);
 
+        double gw = GetTabPanel()?.CurrentTabWidth ?? 200;
+
         if (_ghostWindow is null)
         {
+            var grid = new Grid { Margin = new Thickness(9, 0, 0, 0) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var dot = new Ellipse
+            {
+                Width = 7,
+                Height = 7,
+                Fill = tab.AccentBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0)
+            };
+            Grid.SetColumn(dot, 0);
+            grid.Children.Add(dot);
+
+            var title = new TextBlock
+            {
+                Text = tab.Title,
+                Foreground = TryFindResource("Text") as Brush ?? Brushes.White,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                FontSize = 12
+            };
+            Grid.SetColumn(title, 1);
+            grid.Children.Add(title);
+
             var border = new Border
             {
-                Width = 150,
+                Width = gw,
                 Height = 30,
-                CornerRadius = new CornerRadius(6),
-                Background = TryFindResource("TabBg") as Brush ?? new SolidColorBrush(Color.FromArgb(200, 40, 40, 40)),
-                BorderBrush = TryFindResource("SubtleStroke") as Brush ?? new SolidColorBrush(Color.FromArgb(100, 180, 180, 180)),
-                BorderThickness = new Thickness(1),
-                Opacity = 0.85,
+                CornerRadius = new CornerRadius(4),
+                Background = tab.TabBrush,
+                BorderBrush = tab.AccentBrush,
+                BorderThickness = tab.TabBorderThickness,
                 Effect = new DropShadowEffect
                 {
-                    BlurRadius = 12,
-                    Opacity = 0.5,
-                    ShadowDepth = 3,
+                    BlurRadius = 16,
+                    Opacity = 0.45,
+                    ShadowDepth = 4,
                     Color = Colors.Black
                 },
-                Child = new TextBlock
-                {
-                    Text = tab.Title,
-                    Foreground = TryFindResource("Text") as Brush ?? Brushes.White,
-                    FontSize = 12,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                }
+                Child = grid
             };
             _ghostWindow = new Window
             {
                 Content = border,
-                Width = 150,
+                Width = gw,
                 Height = 30,
                 AllowsTransparency = true,
                 WindowStyle = WindowStyle.None,
@@ -948,16 +970,23 @@ public partial class MainWindow
                 Topmost = true,
                 IsHitTestVisible = false,
                 WindowStartupLocation = WindowStartupLocation.Manual,
-                Background = Brushes.Transparent
+                Background = Brushes.Transparent,
+                Opacity = 0.92
             };
-            _ghostWindow.Left = wpfPos.X - 75;
+            _ghostWindow.Left = wpfPos.X - gw / 2;
             _ghostWindow.Top = wpfPos.Y - 15;
             _ghostWindow.Show();
         }
         else
         {
-            ((TextBlock)((Border)_ghostWindow.Content).Child).Text = tab.Title;
-            _ghostWindow.Left = wpfPos.X - 75;
+            var border = (Border)_ghostWindow.Content;
+            border.Background = tab.TabBrush;
+            border.BorderBrush = tab.AccentBrush;
+            border.BorderThickness = tab.TabBorderThickness;
+            var g = (Grid)border.Child;
+            ((Ellipse)g.Children[0]).Fill = tab.AccentBrush;
+            ((TextBlock)g.Children[1]).Text = tab.Title;
+            _ghostWindow.Left = wpfPos.X - gw / 2;
             _ghostWindow.Top = wpfPos.Y - 15;
         }
     }
