@@ -44,7 +44,7 @@ public partial class MainWindow
 
     private async Task RestoreSessionOrOpenStartAsync()
     {
-        if (_isPrivate)
+        if (_isPrivate || _skipSessionPersistence)
         {
             await AddStartTabAsync();
             return;
@@ -642,11 +642,13 @@ public partial class MainWindow
 
     private async Task SaveCurrentSessionAsync()
     {
+        if (_skipSessionPersistence) return;
+
         await _tabOperationLock.WaitAsync();
         try
         {
+            var activeUrl = _activeTab?.RestoredUrl ?? _activeTab?.Address;
             var sessionTabs = new List<SessionTab>();
-            var activeIndex = 0;
 
             foreach (var tab in _tabs.Where(tab => tab.Kind == BrowserTabKind.Web))
             {
@@ -656,16 +658,18 @@ public partial class MainWindow
                     continue;
                 }
 
-                if (ReferenceEquals(tab, _activeTab))
-                {
-                    activeIndex = sessionTabs.Count;
-                }
-
                 sessionTabs.Add(new SessionTab(
                     tab.Title.Replace(" (sleep)", string.Empty, StringComparison.Ordinal),
                     url,
                     tab.ScrollX,
                     tab.ScrollY));
+            }
+
+            var activeIndex = 0;
+            if (!string.IsNullOrWhiteSpace(activeUrl) && BrowserDataStore.IsHttpUrl(activeUrl))
+            {
+                var idx = sessionTabs.FindIndex(t => t.Url == activeUrl);
+                if (idx >= 0) activeIndex = idx;
             }
 
             if (!_dataStore.SaveSession(new BrowserSession(sessionTabs, activeIndex)))
@@ -808,10 +812,13 @@ public partial class MainWindow
         if (_tabIsDragging && _tabDragDetaching)
         {
             HideGhostPreview();
-            var draggedTab = _tabs[_tabDragFromIndex];
-            var url = draggedTab.RestoredUrl ?? draggedTab.Address;
-            _ = CloseTabAsync(draggedTab);
-            new MainWindow(false, url, null, false).Show();
+            if (_tabDragFromIndex >= 0 && _tabDragFromIndex < _tabs.Count)
+            {
+                var draggedTab = _tabs[_tabDragFromIndex];
+                var url = draggedTab.RestoredUrl ?? draggedTab.Address;
+                _ = CloseTabAsync(draggedTab);
+                new MainWindow(isPrivate: false, startupUrl: url, startupNativeKind: null, skipSessionPersistence: true).Show();
+            }
 
             AbortDrag();
             TabStrip.ReleaseMouseCapture();

@@ -97,7 +97,8 @@ public partial class MainWindow
 
         if (!canBookmark || tab is null)
         {
-            BookmarkButton.Content = "\uE734";
+            if (BookmarkButton.Content?.ToString() != "\uE734")
+                BookmarkButton.Content = "\uE734";
             BookmarkButton.BorderBrush = GetBrush("Stroke");
             BookmarkButton.ToolTip = "Open a web page to bookmark";
             return;
@@ -1116,10 +1117,9 @@ public partial class MainWindow
         {
             ReaderModeMenuItem.IsChecked = isActive;
         }
-        if (ReaderButton is not null)
+        if (ReaderButton is not null && ReaderButton.Visibility == Visibility.Visible)
         {
             ReaderButton.BorderBrush = isActive ? GetReaderActiveBrush() : null;
-            ReaderButton.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
@@ -1546,7 +1546,7 @@ public partial class MainWindow
         }
         else
         {
-            WindowStyle = WindowStyle.SingleBorderWindow;
+            WindowStyle = WindowStyle.None;
             RootGrid.RowDefinitions[0].Height = new GridLength(42);
             RootGrid.RowDefinitions[1].Height = new GridLength(42);
             RootGrid.RowDefinitions[3].Height = new GridLength(22);

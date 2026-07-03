@@ -280,43 +280,62 @@ All bugs identified in this document have been fixed in the codebase.
 **File:** `MainWindow.xaml.cs`
 **Severity:** Low
 **Fix applied:** `NotifySettingsChanged()` guarded by `IsLoaded`.
-
 ### Bug 66 (CRITICAL) — `DispatcherUnhandledException` handler causes stack overflow via `MessageBox.Show`
 **File:** `App.xaml.cs`
 **Severity:** Critical
 **Fix applied:** Replaced `MessageBox.Show` with `Debug.WriteLine` to prevent dispatcher reentry.
 
----
-
-## Newly Found Bugs (Unfixed)
-
-### Bug 62 (HIGH) — `ApplyTheme` iterates `_tabs` without `_tabOperationLock`
-**File:** `MainWindow.xaml.cs:406`
+### Bug 67 (HIGH) — `ToggleFullScreen` sets `SingleBorderWindow` breaking frameless chrome
+**File:** `MainWindow/MainWindow.UI.cs:1549`
 **Severity:** High
-**Description:** `foreach (var tab in _tabs)` iterates without acquiring `_tabOperationLock`. A concurrent tab add/remove throws `InvalidOperationException` ("Collection was modified").
-**Fix applied:** Snapshot taken under `_tabOperationLock` before iterating.
+**Description:** Exiting full-screen sets `WindowStyle = WindowStyle.SingleBorderWindow`, but the window is frameless (`WindowStyle=None` with custom chrome via `shell:WindowChrome`). This adds a standard title bar and breaks the custom UI.
+**Fix applied:** Changed to `WindowStyle = WindowStyle.None`.
 
-### Bug 63 (HIGH) — `_isPermissionsPopupOpen` not reset on synchronous throw during popup creation
-**File:** `NativePages/PageBuilders.cs:746`
+### Bug 68 (HIGH) — `AnimatedTabPanel.ArrangeOverride` subtracts margins from `DesiredSize`
+**File:** `Controls/AnimatedTabPanel.cs:174`
 **Severity:** High
-**Description:** `_isPermissionsPopupOpen = true` is set before the `Popup` is created. If `BuildSitePermissionsPopupContent` throws, the `Closed` handler (which resets to `false`) never fires — permanently blocking all future permission popups.
-**Fix applied:** Wrapped entire method in try/catch; `_isPermissionsPopupOpen = false` set in catch.
+**Description:** `child.DesiredSize.Width - m.Left - m.Right` double-subtracts margins because `DesiredSize` already includes them. This clips tab width on each arrange pass.
+**Fix applied:** Changed to `child.DesiredSize.Width`.
 
-### Bug 64 (MEDIUM) — `ShowSitePermissionsPopup` is `async void` with only partial try/catch
-**File:** `NativePages/PageBuilders.cs:717`
-**Severity:** Medium
-**Description:** Only `SyncProfilePermissionSettingsAsync` is try/caught; any other exception in this `async void` method crashes the process.
-**Fix applied:** Entire method body wrapped in try/catch.
+### Bug 69 (HIGH) — `UpdateReaderUi` hides ReaderButton on tab switch
+**File:** `MainWindow/MainWindow.UI.cs:1113`
+**Severity:** High
+**Description:** `UpdateReaderUi` sets `ReaderButton.Visibility = Visibility.Collapsed` when `isActive` is false, but this is called on every tab switch. The reader button's visibility should be managed by reader-detection scripts via `SetReaderButtonVisibility`, not reset by tab switches.
+**Fix applied:** `UpdateReaderUi` no longer changes `ReaderButton.Visibility`; only updates active visual state (border brush + menu item check).
 
-### Bug 65 (MEDIUM) — `ApplyForceDarkToExistingTabs` uses non-blocking `Wait(0)` which silently skips
-**File:** `MainWindow.xaml.cs:361`
+### Bug 70 (MEDIUM) — `NormalizeInput` rejects `file://` URIs as unknown scheme
+**File:** `MainWindow/MainWindow.Navigation.cs:246`
 **Severity:** Medium
-**Description:** `_tabOperationLock.Wait(0)` returns `false` if the lock is held, causing `ApplyForceDarkToExistingTabs` to silently skip. User toggles force-dark but gets no feedback that the operation was not applied.
-**Fix applied:** Changed to blocking `Wait()`.
+**Description:** `NormalizeInput` only accepts `http` and `https` schemes for absolute URIs, rejecting valid `file://` URIs and treating them as search queries.
+**Fix applied:** Added `Uri.UriSchemeFile` to the accepted scheme check.
+
+### Bug 71 (MEDIUM) — `PopOutTab_Click` passes `skipSessionPersistence: false`
+**File:** `MainWindow.xaml.cs:460`
+**Severity:** Medium
+**Description:** When popping a tab into a new window, `skipSessionPersistence` is `false`, meaning the popped-out window writes its own session on close, potentially overwriting the original window's session data.
+**Fix applied:** Changed to `skipSessionPersistence: true`. Also added `_skipSessionPersistence` guard in `SaveCurrentSessionAsync` and `RestoreSessionOrOpenStartAsync` (these methods never checked the field).
+
+### Bug 72 (MEDIUM) — `TabStrip_PreviewMouseLeftButtonUp` detach uses unchecked `_tabDragFromIndex`
+**File:** `MainWindow/MainWindow.Tabs.cs:804`
+**Severity:** Medium
+**Description:** `_tabs[_tabDragFromIndex]` is accessed without checking whether the index is still valid. If `_tabs` was modified between mouse-down and mouse-up (e.g. by tab close or sleep timer), this throws an `ArgumentOutOfRangeException`.
+**Fix applied:** Added bounds check `if (_tabDragFromIndex >= 0 && _tabDragFromIndex < _tabs.Count)`. Also fixed the `skipSessionPersistence` in the new window constructor call.
+
+### Bug 73 (MEDIUM) — `AccentSwatch` missing "White" case falls through to light gray
+**File:** `Controls/Widgets.cs:168`
+**Severity:** Medium
+**Description:** The accent color switch is missing a "White" case, falling through to the default light gray (`#E2E7F0`) which is close but not pure white.
+**Fix applied:** Added explicit `"White" => Colors.White` case.
+
+### Bug 74 (MEDIUM) — `SaveCurrentSessionAsync` miscalculates `activeIndex` for non-Web active tabs
+**File:** `MainWindow/MainWindow.Tabs.cs:643`
+**Severity:** Medium
+**Description:** `activeIndex` is tracked as the index in the filtered Web-tab-only list. If the active tab is a Start/Bookmarks/History/etc. tab, `activeIndex` stays 0, incorrectly pointing to the first saved Web tab. On session restore, this activates the wrong tab.
+**Fix applied:** Compute `activeIndex` after the loop by matching the active tab's URL against saved session URLs.
 
 ---
 
 ## Verification
 
 - Build: 0 warnings, 0 errors
-- All 66 bugs fixed in the codebase
+- All 74 bugs fixed in the codebase

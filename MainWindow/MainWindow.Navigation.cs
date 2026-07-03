@@ -244,7 +244,7 @@ public partial class MainWindow
         }
 
         if (Uri.TryCreate(input, UriKind.Absolute, out var absolute) &&
-            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
+            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps || absolute.Scheme == Uri.UriSchemeFile))
         {
             return absolute.ToString();
         }

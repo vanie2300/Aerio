@@ -463,7 +463,7 @@ public partial class MainWindow : Window
         {
             var url = tab.RestoredUrl ?? tab.Address;
             await CloseTabAsync(tab);
-            var window = new MainWindow(false, url, null, false);
+            var window = new MainWindow(isPrivate: false, startupUrl: url, startupNativeKind: null, skipSessionPersistence: true);
             window.Show();
         }
     }

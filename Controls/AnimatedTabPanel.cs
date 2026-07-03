@@ -171,7 +171,7 @@ public class AnimatedTabPanel : Panel
         {
             var m = (child as FrameworkElement)?.Margin ?? new Thickness();
             double arrangeX = x + m.Left;
-            double childWidth = child.DesiredSize.Width - m.Left - m.Right;
+            double childWidth = child.DesiredSize.Width;
             double childHeight = availableHeight - m.Top - m.Bottom;
 
             GetOrCreateTransform(child);

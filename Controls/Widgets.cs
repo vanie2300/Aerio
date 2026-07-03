@@ -173,6 +173,7 @@ public partial class MainWindow
             "Purple" => Color.FromRgb(114, 77, 223),
             "Gray" => Color.FromRgb(128, 128, 128),
             "Green" => Color.FromRgb(106, 153, 85),
+            "White" => Colors.White,
             _ => Color.FromRgb(226, 231, 240)
         });
     }
