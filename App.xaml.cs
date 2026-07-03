@@ -1,0 +1,59 @@
+using System.Diagnostics;
+using System.IO;
+using System.Windows;
+
+namespace TabloidBrowser;
+
+public partial class App : Application
+{
+    private readonly string _logPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "TabloidBrowser",
+        "Logs",
+        "startup.log");
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        base.OnExit(e);
+    }
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            WriteCrashLog(args.ExceptionObject as Exception);
+            try { MessageBox.Show($"Tabloid Browser encountered a fatal error.\n\nLog file:\n{_logPath}", "Tabloid Browser", MessageBoxButton.OK, MessageBoxImage.Error); } catch { }
+            Environment.Exit(1);
+        };
+
+        DispatcherUnhandledException += (_, args) =>
+        {
+            WriteCrashLog(args.Exception);
+            MessageBox.Show(
+                $"Tabloid Browser crashed on startup.\n\nLog file:\n{_logPath}",
+                "Tabloid Browser",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            args.Handled = true;
+            Shutdown(1);
+        };
+    }
+
+    private void WriteCrashLog(Exception? exception)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(_logPath);
+            if (dir is not null) Directory.CreateDirectory(dir);
+            File.WriteAllText(
+                _logPath,
+                $"Timestamp: {DateTimeOffset.Now:O}{Environment.NewLine}{exception}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to write crash log: {ex}");
+        }
+    }
+}

@@ -1,0 +1,645 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
+
+namespace TabloidBrowser;
+
+public partial class MainWindow
+{
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfoW(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, uint dwAttribute, ref int pvAttribute, uint cbAttribute);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    private const uint WM_SYSCOMMAND = 0x0112;
+    private const uint SC_MINIMIZE = 0xF020;
+    private const uint SC_MAXIMIZE = 0xF030;
+    private const uint SC_RESTORE = 0xF120;
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+    private const uint DWMWA_SNAP_LAYOUT = 0x100;
+    private const uint WM_DPICHANGED = 0x02E0;
+
+    private readonly HttpClient _crxHttpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    private CoreWebView2Environment? _environment;
+    private CoreWebView2Profile? _profile;
+    private bool _extensionsLoaded;
+    private readonly Dictionary<string, CoreWebView2BrowserExtension> _loadedExtensions = [];
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<CoreWebView2, BrowserTab> _webViewToTabMap = [];
+    private Microsoft.Web.WebView2.Wpf.WebView2? _carouselWebView;
+    private readonly HashSet<BrowserTab> _initializingTabs = [];
+    private readonly object _initializationLock = new();
+
+    private async Task InitializeEnvironmentAsync()
+    {
+        var userDataFolder = _privateUserDataFolder ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TabloidBrowser",
+            "WebView2");
+
+        Directory.CreateDirectory(userDataFolder);
+
+        var options = new CoreWebView2EnvironmentOptions(
+            "--disable-background-networking " +
+            "--disable-features=MediaRouter,AutofillServerCommunication,OptimizationHints")
+        {
+            AreBrowserExtensionsEnabled = true
+        };
+
+        _environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
+    }
+
+    private static void FireAndForget(Task? task, string context = "")
+    {
+        if (task is null) return;
+        task.ContinueWith(t =>
+        {
+            if (t.Exception is not null)
+                Debug.WriteLine($"Fire-and-forget failed{(string.IsNullOrEmpty(context) ? "" : $" ({context})")}: {t.Exception}");
+        }, TaskContinuationOptions.OnlyOnFaulted);
+    }
+
+    private void SetStatusTextSafe(string text)
+    {
+        if (Dispatcher.CheckAccess())
+            StatusText.Text = text;
+        else
+            Dispatcher.BeginInvoke(() => StatusText.Text = text);
+    }
+
+    private void ShowStartupError(Exception exception)
+    {
+        StatusText.Text = "Startup failed";
+        StartOverlay.Visibility = Visibility.Visible;
+        InternalPageHost.Visibility = Visibility.Collapsed;
+        WebViewHost.Visibility = Visibility.Hidden;
+        LoadingOverlay.Visibility = Visibility.Collapsed;
+
+        MessageBox.Show(
+            $"Tabloid Browser could not start WebView2.\n\n{exception.Message}\n\nTry installing or repairing Microsoft Edge WebView2 Runtime.",
+            "Tabloid Browser",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+    }
+
+    private async Task EnsureWebViewAsync(BrowserTab tab, bool attachBeforeInitialize = false)
+    {
+        if (tab.WebView?.CoreWebView2 is not null && tab.IsWebViewInitialized)
+        {
+            return;
+        }
+
+        if (_environment is null)
+        {
+            throw new InvalidOperationException("WebView2 environment was not initialized.");
+        }
+
+        // Prevent duplicate initialization BEFORE creating a WebView2
+        lock (_initializationLock)
+        {
+            if (tab.IsWebViewInitialized)
+            {
+                return;
+            }
+            if (!_initializingTabs.Add(tab))
+            {
+                return; // Another call is already initializing this tab
+            }
+        }
+
+        var webView = tab.WebView;
+        if (webView is null)
+        {
+            webView = new WebView2
+            {
+                DefaultBackgroundColor = GetWebViewBackgroundColor()
+            };
+            tab.WebView = webView;
+        }
+
+        try
+        {
+            if (attachBeforeInitialize && _activeTab == tab)
+            {
+                AttachActiveWebView(tab);
+            }
+
+            await webView.EnsureCoreWebView2Async(_environment);
+
+            if (tab.IsWebViewInitialized)
+            {
+                return;
+            }
+
+            var cwv = webView.CoreWebView2;
+            _webViewToTabMap[cwv] = tab;
+
+            cwv.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
+            cwv.WebResourceRequested += OnWebResourceRequested;
+            cwv.WebMessageReceived += OnWebMessageReceived;
+            cwv.Find.ActiveMatchIndexChanged += Find_MatchChanged;
+            cwv.Find.MatchCountChanged += Find_MatchChanged;
+            cwv.DownloadStarting += WebView_DownloadStarting;
+            cwv.ContextMenuRequested += OnContextMenuRequested;
+
+            await cwv.AddScriptToExecuteOnDocumentCreatedAsync(ScrollTrackingScript);
+            await cwv.AddScriptToExecuteOnDocumentCreatedAsync(
+                "window.__tblBridge=window.chrome.webview;");
+            if (_dataStore.Settings.ForceDarkPage)
+            {
+                await cwv.AddScriptToExecuteOnDocumentCreatedAsync(ForceDarkScript);
+            }
+
+            if (_profile is null)
+            {
+                _profile = cwv.Profile;
+                await LoadExtensionsAsync();
+            }
+
+            cwv.NavigationStarting += OnNavigationStarting;
+            cwv.FrameNavigationStarting += OnFrameNavigationStarting;
+            webView.NavigationCompleted += OnNavigationCompleted;
+            cwv.DocumentTitleChanged += OnDocumentTitleChanged;
+            cwv.NewWindowRequested += OnNewWindowRequested;
+            cwv.PermissionRequested += OnPermissionRequested;
+            cwv.IsDocumentPlayingAudioChanged += OnIsDocumentPlayingAudioChanged;
+            cwv.IsMutedChanged += OnIsMutedChanged;
+
+            tab.CleanupActions.Add(() =>
+            {
+                cwv.NavigationStarting -= OnNavigationStarting;
+                cwv.FrameNavigationStarting -= OnFrameNavigationStarting;
+                webView.NavigationCompleted -= OnNavigationCompleted;
+                cwv.WebResourceRequested -= OnWebResourceRequested;
+                cwv.WebMessageReceived -= OnWebMessageReceived;
+                cwv.Find.ActiveMatchIndexChanged -= Find_MatchChanged;
+                cwv.Find.MatchCountChanged -= Find_MatchChanged;
+                cwv.DownloadStarting -= WebView_DownloadStarting;
+                cwv.ContextMenuRequested -= OnContextMenuRequested;
+                cwv.DocumentTitleChanged -= OnDocumentTitleChanged;
+                cwv.NewWindowRequested -= OnNewWindowRequested;
+                cwv.PermissionRequested -= OnPermissionRequested;
+                cwv.IsDocumentPlayingAudioChanged -= OnIsDocumentPlayingAudioChanged;
+                cwv.IsMutedChanged -= OnIsMutedChanged;
+                _webViewToTabMap.TryRemove(cwv, out _);
+            });
+
+            var settings = cwv.Settings;
+            settings.AreDefaultScriptDialogsEnabled = true;
+            settings.AreDevToolsEnabled = _dataStore.Settings.EnableDevTools;
+            settings.IsGeneralAutofillEnabled = _dataStore.Settings.EnableAutofill;
+            settings.IsPasswordAutosaveEnabled = _dataStore.Settings.EnablePasswordSave;
+            settings.AreBrowserAcceleratorKeysEnabled = false;
+            settings.IsStatusBarEnabled = false;
+
+            tab.IsWebViewInitialized = true;
+        }
+        finally
+        {
+            lock (_initializationLock) _initializingTabs.Remove(tab);
+        }
+        }
+
+    private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
+    {
+        if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+        
+        var settings = _dataStore.Settings;
+        if (!settings.BlockTrackers)
+        {
+            return;
+        }
+
+        var host = GetHost(tab.Address);
+        var reqHost = GetHost(e.Request.Uri);
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(reqHost))
+        {
+            return;
+        }
+
+        if (settings.TrackerAllowlist.Count > 0 && settings.TrackerAllowlist.Any(domain => DomainMatches(host, domain)))
+        {
+            return;
+        }
+
+        var blocklist = settings.TrackerBlocklist;
+        if (blocklist.Count == 0 || !blocklist.Any(domain => DomainMatches(reqHost, domain)))
+        {
+            return;
+        }
+
+        Interlocked.Increment(ref _blockedTrackerCount);
+        Dispatcher.BeginInvoke(UpdatePrivacyIndicator);
+
+        e.Response = cwv.Environment.CreateWebResourceResponse(
+            new MemoryStream(Array.Empty<byte>()),
+            204,
+            "No Content",
+            "Content-Type: text/plain");
+    }
+
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+        WebMessageReceived(tab, e);
+    }
+
+    private void OnContextMenuRequested(object? sender, CoreWebView2ContextMenuRequestedEventArgs e)
+    {
+        if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+        if (_environment is null) return;
+
+        var darkItem = _environment.CreateContextMenuItem(
+            "Force dark page",
+            null,
+            CoreWebView2ContextMenuItemKind.CheckBox);
+        darkItem.IsChecked = _dataStore.Settings.ForceDarkPage;
+        darkItem.CustomItemSelected += (_, _) =>
+        {
+            void handler()
+            {
+                var newState = !_dataStore.Settings.ForceDarkPage;
+                darkItem.IsChecked = newState;
+                var s = _dataStore.Settings with { ForceDarkPage = newState };
+                _dataStore.SaveSettings(s);
+                ApplyForceDarkToExistingTabs();
+            }
+            if (Dispatcher.CheckAccess()) handler();
+            else Dispatcher.Invoke(handler);
+        };
+        e.MenuItems.Add(darkItem);
+    }
+
+    private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        if (sender is not CoreWebView2 cwv) return;
+        if (!_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+
+        if (e.Uri.StartsWith("tabloid://install-crx/", StringComparison.OrdinalIgnoreCase))
+        {
+            e.Cancel = true;
+            var extId = e.Uri["tabloid://install-crx/".Length..];
+            if (!string.IsNullOrWhiteSpace(extId))
+            {
+                FireAndForget(DownloadAndInstallCrxAsync(extId), "DownloadAndInstallCrxAsync");
+            }
+            return;
+        }
+
+        if (TryHandleTabloidUri(tab, e.Uri))
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        void handler()
+        {
+            tab.Kind = BrowserTabKind.Web;
+            tab.Address = e.Uri;
+            tab.Title = "Loading...";
+            tab.IsLoading = true;
+            tab.HasAudio = false;
+            tab.IsPlayingAudio = false;
+            tab.IsMuted = false;
+
+            if (tab.AllowNextNavigationScrollRestore)
+            {
+                tab.PendingScrollRestore = HasScrollPosition(tab);
+                tab.AllowNextNavigationScrollRestore = false;
+            }
+            else
+            {
+                tab.ScrollX = 0;
+                tab.ScrollY = 0;
+                tab.PendingScrollRestore = false;
+            }
+
+            if (_activeTab == tab)
+            {
+                StatusText.Text = $"Loading {TrimUrl(e.Uri)}";
+                UpdateAddressBar();
+                UpdateLoadingOverlay();
+                UpdateReloadStopButton();
+            }
+        }
+        if (Dispatcher.CheckAccess()) handler();
+        else Dispatcher.Invoke(handler);
+    }
+    private void OnFrameNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        // Handle tabloid:// URIs that may come from iframe navigations
+        if (e.Uri.StartsWith("tabloid://install-crx/", StringComparison.OrdinalIgnoreCase))
+        {
+            e.Cancel = true;
+            var extId = e.Uri["tabloid://install-crx/".Length..];
+            if (!string.IsNullOrWhiteSpace(extId))
+            {
+                FireAndForget(DownloadAndInstallCrxAsync(extId), "DownloadAndInstallCrxAsync");
+            }
+            return;
+        }
+
+        // Don't update tab.Address for iframe navigations
+    }
+
+
+    private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        if (sender is not WebView2 webView) return;
+        var cwv = webView.CoreWebView2;
+        if (cwv is null) return;
+        if (!_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+
+        try
+        {
+            tab.IsLoading = false;
+            tab.LastActiveUtc = DateTimeOffset.UtcNow;
+
+            if (e.IsSuccess)
+            {
+                var title = cwv.DocumentTitle;
+                tab.Title = string.IsNullOrWhiteSpace(title) ? TrimUrl(tab.Address) : title;
+
+                if (!_isPrivate && BrowserDataStore.IsHttpUrl(tab.Address))
+                {
+                    _dataStore.AddHistory(tab.Title, tab.Address);
+                }
+
+                FireAndForget(RestoreScrollPositionAsync(tab), "RestoreScrollPositionAsync");
+
+                tab.ReaderContent = null;
+                if (tab.IsReaderMode)
+                {
+                    FireAndForget(cwv.ExecuteScriptAsync(ReaderViewCleanupScript), "ExecuteScriptAsync.ReaderViewCleanupScript");
+                    Interlocked.Exchange(ref _pendingReaderTab, tab);
+                    var reExtract = await BuildReaderExtractionScriptAsync();
+                    await cwv.ExecuteScriptAsync(reExtract);
+                }
+                else if (_activeTab == tab)
+                {
+                    FireAndForget(TryInjectReaderDetectionAsync(cwv), "TryInjectReaderDetectionAsync");
+                }
+            }
+            else
+            {
+                tab.Title = "Navigation failed";
+                StatusText.Text = $"Navigation failed: {e.WebErrorStatus}";
+            }
+
+            if (_activeTab == tab)
+            {
+                StatusText.Text = e.IsSuccess ? "Ready" : StatusText.Text;
+                UpdateNavigationButtons();
+                UpdateBookmarkButton();
+                UpdateLoadingOverlay();
+                UpdateReaderUi(tab.IsReaderMode);
+                UpdateReloadStopButton();
+                UpdateZoomDisplay();
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"NavigationCompleted failed: {ex}");
+        }
+    }
+
+    private void OnDocumentTitleChanged(object? sender, object? e)
+    {
+        if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+        void handler()
+        {
+            try
+            {
+                var title = cwv.DocumentTitle;
+                if (!string.IsNullOrWhiteSpace(title)) tab.Title = title;
+            }
+            catch (Exception ex) { Debug.WriteLine(ex); }
+        }
+        if (Dispatcher.CheckAccess()) handler();
+        else Dispatcher.Invoke(handler);
+    }
+    private async void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
+    {
+        e.Handled = true;
+        await Dispatcher.InvokeAsync(async () =>
+        {
+            try { await AddWebTabAsync(e.Uri); }
+            catch (Exception ex) { Debug.WriteLine(ex); }
+        }).Task.Unwrap();
+    }
+
+    private void OnPermissionRequested(object? sender, CoreWebView2PermissionRequestedEventArgs e)
+    {
+        if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+        PermissionRequested(tab, e);
+    }
+
+    private void OnIsDocumentPlayingAudioChanged(object? sender, object? e)
+    {
+        if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+        void handler()
+        {
+            try
+            {
+                var playing = cwv.IsDocumentPlayingAudio;
+                if (playing) tab.HasAudio = true;
+                tab.IsPlayingAudio = playing;
+            }
+            catch (Exception ex) { Debug.WriteLine(ex); }
+        }
+        if (Dispatcher.CheckAccess()) handler();
+        else Dispatcher.Invoke(handler);
+    }
+    private void OnIsMutedChanged(object? sender, object? e)
+    {
+        if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+        void handler()
+        {
+            try { tab.IsMuted = cwv.IsMuted; }
+            catch (Exception ex) { Debug.WriteLine(ex); }
+        }
+        if (Dispatcher.CheckAccess()) handler();
+        else Dispatcher.Invoke(handler);
+    }
+    private static bool IsTrackerAllowedForSite(BrowserTab tab, List<string> allowlist)
+    {
+        var host = GetHost(tab.Address);
+        return !string.IsNullOrWhiteSpace(host) &&
+            allowlist.Any(domain => DomainMatches(host, domain));
+    }
+
+    private static bool IsTrackerRequest(string uri, List<string> blocklist)
+    {
+        var host = GetHost(uri);
+        return !string.IsNullOrWhiteSpace(host) &&
+            blocklist.Any(domain => DomainMatches(host, domain));
+    }
+
+    private static string? GetHost(string? uri)
+    {
+        return Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ? parsed.Host : null;
+    }
+
+    private static bool DomainMatches(string host, string domain)
+    {
+        domain = domain.TrimStart('.');
+        if (string.Equals(host, domain, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (host.EndsWith($".{domain}", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (domain.Contains('*'))
+        {
+            var pattern = "^" + Regex.Escape(domain).Replace("\\*", ".*") + "$";
+            return Regex.IsMatch(host, pattern, RegexOptions.IgnoreCase);
+        }
+        return false;
+    }
+
+    private void WebView_DownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs args)
+    {
+        try
+        {
+            var url = args.DownloadOperation.Uri;
+
+            if (!url.Contains(".crx", StringComparison.OrdinalIgnoreCase) &&
+                !url.Contains("clients2.google.com/service/update2/crx", StringComparison.OrdinalIgnoreCase))
+            {
+                TrackDownload(args);
+                return;
+            }
+
+            args.Handled = true;
+
+            var tempDir = Path.Combine(Path.GetTempPath(), "TabloidBrowser", "CrxDownloads");
+            Directory.CreateDirectory(tempDir);
+            var crxPath = Path.Combine(tempDir, Guid.NewGuid() + ".crx");
+            args.ResultFilePath = crxPath;
+
+            var operation = args.DownloadOperation;
+            EventHandler<object>? handler = null;
+            handler = (_, _) =>
+            {
+                if (operation.State == CoreWebView2DownloadState.Completed)
+                {
+                    operation.StateChanged -= handler;
+                    Dispatcher.InvokeAsync(async () =>
+                    {
+                        await InstallCrxAsync(crxPath);
+                        try { File.Delete(crxPath); } catch { }
+                    });
+                }
+            };
+            operation.StateChanged += handler;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+    private async Task DownloadAndInstallCrxAsync(string extensionId)
+    {
+        try
+        {
+            var url = $"https://clients2.google.com/service/update2/crx?response=redirect&prodversion=106.0.0.0&acceptformat=crx3&x=id%3D{extensionId}%26installsource%3Dondemand%26uc";
+
+            var tempDir = Path.Combine(Path.GetTempPath(), "TabloidBrowser", "CrxDownloads");
+            Directory.CreateDirectory(tempDir);
+            var crxPath = Path.Combine(tempDir, $"{extensionId}.crx");
+
+            using var response = await _crxHttpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            await using (var fs = new FileStream(crxPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await response.Content.CopyToAsync(fs);
+            }
+
+            await InstallCrxAsync(crxPath);
+            try { File.Delete(crxPath); } catch { }
+        }
+        catch (Exception ex)
+        {
+            SetStatusTextSafe($"Failed to download extension: {ex.Message}");
+        }
+    }
+
+    private void UpdatePrivacyIndicator()
+    {
+        PrivacyButton.BorderBrush = _dataStore.Settings.BlockTrackers ? GetBrush("Lime") : GetBrush("Stroke");
+        PrivacyButton.ToolTip = _dataStore.Settings.BlockTrackers
+            ? $"Tracker blocking on. Blocked {_blockedTrackerCount} requests."
+            : "Tracker blocking off";
+    }
+
+    private void TrackDownload(CoreWebView2DownloadStartingEventArgs args)
+    {
+        var fileName = args.ResultFilePath is not null ? Path.GetFileName(args.ResultFilePath) : "unknown";
+        var resultFilePath = args.ResultFilePath ?? "";
+        var operation = args.DownloadOperation;
+        var sourceUrl = operation.Uri;
+        Dispatcher.BeginInvoke(() => StatusText.Text = $"Downloading {fileName}");
+
+        operation.StateChanged += OnDownloadCompleted;
+        void OnDownloadCompleted(object? _, object? __)
+        {
+            if (operation.State != CoreWebView2DownloadState.Completed)
+            {
+                return;
+            }
+
+            operation.StateChanged -= OnDownloadCompleted;
+            Dispatcher.BeginInvoke(() =>
+            {
+                _dataStore.AddDownload(fileName, resultFilePath, sourceUrl);
+                StatusText.Text = $"Downloaded {fileName}";
+            });
+        }
+    }
+}
+
+
+
+
+

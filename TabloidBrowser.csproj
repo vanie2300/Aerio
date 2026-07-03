@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\Icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\Icon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\4578.jpg" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\ddg.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\startpage.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\brave.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\searxng.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="readability.min.js" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
