@@ -333,9 +333,15 @@ All bugs identified in this document have been fixed in the codebase.
 **Description:** `activeIndex` is tracked as the index in the filtered Web-tab-only list. If the active tab is a Start/Bookmarks/History/etc. tab, `activeIndex` stays 0, incorrectly pointing to the first saved Web tab. On session restore, this activates the wrong tab.
 **Fix applied:** Compute `activeIndex` after the loop by matching the active tab's URL against saved session URLs.
 
+### Bug 75 (HIGH) — Tab widths change when title text updates (variable DesiredSize)
+**File:** `Controls/AnimatedTabPanel.cs:174`
+**Severity:** High
+**Description:** `ArrangeOverride` uses each child's `DesiredSize.Width` for layout x-advancement. When a tab's title changes (e.g. "New tab" → "Stack Overflow"), its `DesiredSize` changes, resizing that tab and shifting all adjacent tabs. `GetTabStep()` and `GetInsertIndex()` also use per-child `DesiredSize`, causing inconsistent drag feedback.
+**Fix applied:** `_tabWidth` field stores the uniform computed width from `MeasureOverride`. `ArrangeOverride`, `GetTabStep()`, and `GetInsertIndex()` all use `_tabWidth` instead of per-child `DesiredSize`, ensuring all tabs remain the same width.
+
 ---
 
 ## Verification
 
 - Build: 0 warnings, 0 errors
-- All 74 bugs fixed in the codebase
+- All 75 bugs fixed in the codebase

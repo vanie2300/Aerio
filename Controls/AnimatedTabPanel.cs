@@ -11,6 +11,7 @@ public class AnimatedTabPanel : Panel
     private int _dragIndex = -1;
     private int _insertIndex = -1;
     private Point _lastIndexChangePos;
+    private double _tabWidth = 210;
 
     public void BeginDrag(int tabIndex)
     {
@@ -74,16 +75,15 @@ public class AnimatedTabPanel : Panel
             }
 
             var m = (child as FrameworkElement)?.Margin ?? new Thickness();
-            double childWidth = child.DesiredSize.Width;
             double leftEdge = accumulatedX + m.Left +
                 (_transforms.TryGetValue(child, out var t) ? t.X : 0);
-            double midpoint = leftEdge + childWidth / 2;
+            double midpoint = leftEdge + _tabWidth / 2;
 
             if (panelPos.X < midpoint)
                 return visualIdx;
 
             visualIdx++;
-            accumulatedX += childWidth;
+            accumulatedX += _tabWidth;
         }
         return visualIdx;
     }
@@ -124,12 +124,7 @@ public class AnimatedTabPanel : Panel
 
     private double GetTabStep()
     {
-        if (Children.Count > 0)
-        {
-            var w = Children[0].DesiredSize.Width;
-            if (w > 0) return w;
-        }
-        return 213;
+        return _tabWidth > 0 ? _tabWidth : 210;
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -149,14 +144,13 @@ public class AnimatedTabPanel : Panel
         }
 
         double availableForTabs = Math.Max(0, availableSize.Width - totalMargin);
-        double tabWidth = Math.Clamp(availableForTabs / tabCount, minTabWidth, maxTabWidth);
+        _tabWidth = Math.Clamp(availableForTabs / tabCount, minTabWidth, maxTabWidth);
 
-        var constraint = new Size(tabWidth, availableSize.Height);
-        double totalWidth = 0;
+        var constraint = new Size(_tabWidth, availableSize.Height);
+        double totalWidth = _tabWidth * tabCount;
         foreach (UIElement child in Children)
         {
             child.Measure(constraint);
-            totalWidth += child.DesiredSize.Width;
         }
 
         return new Size(totalWidth + totalMargin, availableSize.Height);
@@ -171,13 +165,12 @@ public class AnimatedTabPanel : Panel
         {
             var m = (child as FrameworkElement)?.Margin ?? new Thickness();
             double arrangeX = x + m.Left;
-            double childWidth = child.DesiredSize.Width;
             double childHeight = availableHeight - m.Top - m.Bottom;
 
             GetOrCreateTransform(child);
 
-            child.Arrange(new Rect(arrangeX, m.Top, Math.Max(0, childWidth), Math.Max(0, childHeight)));
-            x += child.DesiredSize.Width;
+            child.Arrange(new Rect(arrangeX, m.Top, Math.Max(0, _tabWidth), Math.Max(0, childHeight)));
+            x += _tabWidth;
         }
 
         return new Size(x, finalSize.Height);
