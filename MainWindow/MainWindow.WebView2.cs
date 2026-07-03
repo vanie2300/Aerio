@@ -63,7 +63,7 @@ public partial class MainWindow
     private readonly HttpClient _crxHttpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     private CoreWebView2Environment? _environment;
-    private CoreWebView2Profile? _profile;
+    private volatile CoreWebView2Profile? _profile;
     private bool _extensionsLoaded;
     private readonly Dictionary<string, CoreWebView2BrowserExtension> _loadedExtensions = [];
     private readonly System.Collections.Concurrent.ConcurrentDictionary<CoreWebView2, BrowserTab> _webViewToTabMap = [];
@@ -193,7 +193,13 @@ public partial class MainWindow
 
             if (_profile is null)
             {
-                _profile = cwv.Profile;
+                lock (_initializationLock)
+                {
+                    if (_profile is null)
+                    {
+                        _profile = cwv.Profile;
+                    }
+                }
                 await LoadExtensionsAsync();
             }
 

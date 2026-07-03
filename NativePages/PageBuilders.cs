@@ -716,58 +716,66 @@ public partial class MainWindow
 
     private async void ShowSitePermissionsPopup()
     {
-        if (_isPermissionsPopupOpen) return;
-
-        try { await SyncProfilePermissionSettingsAsync(); } catch (Exception ex) { Debug.WriteLine(ex); }
-
-        RemovePopupBlur();
-
-        if (Content is Grid rootGrid)
+        try
         {
-            rootGrid.Effect = new BlurEffect
-            {
-                Radius = 14,
-                KernelType = KernelType.Gaussian
-            };
+            if (_isPermissionsPopupOpen) return;
 
-            _popupOverlay = new Grid
-            {
-                Background = new SolidColorBrush(Color.FromArgb(80, 0, 0, 0)),
-                IsHitTestVisible = false,
-                Opacity = 0
-            };
-            Grid.SetRowSpan(_popupOverlay, rootGrid.RowDefinitions.Count);
-            rootGrid.Children.Add(_popupOverlay);
+            try { await SyncProfilePermissionSettingsAsync(); } catch (Exception ex) { Debug.WriteLine(ex); }
 
-            var overlayFade = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15));
-            _popupOverlay.BeginAnimation(Grid.OpacityProperty, overlayFade);
-        }
-
-        _isPermissionsPopupOpen = true;
-        PrivacyButton.BorderBrush = GetBrush("Cyan");
-        PrivacyButton.Background = GetBrush("ButtonPressed");
-
-        var popup = new Popup
-        {
-            PlacementTarget = this,
-            Placement = PlacementMode.Center,
-            StaysOpen = false,
-            AllowsTransparency = true,
-            PopupAnimation = PopupAnimation.Fade
-        };
-
-        popup.Closed += (_, _) =>
-        {
             RemovePopupBlur();
-            _sitePermissionsPopup = null;
-            _isPermissionsPopupOpen = false;
-            UpdatePrivacyIndicator();
-            PrivacyButton.Background = GetBrush("ButtonBg");
-        };
 
-        popup.Child = BuildSitePermissionsPopupContent(popup);
-        _sitePermissionsPopup = popup;
-        popup.IsOpen = true;
+            if (Content is Grid rootGrid)
+            {
+                rootGrid.Effect = new BlurEffect
+                {
+                    Radius = 14,
+                    KernelType = KernelType.Gaussian
+                };
+
+                _popupOverlay = new Grid
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(80, 0, 0, 0)),
+                    IsHitTestVisible = false,
+                    Opacity = 0
+                };
+                Grid.SetRowSpan(_popupOverlay, rootGrid.RowDefinitions.Count);
+                rootGrid.Children.Add(_popupOverlay);
+
+                var overlayFade = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15));
+                _popupOverlay.BeginAnimation(Grid.OpacityProperty, overlayFade);
+            }
+
+            _isPermissionsPopupOpen = true;
+            PrivacyButton.BorderBrush = GetBrush("Cyan");
+            PrivacyButton.Background = GetBrush("ButtonPressed");
+
+            var popup = new Popup
+            {
+                PlacementTarget = this,
+                Placement = PlacementMode.Center,
+                StaysOpen = false,
+                AllowsTransparency = true,
+                PopupAnimation = PopupAnimation.Fade
+            };
+
+            popup.Closed += (_, _) =>
+            {
+                RemovePopupBlur();
+                _sitePermissionsPopup = null;
+                _isPermissionsPopupOpen = false;
+                UpdatePrivacyIndicator();
+                PrivacyButton.Background = GetBrush("ButtonBg");
+            };
+
+            popup.Child = BuildSitePermissionsPopupContent(popup);
+            _sitePermissionsPopup = popup;
+            popup.IsOpen = true;
+        }
+        catch (Exception ex)
+        {
+            _isPermissionsPopupOpen = false;
+            Debug.WriteLine(ex);
+        }
     }
 
     private UIElement BuildSitePermissionsPopupContent(Popup popup)

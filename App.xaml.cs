@@ -31,11 +31,7 @@ public partial class App : Application
         DispatcherUnhandledException += (_, args) =>
         {
             WriteCrashLog(args.Exception);
-            MessageBox.Show(
-                $"Tabloid Browser crashed on startup.\n\nLog file:\n{_logPath}",
-                "Tabloid Browser",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            Debug.WriteLine(args.Exception);
             args.Handled = true;
             Shutdown(1);
         };

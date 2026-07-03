@@ -1420,7 +1420,12 @@ public partial class MainWindow
         try
         {
             _sleepTimer.Stop();
-            _startBgTimer?.Stop();
+            _sleepTimer.Tick -= SleepTimer_Tick;
+            if (_startBgTimer is not null)
+            {
+                _startBgTimer.Stop();
+                _startBgTimer.Tick -= StartBgTimer_Tick;
+            }
 
             if (_isPrivate)
             {

@@ -358,7 +358,7 @@ public partial class MainWindow : Window
     private void ApplyForceDarkToExistingTabs()
     {
         var enable = _dataStore.Settings.ForceDarkPage;
-        if (!_tabOperationLock.Wait(0)) return;
+        _tabOperationLock.Wait();
         BrowserTab[] snapshot;
         try { snapshot = [.. _tabs]; }
         finally { _tabOperationLock.Release(); }
@@ -403,7 +403,11 @@ public partial class MainWindow : Window
         Background = GetBrush("AppBg");
 
         var webViewBackground = GetWebViewBackgroundColor();
-        foreach (var tab in _tabs)
+        BrowserTab[] snapshot;
+        _tabOperationLock.Wait();
+        try { snapshot = [.. _tabs]; }
+        finally { _tabOperationLock.Release(); }
+        foreach (var tab in snapshot)
         {
             tab.SetVisualColors(theme);
             if (tab.WebView is not null)

@@ -1,6 +1,6 @@
 # Tabloid Browser Bug Report
 
-All 34 previously identified bugs have been verified as fixed. This document tracks both fixed bugs and newly discovered unfixed bugs.
+All bugs identified in this document have been fixed in the codebase.
 
 ---
 
@@ -146,175 +146,177 @@ All 34 previously identified bugs have been verified as fixed. This document tra
 **Severity:** Low
 **Fix applied:** Log exception via `Debug.WriteLine`.
 
+### Bug 35 (CRITICAL) — `CancellationToken.None` defeats debounce in `DebounceFetchModels`
+**Files:** `MainWindow/MainWindow.AI.cs`, `NativePages/PageBuilders.cs`
+**Severity:** Critical
+**Fix applied:** Pass `ct` instead of `CancellationToken.None` in both `DebounceFetchModels` locations.
+
+### Bug 36 (CRITICAL) — Permission deferral "Default" result leaves request unhandled
+**File:** `MainWindow/MainWindow.Permissions.cs`
+**Severity:** Critical
+**Fix applied:** Returns `Deny` when user closes the prompt without choosing (`"Default"`).
+
+### Bug 37 (CRITICAL) — Download `StateChanged` anonymous handler never unsubscribed
+**File:** `MainWindow/MainWindow.WebView2.cs`
+**Severity:** Critical
+**Fix applied:** Self-unsubscribes via `operation.StateChanged -= handler` on completion.
+
+### Bug 38 (CRITICAL) — Static `_blockedResponse` shared across WebView2 environments
+**File:** `MainWindow/MainWindow.WebView2.cs`
+**Severity:** Critical
+**Fix applied:** Field removed entirely; response created fresh per request.
+
+### Bug 39 (CRITICAL) — Static mutable color fields break multi-window theming
+**File:** `Models/BrowserTab.cs`
+**Severity:** Critical
+**Fix applied:** `static` color fields removed; instance colors used per tab. Static fields are `readonly Brush`.
+
+### Bug 40 (HIGH) — Duplicate `new Random()` in particle constructor destroys entropy
+**File:** `MainWindow/MainWindow.Particles.cs`
+**Severity:** High
+**Fix applied:** `BgParticle` constructor accepts a `Random` parameter; single `rng` instance reused.
+
+### Bug 41 (HIGH) — Particle animation speed mismatch: 33ms timer vs 16ms time increment
+**File:** `MainWindow/MainWindow.Particles.cs`
+**Severity:** High
+**Fix applied:** `_bgTime += 0.033` to match the 33ms `DispatcherTimer` interval.
+
+### Bug 42 (HIGH) — Captured UI controls in `DebounceFetchModels` may be disposed after popup closes
+**File:** `MainWindow/MainWindow.AI.cs`
+**Severity:** High
+**Fix applied:** `_isAiSetupOpen` flag checked inside `FetchModelsAsync` before accessing UI controls.
+
+### Bug 43 (HIGH) — `Interlocked.Exchange` write mismatch on `_pendingReaderTab`
+**File:** `MainWindow.xaml.cs`, `MainWindow/MainWindow.WebView2.cs`
+**Severity:** High
+**Fix applied:** All accesses to `_pendingReaderTab` use `Interlocked.Exchange`.
+
+### Bug 44 (HIGH) — `_profile` guarded by two different locks
+**File:** `MainWindow/MainWindow.WebView2.cs`, `MainWindow/MainWindow.Tabs.cs`
+**Severity:** High
+**Fix applied:** Made `_profile` volatile; write in `EnsureWebViewAsync` uses double-checked locking under `_initializationLock`.
+
+### Bug 45 (MEDIUM) — `Tab_DragLeave` leaves stale `_tabDropIndex`
+**File:** `MainWindow/MainWindow.UI.cs`
+**Severity:** Medium
+**Fix applied:** Replaced with `AnimatedTabPanel` + `_tabDropInsertIndex` reset in `EndDrag()`/`AbortDrag()`.
+
+### Bug 46 (MEDIUM) — `EnsureDropIndicator` doesn't clear stale effect/background on reuse
+**File:** `MainWindow/MainWindow.UI.cs`
+**Severity:** Medium
+**Fix applied:** Method removed; drop indicators handled by `AnimatedTabPanel`.
+
+### Bug 47 (MEDIUM) — `SyncProfilePermissionSettingsAsync` fire-and-forget without await
+**File:** `NativePages/PageBuilders.cs`
+**Severity:** Medium
+**Fix applied:** `await` with try/catch.
+
+### Bug 48 (MEDIUM) — `DropShadowBitmapEffect` uses deprecated WPF API
+**File:** `MainWindow.xaml`
+**Severity:** Medium
+**Fix applied:** Uses modern `DropShadowEffect`.
+
+### Bug 49 (MEDIUM) — `_tabs` read without lock in `ApplyForceDarkToExistingTabs`
+**File:** `MainWindow.xaml.cs`
+**Severity:** Medium
+**Fix applied:** Snapshot taken under `_tabOperationLock` before iterating.
+
+### Bug 50 (MEDIUM) — `CachedContent` setter only removes `Grid`-type old content from parent
+**File:** `Models/BrowserTab.cs`
+**Severity:** Medium
+**Fix applied:** Changed from `Grid` to `Panel` type filter; `RemoveElementFromParent` helper handles other types.
+
+### Bug 51 (MEDIUM) — `ScrollViewer.Resources.Add(typeof(ScrollBar), null)` when resource missing
+**File:** `NativePages/PageBuilders.cs`
+**Severity:** Medium
+**Fix applied:** Guarded with `is not null` check.
+
+### Bug 52 (MEDIUM) — `StoreInstallBtn_MouseDown` calls click handler without `e.Handled = true`
+**File:** `MainWindow.xaml.cs`
+**Severity:** Medium
+**Fix applied:** `StoreInstallBtn` and its handler removed.
+
+### Bug 53 (LOW) — `WeakReference<Button>` in copy feedback is dead code
+**File:** `MainWindow/MainWindow.AI.cs`
+**Severity:** Low
+**Fix applied:** `WeakReference` removed; `Task.Delay` + `ContinueWith` captures button directly.
+
+### Bug 54 (LOW) — `OnNavigationCompleted` dispatches async lambda with redundant `Dispatcher.InvokeAsync`
+**File:** `MainWindow/MainWindow.WebView2.cs`
+**Severity:** Low
+**Fix applied:** `Dispatcher.InvokeAsync` wrapper removed.
+
+### Bug 55 (LOW) — `DispatcherTimer` instances never explicitly disposed on shutdown
+**File:** `MainWindow/MainWindow.UI.cs`
+**Severity:** Low
+**Fix applied:** `Stop()` called and Tick handlers detached in `CleanupBeforeCloseAsync`.
+
+### Bug 56 (LOW) — `ReadabilityCache` file read without `ConfigureAwait(false)`
+**File:** `MainWindow/MainWindow.UI.cs`
+**Severity:** Low
+**Fix applied:** Added `.ConfigureAwait(false)`.
+
+### Bug 57 (LOW) — `IsFromControl` hardcoded max visual-tree depth of 10
+**File:** `MainWindow/MainWindow.UI.cs`
+**Severity:** Low
+**Fix applied:** Depth limit removed; loops until `current is null`.
+
+### Bug 58 (LOW) — Static `_blockedResponse` never disposed on environment change
+**File:** `MainWindow/MainWindow.WebView2.cs`
+**Severity:** Low
+**Fix applied:** Field removed.
+
+### Bug 59 (LOW) — `AiService.FetchModelsAsync` creates new `HttpClient` per call
+**File:** `AI/AiService.cs`
+**Severity:** Low
+**Fix applied:** Uses static `_fetchHttp` field.
+
+### Bug 60 (LOW) — `OnWebMessageReceived` dispatches without checking `HasShutdownStarted`
+**File:** `MainWindow.xaml.cs`
+**Severity:** Low
+**Fix applied:** All dispatches check `!Dispatcher.HasShutdownStarted`.
+
+### Bug 61 (LOW) — `ApplySettings()` called from constructor triggers UI before `Show()`
+**File:** `MainWindow.xaml.cs`
+**Severity:** Low
+**Fix applied:** `NotifySettingsChanged()` guarded by `IsLoaded`.
+
+### Bug 66 (CRITICAL) — `DispatcherUnhandledException` handler causes stack overflow via `MessageBox.Show`
+**File:** `App.xaml.cs`
+**Severity:** Critical
+**Fix applied:** Replaced `MessageBox.Show` with `Debug.WriteLine` to prevent dispatcher reentry.
+
 ---
 
 ## Newly Found Bugs (Unfixed)
 
-### Bug 35 (CRITICAL) — `CancellationToken.None` defeats debounce in `DebounceFetchModels`
-**File:** `MainWindow/MainWindow.AI.cs:300`, `NativePages/PageBuilders.cs:314`
-**Severity:** Critical
-**Description:** Both `DebounceFetchModels` methods create a `CancellationTokenSource` for the 800ms delay, but then dispatch `FetchModelsAsync(..., CancellationToken.None)` instead of passing `ct`. The inner HTTP/network calls are never cancellable when the user types again, causing overlapping concurrent requests that waste resources and let stale responses overwrite the model list.
-**Fix:** Pass `ct` instead of `CancellationToken.None` in both locations.
-
-### Bug 36 (CRITICAL) — Permission deferral "Default" result leaves request unhandled
-**File:** `MainWindow/MainWindow.Permissions.cs:96-99`
-**Severity:** Critical
-**Description:** When `PromptForPermissionAsync` returns `"Default"` (user closes the prompt without choosing), the method returns without setting `args.State`, `args.Handled`, or `SavesInProfile`. The deferral is disposed in `finally`, completing it, but the WebView2 runtime never receives a decision — falling through to unpredictable default behavior.
-**Fix:** Set `args.State = CoreWebView2PermissionState.Deny`, `args.Handled = true` before returning on `"Default"`.
-
-### Bug 37 (CRITICAL) — Download `StateChanged` anonymous handler never unsubscribed
-**File:** `MainWindow/MainWindow.WebView2.cs:574-584`
-**Severity:** Critical
-**Description:** Anonymous lambda subscribed to `CoreWebView2DownloadOperation.StateChanged` is never detached. If the event fires again after completion (documented edge case), `InstallCrxAsync` is called again on a deleted file, throwing `FileNotFoundException`. Captures `operation`, `crxPath`, and `Dispatcher` indefinitely.
-**Fix:** Remove the handler after the first completion event, or use a named method that can be unsubscribed.
-
-### Bug 38 (CRITICAL) — Static `_blockedResponse` shared across WebView2 environments
-**File:** `MainWindow/MainWindow.WebView2.cs:283`
-**Severity:** Critical
-**Description:** `_blockedResponse` is a `static` field created from whichever `CoreWebView2Environment` first triggers a tracker block. A private-browsing WebView operates on a different environment (different `userDataFolder`). Using a response object from one environment in another is undefined behavior per WebView2 docs.
-**Fix:** Make `_blockedResponse` non-static, or create a fresh response per call.
-
-### Bug 39 (CRITICAL) — Static mutable color fields break multi-window theming
-**File:** `Models/BrowserTab.cs:20-26`
-**Severity:** Critical
-**Description:** Six `static` color fields (`ActiveTabColor`, `InactiveTabColor`, etc.) are mutated by the static `SetVisualColors(Theme)` method. If two windows are open with different themes (normal + private), the last call to `SetVisualColors` overrides colors for all windows.
-**Fix:** Remove static mutable fields; derive colors from the owning window's resource dictionary or pass a `Theme` instance per tab group.
-
-### Bug 40 (HIGH) — Duplicate `new Random()` in particle constructor destroys entropy
-**File:** `MainWindow/MainWindow.Particles.cs:33-34`
+### Bug 62 (HIGH) — `ApplyTheme` iterates `_tabs` without `_tabOperationLock`
+**File:** `MainWindow.xaml.cs:406`
 **Severity:** High
-**Description:** `new Random()` is called twice in rapid succession (same clock tick), producing identical seeds. Every particle in a batch gets the same `BaseOpacity` and `OpacityPhase`, destroying the visual variety intended by per-particle randomization.
-**Fix:** Accept a `Random` parameter in the `BgParticle` constructor and reuse the parent method's `rng` instance.
+**Description:** `foreach (var tab in _tabs)` iterates without acquiring `_tabOperationLock`. A concurrent tab add/remove throws `InvalidOperationException` ("Collection was modified").
+**Fix applied:** Snapshot taken under `_tabOperationLock` before iterating.
 
-### Bug 41 (HIGH) — Particle animation speed mismatch: 33ms timer vs 16ms time increment
-**File:** `MainWindow.xaml.cs:162` (timer interval 33ms), `MainWindow/MainWindow.Particles.cs:160` (`_bgTime += 0.016`)
+### Bug 63 (HIGH) — `_isPermissionsPopupOpen` not reset on synchronous throw during popup creation
+**File:** `NativePages/PageBuilders.cs:746`
 **Severity:** High
-**Description:** Timer fires every 33ms (~30fps) but `_bgTime` advances by 0.016 each tick (assuming ~16ms/60fps). After 1 real second, `_bgTime` ≈ 0.485 instead of 1.0, causing the breathing animation to run at ~50% intended speed.
-**Fix:** Increment by actual elapsed time using `Stopwatch` or use a fixed-step accumulator keyed to 33ms.
+**Description:** `_isPermissionsPopupOpen = true` is set before the `Popup` is created. If `BuildSitePermissionsPopupContent` throws, the `Closed` handler (which resets to `false`) never fires — permanently blocking all future permission popups.
+**Fix applied:** Wrapped entire method in try/catch; `_isPermissionsPopupOpen = false` set in catch.
 
-### Bug 42 (HIGH) — Captured UI controls in `DebounceFetchModels` may be disposed after popup closes
-**File:** `MainWindow/MainWindow.AI.cs:288-305`
-**Severity:** High
-**Description:** If the user closes the AI setup popup while a debounced fetch (800ms delay) is pending, the continuation runs and tries to update `statusLabel.Text`, `modelCombo.ItemsSource`, etc. on disposed controls, causing `InvalidOperationException`.
-**Fix:** Check `popup.IsOpen` or a cancellation flag before accessing UI controls in the delayed continuation.
-
-### Bug 43 (HIGH) — `Interlocked.Exchange` write mismatch on `_pendingReaderTab`
-**File:** `MainWindow.xaml.cs:240` (read via `Interlocked.Exchange`), `MainWindow/MainWindow.WebView2.cs:428` (write via plain assignment)
-**Severity:** High
-**Description:** `_pendingReaderTab` is read atomically via `Interlocked.Exchange` but written with a plain assignment (`_pendingReaderTab = tab`). Near-simultaneous `NavigationCompleted` callbacks from background threads could overwrite the field before the `Interlocked.Exchange` consumes it, silently dropping one tab's reader extraction.
-**Fix:** Use `Interlocked.Exchange` for writes as well, or protect with a dedicated lock.
-
-### Bug 44 (HIGH) — `_profile` guarded by two different locks
-**File:** `MainWindow/MainWindow.WebView2.cs:196-200` (under `_initializationLock`), `MainWindow/MainWindow.Tabs.cs:430` (under `_tabOperationLock`)
-**Severity:** High
-**Description:** `_profile` is set under `_initializationLock` in `EnsureWebViewAsync` and nulled under `_tabOperationLock` in `HibernateTabAsync`. Both run on UI thread today, but the dual-lock pattern is fragile — a future background-thread change would cause torn reads.
-**Fix:** Guard `_profile` with a single dedicated lock.
-
-### Bug 45 (MEDIUM) — `Tab_DragLeave` leaves stale `_tabDropIndex`
-**File:** `MainWindow/MainWindow.UI.cs:1590-1596`
+### Bug 64 (MEDIUM) — `ShowSitePermissionsPopup` is `async void` with only partial try/catch
+**File:** `NativePages/PageBuilders.cs:717`
 **Severity:** Medium
-**Description:** `Tab_DragLeave` collapses the indicator but does not reset `_tabDropIndex = -1`. If a user drags a tab outside the strip (collapsing indicator) then drops without re-entering, `Tab_Drop` uses the stale index for an incorrect insertion.
-**Fix:** Set `_tabDropIndex = -1` in `Tab_DragLeave`.
+**Description:** Only `SyncProfilePermissionSettingsAsync` is try/caught; any other exception in this `async void` method crashes the process.
+**Fix applied:** Entire method body wrapped in try/catch.
 
-### Bug 46 (MEDIUM) — `EnsureDropIndicator` doesn't clear stale effect/background on reuse
-**File:** `MainWindow/MainWindow.UI.cs:1493-1506`
+### Bug 65 (MEDIUM) — `ApplyForceDarkToExistingTabs` uses non-blocking `Wait(0)` which silently skips
+**File:** `MainWindow.xaml.cs:361`
 **Severity:** Medium
-**Description:** `ShowDropIndicatorAt` sets `Background`, `Effect` (DropShadowEffect), and opacity animation. The single cached indicator keeps these between drag sessions. 1-frame visual glitch with wrong colors on reuse.
-**Fix:** Reset `Background` and `Effect` in `HideDropIndicator`, or create a fresh indicator each time.
-
-### Bug 47 (MEDIUM) — `SyncProfilePermissionSettingsAsync` fire-and-forget without await
-**File:** `NativePages/PageBuilders.cs:721`
-**Severity:** Medium
-**Description:** `try { SyncProfilePermissionSettingsAsync(); } catch { }` calls an `async Task` method without awaiting it. The try/catch only captures synchronous exceptions. Async exceptions become unobserved task exceptions. Empty `catch { }` also silences synchronous errors.
-**Fix:** `await` the call with proper try/catch, or use a fire-and-forget helper with error logging.
-
-### Bug 48 (MEDIUM) — `DropShadowBitmapEffect` uses deprecated WPF API
-**File:** `MainWindow.xaml:1299-1301`
-**Severity:** Medium
-**Description:** `<DropShadowBitmapEffect>` was deprecated in WPF 4.0 (.NET Framework 4), requires software rendering, and is removed in .NET 5+. The modern replacement is `DropShadowEffect` via `UIElement.Effect`.
-**Fix:** Replace with `<TextBlock.Effect><DropShadowEffect ShadowDepth="0" BlurRadius="12" Opacity="0.3" Color="#724DDF" /></TextBlock.Effect>`.
-
-### Bug 49 (MEDIUM) — `_tabs` read without lock in `ApplyForceDarkToExistingTabs`
-**File:** `MainWindow.xaml.cs:336`
-**Severity:** Medium
-**Description:** Iterates `_tabs` (`foreach (var tab in _tabs)`) without acquiring `_tabOperationLock`. If called during reentrant UI processing (nested message pump), concurrent modification throws `InvalidOperationException`.
-**Fix:** Take a snapshot under `_tabOperationLock` before iterating.
-
-### Bug 50 (MEDIUM) — `CachedContent` setter only removes `Grid`-type old content from parent
-**File:** `Models/BrowserTab.cs:169-178`
-**Severity:** Medium
-**Description:** `if (_cachedContent is Grid oldGrid ...)` — non-`Grid` UIElements stored as cached content are never removed from their parent visual tree, orphaning them.
-**Fix:** Cast to `UIElement` and check `Parent` without the `Grid` type filter.
-
-### Bug 51 (MEDIUM) — `ScrollViewer.Resources.Add(typeof(ScrollBar), null)` when resource missing
-**File:** `NativePages/PageBuilders.cs:1031-1037`
-**Severity:** Medium
-**Description:** If `FindResource("DarkScrollBar")` returns a non-`Style` resource, `as Style` yields null, which is added to resources — overriding any default `ScrollBar` style and making scrollbars invisible.
-**Fix:** Guard with `if (scrollBarStyle is not null)` before adding.
-
-### Bug 52 (MEDIUM) — `StoreInstallBtn_MouseDown` calls click handler without `e.Handled = true`
-**File:** `MainWindow.xaml.cs:200-203`
-**Severity:** Medium
-**Description:** `StoreInstallBtn_MouseDown` calls `StoreInstallBtn_Click(this, e)` but does not set `e.Handled = true`. Since `Click` event also routes through `MouseDown`, double processing can occur.
-**Fix:** Add `e.Handled = true;` after calling the click handler.
-
-### Bug 53 (LOW) — `WeakReference<Button>` in copy feedback is dead code
-**File:** `MainWindow/MainWindow.AI.cs:574-588`
-**Severity:** Low
-**Description:** The outer lambda on line 574 already captures `copyBtn` directly (setting `copyBtn.Content = "Copied!"`). The `WeakReference<Button>` in the `ContinueWith` inner lambda adds complexity with no GC benefit — the button is already kept alive by the outer capture.
-**Fix:** Remove `WeakReference`; capture `copyBtn` directly in `ContinueWith`.
-
-### Bug 54 (LOW) — `OnNavigationCompleted` dispatches async lambda with redundant `Dispatcher.InvokeAsync`
-**File:** `MainWindow/MainWindow.WebView2.cs:404`
-**Severity:** Low
-**Description:** `await Dispatcher.InvokeAsync(async () => { ... }).Task.Unwrap()` — WebView2 `NavigationCompleted` events already fire on the UI thread. The `InvokeAsync` is a redundant dispatch adding overhead and potential deadlock risk.
-**Fix:** Remove the `Dispatcher.InvokeAsync` wrapping.
-
-### Bug 55 (LOW) — `DispatcherTimer` instances never explicitly disposed on shutdown
-**File:** `MainWindow/MainWindow.UI.cs:1358-1359` (calls `Stop()` but not `Dispose()`)
-**Severity:** Low
-**Description:** `_sleepTimer` and `_startBgTimer` are `DispatcherTimer` objects (implement `IDisposable`). `Stop()` is called in `MainWindow_Closing` but `Dispose()` is never called. Keeps `MainWindow` referenced in the timer's internal list until GC.
-**Fix:** Call `_sleepTimer?.Dispose()` and `_startBgTimer?.Dispose()` after stopping.
-
-### Bug 56 (LOW) — `ReadabilityCache` file read without `ConfigureAwait(false)`
-**File:** `MainWindow/MainWindow.UI.cs:1134`
-**Severity:** Low
-**Description:** `await File.ReadAllTextAsync(path)` resumes on the captured `SynchronizationContext` (UI thread), blocking the message pump during I/O completion.
-**Fix:** Add `.ConfigureAwait(false)`.
-
-### Bug 57 (LOW) — `IsFromControl` hardcoded max visual-tree depth of 10
-**File:** `MainWindow/MainWindow.UI.cs:347`
-**Severity:** Low
-**Description:** `for (depth < 10; ...)` — depth limit of 10 can produce false negatives with deeply nested visual trees.
-**Fix:** Remove the depth limit or increase it significantly.
-
-### Bug 58 (LOW) — Static `_blockedResponse` never disposed on environment change
-**File:** `MainWindow/MainWindow.WebView2.cs:277-287`
-**Severity:** Low
-**Description:** The static `_blockedResponse` object is never disposed, even when the associated `CoreWebView2Environment` is released. Leaks for the app domain lifetime.
-**Fix:** Dispose on shutdown or when the environment changes.
-
-### Bug 59 (LOW) — `AiService.FetchModelsAsync` creates new `HttpClient` per call
-**File:** `AI/AiService.cs:71-117`
-**Severity:** Low
-**Description:** `using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };` on every fetch call defeats connection pooling. Called every keystroke during endpoint discovery.
-**Fix:** Use a shared static/singleton `HttpClient`.
-
-### Bug 60 (LOW) — `OnWebMessageReceived` dispatches without checking `HasShutdownStarted`
-**File:** `MainWindow.xaml.cs:226,236,258`
-**Severity:** Low
-**Description:** Three `Dispatcher.BeginInvoke` calls in `WebMessageReceived` don't check `Dispatcher.HasShutdownStarted`. If the window is closing, queuing work on a shutting-down dispatcher can throw `InvalidOperationException`.
-**Fix:** Check `!Dispatcher.HasShutdownStarted` before each `BeginInvoke`.
-
-### Bug 61 (LOW) — `ApplySettings()` called from constructor triggers UI before `Show()`
-**File:** `MainWindow.xaml.cs:166` → `MainWindow/MainWindow.AI.cs:877-884`
-**Severity:** Low
-**Description:** `ApplySettings()` → `NotifySettingsChanged()` → `ShowAiSidebar()` starts `BeginAnimation` before the window is visible, causing unnecessary layout calculations on unrendered elements at startup.
-**Fix:** Defer `NotifySettingsChanged` to the `Loaded` event, or skip animation when `!IsLoaded`.
+**Description:** `_tabOperationLock.Wait(0)` returns `false` if the lock is held, causing `ApplyForceDarkToExistingTabs` to silently skip. User toggles force-dark but gets no feedback that the operation was not applied.
+**Fix applied:** Changed to blocking `Wait()`.
 
 ---
 
 ## Verification
 
 - Build: 0 warnings, 0 errors
-- All 61 bugs (34 original + 27 newly found) have been fixed in the codebase
+- All 66 bugs fixed in the codebase
