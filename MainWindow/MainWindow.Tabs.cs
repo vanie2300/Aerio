@@ -32,9 +32,9 @@ public partial class MainWindow
     private Point _tabDragStartPoint;
     private int _tabDragFromIndex = -1;
     private int _tabDropInsertIndex = -1;
-    private double _dragOffsetX;
     private bool _tabIsDragging;
     private bool _tabDragDetaching;
+    private BrowserTab? _dragTab;
     private Window? _ghostWindow;
     private AnimatedTabPanel? _tabPanel;
     private const double TabDragThreshold = 6.0;
@@ -754,6 +754,7 @@ public partial class MainWindow
         var index = _tabs.IndexOf(tab);
         if (index < 0) return;
 
+        _dragTab = tab;
         _tabDragFromIndex = index;
         _tabDragStartPoint = e.GetPosition(TabStrip);
         _tabIsDragging = false;
@@ -761,7 +762,7 @@ public partial class MainWindow
 
     private void TabStrip_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        if (_tabDragFromIndex < 0) return;
+        if (_dragTab is null || _tabDragFromIndex < 0) return;
         if (e.LeftButton != MouseButtonState.Pressed) { AbortDrag(); return; }
 
         var pos = e.GetPosition(TabStrip);
@@ -772,8 +773,12 @@ public partial class MainWindow
             var dy = pos.Y - _tabDragStartPoint.Y;
             if (Math.Sqrt(dx * dx + dy * dy) < TabDragThreshold)
                 return;
-            BeginDrag(_tabDragFromIndex);
+            var beginPanelPos = GetTabPanel() is { } bp ? e.GetPosition(bp) : default;
+            BeginDrag(_tabDragFromIndex, beginPanelPos);
         }
+
+        var currentIndex = _tabs.IndexOf(_dragTab);
+        if (currentIndex < 0) { AbortDrag(); return; }
 
         var panel = GetTabPanel();
         if (panel is null) return;
@@ -783,7 +788,7 @@ public partial class MainWindow
 
         if (belowTabStrip)
         {
-            panel.UpdateInsertion(_tabDragFromIndex, _tabDragFromIndex, 0, default);
+            panel.UpdateInsertion(currentIndex, currentIndex, default);
 
             if (!IsSplitActive)
             {
@@ -797,26 +802,24 @@ public partial class MainWindow
         else
         {
             HideGhostPreview();
-            _dragOffsetX = pos.X - _tabDragStartPoint.X;
             var panelPos = e.GetPosition(panel);
             var insertIndex = panel.GetInsertIndex(panelPos);
             _tabDropInsertIndex = insertIndex;
-            panel.UpdateInsertion(_tabDragFromIndex, insertIndex, _dragOffsetX, panelPos);
+            panel.UpdateInsertion(currentIndex, insertIndex, panelPos);
         }
     }
 
     private void TabStrip_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (_tabDragFromIndex < 0) return;
+        if (_tabDragFromIndex < 0 && _dragTab is null) return;
 
         if (_tabIsDragging && _tabDragDetaching)
         {
             HideGhostPreview();
-            if (_tabDragFromIndex >= 0 && _tabDragFromIndex < _tabs.Count)
+            if (_dragTab is not null && _tabs.Contains(_dragTab))
             {
-                var draggedTab = _tabs[_tabDragFromIndex];
-                var url = draggedTab.RestoredUrl ?? draggedTab.Address;
-                _ = CloseTabAsync(draggedTab);
+                var url = _dragTab.RestoredUrl ?? _dragTab.Address;
+                _ = CloseTabAsync(_dragTab);
                 new MainWindow(isPrivate: false, startupUrl: url, startupNativeKind: null, skipSessionPersistence: true).Show();
             }
 
@@ -835,16 +838,19 @@ public partial class MainWindow
 
     private void TabStrip_LostMouseCapture(object sender, MouseEventArgs e)
     {
-        if (_tabIsDragging)
+        if (_tabDragFromIndex >= 0 || _dragTab is not null)
             AbortDrag();
     }
 
-    private void BeginDrag(int tabIndex)
+    private void BeginDrag(int tabIndex, Point panelPos)
     {
+        if (_dragTab is null) return;
+        var currentIndex = _tabs.IndexOf(_dragTab);
+        if (currentIndex < 0) { AbortDrag(); return; }
+        _tabDragFromIndex = currentIndex;
         _tabIsDragging = true;
-        _tabDropInsertIndex = tabIndex;
-        _dragOffsetX = 0;
-        GetTabPanel()?.BeginDrag(tabIndex);
+        _tabDropInsertIndex = currentIndex;
+        GetTabPanel()?.BeginDrag(currentIndex, panelPos);
         TabStrip.CaptureMouse();
     }
 
@@ -853,13 +859,17 @@ public partial class MainWindow
         GetTabPanel()?.EndDrag();
         HideGhostPreview();
 
-        var from = _tabDragFromIndex;
         var to = _tabDropInsertIndex;
-        if (from >= 0 && to >= 0 && from != to)
+        if (_dragTab is not null && to >= 0 && to < _tabs.Count)
         {
-            _tabs.Move(from, to);
+            var from = _tabs.IndexOf(_dragTab);
+            if (from >= 0 && from != to)
+            {
+                _tabs.Move(from, to);
+            }
         }
 
+        _dragTab = null;
         _tabDragFromIndex = -1;
         _tabDropInsertIndex = -1;
         _tabIsDragging = false;
@@ -870,6 +880,7 @@ public partial class MainWindow
     {
         GetTabPanel()?.AbortDrag();
         HideGhostPreview();
+        _dragTab = null;
         _tabDragFromIndex = -1;
         _tabDropInsertIndex = -1;
         _tabIsDragging = false;
@@ -878,7 +889,10 @@ public partial class MainWindow
 
     private void ShowGhostPreview(Point windowPos)
     {
-        var tab = _tabs[_tabDragFromIndex];
+        var tab = _dragTab;
+        if (tab is null && _tabDragFromIndex >= 0 && _tabDragFromIndex < _tabs.Count)
+            tab = _tabs[_tabDragFromIndex];
+        if (tab is null) return;
         var screenPos = PointToScreen(windowPos);
 
         if (_ghostWindow is null)

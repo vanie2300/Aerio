@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -7,58 +6,68 @@ namespace TabloidBrowser;
 
 public class AnimatedTabPanel : Panel
 {
-    private readonly Dictionary<UIElement, TranslateTransform> _transforms = [];
+    private TranslateTransform? _dragTransform;
     private int _dragIndex = -1;
     private int _insertIndex = -1;
-    private Point _lastIndexChangePos;
     private double _tabWidth = 210;
+    private double _grabOffset;
 
-    public void BeginDrag(int tabIndex)
+    public void BeginDrag(int tabIndex, Point panelPos)
     {
         _dragIndex = tabIndex;
         _insertIndex = tabIndex;
-        _lastIndexChangePos = new Point(double.MinValue, 0);
-        foreach (var kv in _transforms)
-            kv.Value.X = 0;
+        _dragTransform = new TranslateTransform();
         if (GetChild(tabIndex) is { } child)
+        {
+            child.RenderTransform = _dragTransform;
             SetZIndex(child, 1000);
+            var m = (child as FrameworkElement)?.Margin ?? new Thickness();
+            _grabOffset = panelPos.X - (tabIndex * _tabWidth + m.Left);
+        }
+        InvalidateArrange();
     }
 
-    public void UpdateInsertion(int dragIndex, int insertIndex, double dragOffsetX, Point panelPos)
+    public void UpdateInsertion(int dragIndex, int insertIndex, Point panelPos)
     {
         _dragIndex = dragIndex;
         if (_insertIndex != insertIndex)
         {
-            if (Math.Abs(panelPos.X - _lastIndexChangePos.X) > 5)
-            {
-                _lastIndexChangePos = panelPos;
-                _insertIndex = insertIndex;
-                RecomputeTargets();
-            }
+            _insertIndex = insertIndex;
+            InvalidateArrange();
         }
-        var child = GetChild(dragIndex);
-        if (child is not null && _transforms.TryGetValue(child, out var dt))
-            dt.X = dragOffsetX;
+        if (_dragTransform is not null)
+        {
+            var m = (GetChild(dragIndex) as FrameworkElement)?.Margin ?? new Thickness();
+            double arrangedX = _insertIndex * _tabWidth + m.Left;
+            _dragTransform.BeginAnimation(TranslateTransform.XProperty, null);
+            _dragTransform.X = panelPos.X - arrangedX - _grabOffset;
+        }
     }
 
     public void EndDrag()
     {
         if (GetChild(_dragIndex) is { } child)
+        {
             SetZIndex(child, 0);
-        foreach (var kv in _transforms)
-            kv.Value.X = 0;
+            child.RenderTransform = null;
+        }
+        _dragTransform = null;
         _dragIndex = -1;
         _insertIndex = -1;
+        InvalidateArrange();
     }
 
     public void AbortDrag()
     {
         if (GetChild(_dragIndex) is { } child)
+        {
             SetZIndex(child, 0);
-        foreach (var kv in _transforms)
-            kv.Value.X = 0;
+            child.RenderTransform = null;
+        }
+        _dragTransform = null;
         _dragIndex = -1;
         _insertIndex = -1;
+        InvalidateArrange();
     }
 
     public int GetInsertIndex(Point panelPos)
@@ -68,18 +77,14 @@ public class AnimatedTabPanel : Panel
 
         for (int i = 0; i < Children.Count; i++)
         {
-            var child = Children[i];
             if (i == _dragIndex)
-            {
                 continue;
-            }
 
-            var m = (child as FrameworkElement)?.Margin ?? new Thickness();
-            double leftEdge = accumulatedX + m.Left +
-                (_transforms.TryGetValue(child, out var t) ? t.X : 0);
-            double midpoint = leftEdge + _tabWidth / 2;
+            var m = (Children[i] as FrameworkElement)?.Margin ?? new Thickness();
+            double leftEdge = accumulatedX + m.Left;
+            double rightEdge = leftEdge + _tabWidth;
 
-            if (panelPos.X < midpoint)
+            if (panelPos.X < rightEdge)
                 return visualIdx;
 
             visualIdx++;
@@ -93,38 +98,6 @@ public class AnimatedTabPanel : Panel
         if (index >= 0 && index < Children.Count)
             return Children[index];
         return null;
-    }
-
-    private void RecomputeTargets()
-    {
-        if (_dragIndex < 0 || _insertIndex < 0) return;
-        double step = GetTabStep();
-
-        for (int i = 0; i < Children.Count; i++)
-        {
-            var child = Children[i];
-            if (i == _dragIndex)
-                continue;
-
-            double target = 0;
-            if (_dragIndex < _insertIndex)
-            {
-                if (i > _dragIndex && i <= _insertIndex)
-                    target = -step;
-            }
-            else
-            {
-                if (i >= _insertIndex && i < _dragIndex)
-                    target = step;
-            }
-
-            GetOrCreateTransform(child).X = target;
-        }
-    }
-
-    private double GetTabStep()
-    {
-        return _tabWidth > 0 ? _tabWidth : 210;
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -147,47 +120,50 @@ public class AnimatedTabPanel : Panel
         _tabWidth = Math.Clamp(availableForTabs / tabCount, minTabWidth, maxTabWidth);
 
         var constraint = new Size(_tabWidth, availableSize.Height);
-        double totalWidth = _tabWidth * tabCount;
         foreach (UIElement child in Children)
         {
             child.Measure(constraint);
         }
 
-        return new Size(totalWidth + totalMargin, availableSize.Height);
+        return new Size(_tabWidth * tabCount + totalMargin, availableSize.Height);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        double x = 0;
         double availableHeight = finalSize.Height;
 
-        foreach (UIElement child in Children)
+        if (_dragIndex < 0)
         {
+            double x = 0;
+            foreach (UIElement child in Children)
+            {
+                var m = (child as FrameworkElement)?.Margin ?? new Thickness();
+                child.Arrange(new Rect(x + m.Left, m.Top, Math.Max(0, _tabWidth), Math.Max(0, availableHeight - m.Top - m.Bottom)));
+                x += _tabWidth;
+            }
+            return new Size(x, finalSize.Height);
+        }
+
+        for (int i = 0; i < Children.Count; i++)
+        {
+            if (i == _dragIndex) continue;
+
+            var child = Children[i];
             var m = (child as FrameworkElement)?.Margin ?? new Thickness();
-            double arrangeX = x + m.Left;
-            double childHeight = availableHeight - m.Top - m.Bottom;
 
-            GetOrCreateTransform(child);
+            int visualIdx = i > _dragIndex ? i - 1 : i;
+            double arrangeX = (visualIdx >= _insertIndex ? visualIdx + 1 : visualIdx) * _tabWidth + m.Left;
 
-            child.Arrange(new Rect(arrangeX, m.Top, Math.Max(0, _tabWidth), Math.Max(0, childHeight)));
-            x += _tabWidth;
+            child.Arrange(new Rect(arrangeX, m.Top, Math.Max(0, _tabWidth), Math.Max(0, availableHeight - m.Top - m.Bottom)));
         }
 
-        return new Size(x, finalSize.Height);
-    }
-
-    private TranslateTransform GetOrCreateTransform(UIElement child)
-    {
-        if (_transforms.TryGetValue(child, out var t))
-            return t;
-
-        t = child.RenderTransform as TranslateTransform;
-        if (t is null)
+        if (GetChild(_dragIndex) is { } draggedChild)
         {
-            t = new TranslateTransform();
-            child.RenderTransform = t;
+            var m = (draggedChild as FrameworkElement)?.Margin ?? new Thickness();
+            double arrangeX = _insertIndex * _tabWidth + m.Left;
+            draggedChild.Arrange(new Rect(arrangeX, m.Top, Math.Max(0, _tabWidth), Math.Max(0, availableHeight - m.Top - m.Bottom)));
         }
-        _transforms[child] = t;
-        return t;
+
+        return new Size(_tabWidth * Children.Count, finalSize.Height);
     }
 }
