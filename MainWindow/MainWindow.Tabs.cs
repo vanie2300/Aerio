@@ -39,6 +39,16 @@ public partial class MainWindow
     private AnimatedTabPanel? _tabPanel;
     private const double TabDragThreshold = 6.0;
 
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out Win32Point lpPoint);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Win32Point
+    {
+        public int X;
+        public int Y;
+    }
+
     private BrowserTab? _splitPrimaryTab;
     private BrowserTab? _splitSecondaryTab;
 
@@ -893,8 +903,10 @@ public partial class MainWindow
         if (tab is null && _tabDragFromIndex >= 0 && _tabDragFromIndex < _tabs.Count)
             tab = _tabs[_tabDragFromIndex];
         if (tab is null) return;
-        var mouseInTabStrip = Mouse.GetPosition(TabStrip);
-        var screenPos = TabStrip.PointToScreen(mouseInTabStrip);
+        GetCursorPos(out var pt);
+        var source = PresentationSource.FromVisual(this);
+        var toWpf = source?.CompositionTarget?.TransformFromDevice;
+        var wpfPos = toWpf?.Transform(new Point(pt.X, pt.Y)) ?? new Point(pt.X, pt.Y);
 
         if (_ghostWindow is null)
         {
@@ -938,15 +950,15 @@ public partial class MainWindow
                 WindowStartupLocation = WindowStartupLocation.Manual,
                 Background = Brushes.Transparent
             };
-            _ghostWindow.Left = screenPos.X - 75;
-            _ghostWindow.Top = screenPos.Y - 15;
+            _ghostWindow.Left = wpfPos.X - 75;
+            _ghostWindow.Top = wpfPos.Y - 15;
             _ghostWindow.Show();
         }
         else
         {
             ((TextBlock)((Border)_ghostWindow.Content).Child).Text = tab.Title;
-            _ghostWindow.Left = screenPos.X - 75;
-            _ghostWindow.Top = screenPos.Y - 15;
+            _ghostWindow.Left = wpfPos.X - 75;
+            _ghostWindow.Top = wpfPos.Y - 15;
         }
     }
 
