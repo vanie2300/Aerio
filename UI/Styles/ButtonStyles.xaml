@@ -1,0 +1,311 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style TargetType="Button">
+      <Setter Property="Foreground" Value="{DynamicResource Text}" />
+      <Setter Property="Background" Value="{DynamicResource ButtonBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinWidth" Value="28" />
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="TemplateRoot"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="6"
+                    RenderTransformOrigin="0.5,0.5">
+              <Border.RenderTransform>
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+              </Border.RenderTransform>
+              <Grid>
+                <Border x:Name="HoverOverlay"
+                        Background="{DynamicResource ButtonHover}"
+                        CornerRadius="6"
+                        Opacity="0" />
+                <Border x:Name="PressedOverlay"
+                        Background="{DynamicResource ButtonPressed}"
+                        CornerRadius="6"
+                        Opacity="0" />
+                <ContentPresenter HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Margin="{TemplateBinding Padding}" />
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource Cyan}" />
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="HoverOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="1" Duration="0:0:0.1" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                       To="1.05" Duration="0:0:0.12"
+                                       EasingFunction="{StaticResource SpringEase}" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                       To="1.05" Duration="0:0:0.12"
+                                       EasingFunction="{StaticResource SpringEase}" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="HoverOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="0" Duration="0:0:0.2" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                       To="1" Duration="0:0:0.2"
+                                       EasingFunction="{StaticResource SpringEase}" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                       To="1" Duration="0:0:0.2"
+                                       EasingFunction="{StaticResource SpringEase}" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="PressedOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="1" Duration="0:0:0.05" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                       To="0.95" Duration="0:0:0.05" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                       To="0.95" Duration="0:0:0.05" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="PressedOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="0" Duration="0:0:0.2" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                       To="1" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                       To="1" Duration="0:0:0.15" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.32" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="ToggleButton">
+      <Setter Property="Foreground" Value="{DynamicResource Text}" />
+      <Setter Property="Background" Value="{DynamicResource ButtonBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="TemplateRoot"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="6"
+                    RenderTransformOrigin="0.5,0.5">
+              <Border.RenderTransform>
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+              </Border.RenderTransform>
+              <Grid>
+                <Border x:Name="HoverOverlay"
+                        Background="{DynamicResource ButtonHover}"
+                        CornerRadius="6"
+                        Opacity="0" />
+                <Border x:Name="CheckedOverlay"
+                        Background="{DynamicResource ButtonPressed}"
+                        CornerRadius="6"
+                        Opacity="0" />
+                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  Margin="{TemplateBinding Padding}" />
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource Cyan}" />
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="HoverOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="1" Duration="0:0:0.1" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                       To="1.04" Duration="0:0:0.12"
+                                       EasingFunction="{StaticResource SpringEase}" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                       To="1.04" Duration="0:0:0.12"
+                                       EasingFunction="{StaticResource SpringEase}" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="HoverOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="0" Duration="0:0:0.2" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                       To="1" Duration="0:0:0.2"
+                                       EasingFunction="{StaticResource SpringEase}" />
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                       To="1" Duration="0:0:0.2"
+                                       EasingFunction="{StaticResource SpringEase}" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource Cyan}" />
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="CheckedOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="1" Duration="0:0:0.12" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="CheckedOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="0" Duration="0:0:0.2" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.45" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="28" />
+    </Style>
+
+    <Style x:Key="MicroButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Height" Value="26" />
+      <Setter Property="MinWidth" Value="38" />
+      <Setter Property="Padding" Value="8,0" />
+    </Style>
+
+    <Style x:Key="TitleBarButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="41" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <Style x:Key="CloseTitleBarButton" TargetType="Button" BasedOn="{StaticResource TitleBarButton}">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border Background="{TemplateBinding Background}">
+              <Grid>
+                <Border x:Name="HoverOverlay"
+                        CornerRadius="0"
+                        Opacity="0">
+                  <Border.Background>
+                    <SolidColorBrush Color="#C42B1C" />
+                  </Border.Background>
+                </Border>
+                <Border x:Name="PressedOverlay"
+                        CornerRadius="0"
+                        Opacity="0">
+                  <Border.Background>
+                    <SolidColorBrush Color="#A4261D" />
+                  </Border.Background>
+                </Border>
+                <ContentPresenter HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="HoverOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="1" Duration="0:0:0.1" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="HoverOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="0" Duration="0:0:0.15" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="PressedOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="1" Duration="0:0:0.05" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="PressedOverlay"
+                                       Storyboard.TargetProperty="Opacity"
+                                       To="0" Duration="0:0:0.15" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+
+</ResourceDictionary>

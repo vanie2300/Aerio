@@ -165,7 +165,74 @@ public partial class MainWindow : Window
         var snapLayoutEnabled = 1;
         var hr = DwmSetWindowAttribute(hwnd, DWMWA_SNAP_LAYOUT, ref snapLayoutEnabled, 4u);
         if (hr != 0) Debug.WriteLine($"DwmSetWindowAttribute failed: 0x{hr:X8}");
-        TabStrip.ItemsSource = _tabs;
+        TitleBar.TabStrip.ItemsSource = _tabs;
+        TitleBar.NewTab += NewTab_Click;
+        TitleBar.TabSplit += SplitTab_Click;
+        TitleBar.TabPopOut += PopOutTab_Click;
+        TitleBar.MuteToggle += MuteButton_Click;
+        TitleBar.TabClose += CloseTab_Click;
+        TitleBar.Minimize += Minimize_Click;
+        TitleBar.MaximizeRestore += MaximizeRestore_Click;
+        TitleBar.CloseWindow += CloseWindow_Click;
+        TitleBar.TabMouseDown += Tab_MouseLeftButtonDown;
+        TitleBar.TabStripMouseDown += TabStrip_PreviewMouseLeftButtonDown;
+        TitleBar.TabStripMouseMove += TabStrip_PreviewMouseMove;
+        TitleBar.TabStripMouseUp += TabStrip_PreviewMouseLeftButtonUp;
+        TitleBar.TabStripLostCapture += TabStrip_LostMouseCapture;
+        TitleBar.TitleBarMouseDown += TitleBar_PreviewMouseLeftButtonDown;
+        TitleBar.TitleBarMouseMove += TitleBar_PreviewMouseMove;
+        TitleBar.TitleBarMouseUp += TitleBar_PreviewMouseLeftButtonUp;
+        FindBar.FindPrevBtn.Click += FindPrev_Click;
+        FindBar.FindNextBtn.Click += FindNext_Click;
+        FindBar.FindCloseBtn.Click += FindClose_Click;
+        FindBar.FindTextBox.TextChanged += FindTextBox_TextChanged;
+        FindBar.FindTextBox.PreviewKeyDown += FindTextBox_PreviewKeyDown;
+        FindBar.FindDragGrip.PreviewMouseLeftButtonDown += FindDragGrip_MouseLeftButtonDown;
+        FindBar.FindDragGrip.PreviewMouseMove += FindDragGrip_MouseMove;
+        FindBar.FindDragGrip.PreviewMouseLeftButtonUp += FindDragGrip_MouseLeftButtonUp;
+        NavToolbar.Back += Back_Click;
+        NavToolbar.Forward += Forward_Click;
+        NavToolbar.Reload += Reload_Click;
+        NavToolbar.Home += Home_Click;
+        NavToolbar.Privacy += Privacy_Click;
+        NavToolbar.AddressKeyDown += AddressBox_PreviewKeyDown;
+        NavToolbar.Go += Go_Click;
+        NavToolbar.Bookmark += Bookmark_Click;
+        NavToolbar.ReaderMode += ReaderMode_Click;
+        NavToolbar.Private += Private_Click;
+        NavToolbar.SleepTabs += SleepTabs_Click;
+        NavToolbar.AiToggle += AiToggle_Click;
+        NavToolbar.Menu += Menu_Click;
+        NavToolbar.NewTab += NewTab_Click;
+        NavToolbar.FullScreen += FullScreen_Click;
+        NavToolbar.ForceDarkChecked += ForceDarkMenu_Checked;
+        NavToolbar.ForceDarkUnchecked += ForceDarkMenu_Unchecked;
+        NavToolbar.FindInPage += FindInPage_Click;
+        NavToolbar.Print += Print_Click;
+        NavToolbar.ShowBookmarks += ShowBookmarks_Click;
+        NavToolbar.ShowHistory += ShowHistory_Click;
+        NavToolbar.ShowDownloads += ShowDownloads_Click;
+        NavToolbar.ShowExtensions += ShowExtensions_Click;
+        NavToolbar.ZoomIn += ZoomIn_Click;
+        NavToolbar.ZoomOut += ZoomOut_Click;
+        NavToolbar.ResetZoom += ResetZoom_Click;
+        NavToolbar.ClearData += ClearData_Click;
+        NavToolbar.SiteData += SiteData_Click;
+        NavToolbar.UblockToggle += UblockToggle_Click;
+        NavToolbar.ShowSettings += ShowSettings_Click;
+        BrowserPane.StartSearchSurfaceMouseDown += StartSearchSurface_PreviewMouseDown;
+        BrowserPane.StartSearchKeyDown += StartSearchBox_PreviewKeyDown;
+        BrowserPane.StartSearchGo += StartSearchGo_Click;
+        BrowserPane.QuickDuckDuckGo += QuickDuckDuckGo_Click;
+        BrowserPane.QuickStartpage += QuickStartpage_Click;
+        BrowserPane.QuickGitHub += QuickGitHub_Click;
+        BrowserPane.QuickHackerNews += QuickHackerNews_Click;
+        BrowserPane.FocusSplitTab += FocusSplitTab_Click;
+        BrowserPane.CloseSplit += CloseSplit_Click;
+        AiSidebar.AiClearChat += AiClearChat_Click;
+        AiSidebar.AiSidebarClose += AiSidebarClose_Click;
+        AiSidebar.AiSend += AiSend_Click;
+        AiSidebar.AiInputKeyDown += AiInput_PreviewKeyDown;
         PreviewKeyDown += MainWindow_PreviewKeyDown;
         _sleepTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _sleepTimer.Tick += SleepTimer_Tick;
@@ -173,7 +240,7 @@ public partial class MainWindow : Window
 
         _startBgTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
         _startBgTimer.Tick += StartBgTimer_Tick;
-        StartBgCanvas.SizeChanged += StartBg_SizeChanged;
+        BrowserPane.StartBgCanvas.SizeChanged += StartBg_SizeChanged;
 
         ApplySettings();
         ApplyWindowMode();
@@ -343,7 +410,7 @@ public partial class MainWindow : Window
 
     private void ApplySettings()
     {
-        QuickLinksPanel.Visibility = _dataStore.Settings.ShowQuickLinks ? Visibility.Visible : Visibility.Collapsed;
+        BrowserPane.QuickLinksPanel.Visibility = _dataStore.Settings.ShowQuickLinks ? Visibility.Visible : Visibility.Collapsed;
         ApplyTheme();
         ApplyBackground();
         UpdatePrivacyIndicator();
@@ -425,18 +492,18 @@ public partial class MainWindow : Window
 
         if (string.Equals(bg, "Default", StringComparison.OrdinalIgnoreCase))
         {
-            StartBgCanvas.Visibility = Visibility.Visible;
-            StartOverlay.ClearValue(BackgroundProperty);
+            BrowserPane.StartBgCanvas.Visibility = Visibility.Visible;
+            BrowserPane.StartOverlay.ClearValue(BackgroundProperty);
             _startBgTimer?.Start();
             return;
         }
 
         _startBgTimer?.Stop();
-        StartBgCanvas.Visibility = Visibility.Collapsed;
+        BrowserPane.StartBgCanvas.Visibility = Visibility.Collapsed;
 
         if (File.Exists(bg))
         {
-            StartOverlay.Background = new ImageBrush(new BitmapImage(new Uri(bg)))
+            BrowserPane.StartOverlay.Background = new ImageBrush(new BitmapImage(new Uri(bg)))
             {
                 Stretch = Stretch.UniformToFill,
                 Opacity = _dataStore.Settings.BackgroundOpacity
@@ -444,7 +511,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        StartOverlay.ClearValue(BackgroundProperty);
+        BrowserPane.StartOverlay.ClearValue(BackgroundProperty);
     }
 
     private void SplitTab_Click(object sender, RoutedEventArgs e)

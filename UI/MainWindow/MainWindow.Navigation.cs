@@ -33,15 +33,15 @@ public partial class MainWindow
 
     private void RenderNativeSurface(BrowserTab tab, bool forceRebuild = false)
     {
-        WebViewHost.Children.Clear();
-        WebViewHost.Visibility = Visibility.Hidden;
-        LoadingOverlay.Visibility = Visibility.Collapsed;
+        BrowserPane.WebViewHost.Children.Clear();
+        BrowserPane.WebViewHost.Visibility = Visibility.Hidden;
+        BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
 
         if (tab.Kind == BrowserTabKind.Start)
         {
-            InternalPageHost.Visibility = Visibility.Collapsed;
-            StartOverlay.Visibility = Visibility.Visible;
-            StartSearchBox.Text = string.Empty;
+            BrowserPane.InternalPageHost.Visibility = Visibility.Collapsed;
+            BrowserPane.StartOverlay.Visibility = Visibility.Visible;
+            BrowserPane.StartSearchBox.Text = string.Empty;
             FocusStartSearchIfActive();
             if (_dataStore.Settings.Background == "Default")
                 _startBgTimer?.Start();
@@ -49,15 +49,15 @@ public partial class MainWindow
         }
 
         _startBgTimer?.Stop();
-        StartOverlay.Visibility = Visibility.Collapsed;
-        InternalPageHost.Visibility = Visibility.Visible;
-        InternalPageHost.Children.Clear();
+        BrowserPane.StartOverlay.Visibility = Visibility.Collapsed;
+        BrowserPane.InternalPageHost.Visibility = Visibility.Visible;
+        BrowserPane.InternalPageHost.Children.Clear();
 
         UIElement page;
         if (!forceRebuild && tab.CachedContent is not null)
         {
             page = tab.CachedContent;
-            InternalPageHost.Children.Add(page);
+            BrowserPane.InternalPageHost.Children.Add(page);
             if (tab.NativeScrollY > 0 && FindChild<ScrollViewer>(page) is { } scroll)
             {
                 Dispatcher.BeginInvoke(
@@ -68,13 +68,13 @@ public partial class MainWindow
         else
         {
             page = BuildNativePage(tab);
-            InternalPageHost.Children.Add(page);
+            BrowserPane.InternalPageHost.Children.Add(page);
         }
 
         page.Opacity = 0;
         Dispatcher.BeginInvoke(() =>
         {
-            if (!InternalPageHost.Children.Contains(page)) return;
+            if (!BrowserPane.InternalPageHost.Children.Contains(page)) return;
             var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15))
             {
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
@@ -135,13 +135,13 @@ public partial class MainWindow
             if (!tab.IsWebViewInitialized && tab.WebView is not null)
             {
                 tab.RunCleanup();
-                WebViewHost.Children.Remove(tab.WebView);
+                BrowserPane.WebViewHost.Children.Remove(tab.WebView);
                 tab.WebView.Dispose();
                 tab.WebView = null;
             }
 
             tab.IsLoading = false;
-            StatusText.Text = $"Navigation failed: {ex.Message}";
+            StatusBar.StatusText.Text = $"Navigation failed: {ex.Message}";
 
             if (_activeTab == tab)
             {
@@ -370,7 +370,7 @@ public partial class MainWindow
             var tab = _activeTab;
             if (tab is not null)
             {
-                await NavigateWebAsync(tab, AddressBox.Text);
+                await NavigateWebAsync(tab, NavToolbar.AddressBox.Text);
                 Keyboard.ClearFocus();
             }
         }
@@ -397,8 +397,8 @@ public partial class MainWindow
             return;
         }
 
-        StartSearchBox.Focus();
-        Keyboard.Focus(StartSearchBox);
+        BrowserPane.StartSearchBox.Focus();
+        Keyboard.Focus(BrowserPane.StartSearchBox);
         e.Handled = true;
     }
 
@@ -409,7 +409,7 @@ public partial class MainWindow
             var tab = _activeTab;
             if (tab is not null)
             {
-                await NavigateWebAsync(tab, StartSearchBox.Text);
+                await NavigateWebAsync(tab, BrowserPane.StartSearchBox.Text);
                 Keyboard.ClearFocus();
             }
         }

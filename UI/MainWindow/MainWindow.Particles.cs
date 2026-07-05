@@ -62,11 +62,11 @@ public partial class MainWindow
 
     private void InitBgParticles()
     {
-        var w = StartBgCanvas.ActualWidth;
-        var h = StartBgCanvas.ActualHeight;
+        var w = BrowserPane.StartBgCanvas.ActualWidth;
+        var h = BrowserPane.StartBgCanvas.ActualHeight;
         if (w <= 0 || h <= 0) return;
 
-        StartBgCanvas.Children.Clear();
+        BrowserPane.StartBgCanvas.Children.Clear();
 
         var rng = new Random();
         var count = Math.Min(100, Math.Max(30, (int)(w / 6)));
@@ -131,13 +131,13 @@ public partial class MainWindow
         _bgInitialized = true;
 
         foreach (var (_, _, line) in _bgGlowConnections)
-            StartBgCanvas.Children.Add(line);
+            BrowserPane.StartBgCanvas.Children.Add(line);
         foreach (var (_, _, line, _) in _bgConnections)
-            StartBgCanvas.Children.Add(line);
+            BrowserPane.StartBgCanvas.Children.Add(line);
         foreach (var p in _bgParticles)
         {
-            StartBgCanvas.Children.Add(p.GlowVisual);
-            StartBgCanvas.Children.Add(p.Visual);
+            BrowserPane.StartBgCanvas.Children.Add(p.GlowVisual);
+            BrowserPane.StartBgCanvas.Children.Add(p.Visual);
         }
     }
 
@@ -151,8 +151,8 @@ public partial class MainWindow
                 if (!_bgInitialized) return;
             }
 
-            var w = StartBgCanvas.ActualWidth;
-            var h = StartBgCanvas.ActualHeight;
+            var w = BrowserPane.StartBgCanvas.ActualWidth;
+            var h = BrowserPane.StartBgCanvas.ActualHeight;
             if (w <= 0 || h <= 0) return;
 
             var particles = _bgParticles;

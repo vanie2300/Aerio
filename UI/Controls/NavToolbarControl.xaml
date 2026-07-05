@@ -1,0 +1,284 @@
+<UserControl x:Class="TabloidBrowser.NavToolbarControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Border Background="{DynamicResource ChromeBg}"
+          BorderBrush="{DynamicResource SubtleStroke}"
+          BorderThickness="0,0,0,1">
+    <Grid Margin="6,5,6,7">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="29" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <StackPanel Grid.Row="0"
+                  Grid.Column="0"
+                  Orientation="Horizontal"
+                  VerticalAlignment="Center"
+                  Margin="0,0,8,0">
+        <Button x:Name="BackButton"
+                Content="&#xE72B;"
+                Click="Back_Click"
+                Style="{StaticResource IconButton}"
+                BorderBrush="{DynamicResource SubtleStroke}"
+                ToolTip="Back" />
+        <Button x:Name="ForwardButton"
+                Content="&#xE72A;"
+                Click="Forward_Click"
+                Style="{StaticResource IconButton}"
+                Margin="2,0,0,0"
+                ToolTip="Forward" />
+        <Button x:Name="ReloadButton"
+                Content="&#xE72C;"
+                Click="Reload_Click"
+                Style="{StaticResource IconButton}"
+                Margin="2,0,0,0"
+                ToolTip="Reload" />
+        <Button x:Name="HomeButton"
+                Content="&#xE80F;"
+                Click="Home_Click"
+                Style="{StaticResource IconButton}"
+                Margin="2,0,0,0"
+                ToolTip="Start page" />
+      </StackPanel>
+
+      <Border Grid.Row="0"
+              Grid.Column="1"
+              Margin="0,0,8,0"
+              Background="{DynamicResource InputBg}"
+              BorderThickness="3,0,0,0"
+              BorderBrush="#555555"
+              CornerRadius="0,7,7,0"
+              Height="27"
+              VerticalAlignment="Center">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <Button x:Name="PrivacyButton"
+                  Grid.Column="0"
+                  Content="&#xE83D;"
+                  Click="Privacy_Click"
+                  Style="{StaticResource IconButton}"
+                  Foreground="{DynamicResource Lime}"
+                  FontSize="14"
+                  BorderThickness="0"
+                  ToolTip="Privacy permissions" />
+          <TextBlock Grid.Column="1"
+                      Text="&#xE721;"
+                      FontFamily="Segoe MDL2 Assets"
+                      Foreground="{DynamicResource Muted}"
+                      Margin="8,0,4,0"
+                      VerticalAlignment="Center"
+                      FontSize="13" />
+          <TextBox x:Name="AddressBox"
+                   Grid.Column="2"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Foreground="{DynamicResource Text}"
+                   CaretBrush="{DynamicResource Cyan}"
+                   FontSize="12.5"
+                   Padding="0,5,8,0"
+                   PreviewKeyDown="AddressBox_PreviewKeyDown" />
+          <Button x:Name="GoBtn"
+                  Grid.Column="3"
+                  Content="Go"
+                  Click="Go_Click"
+                  IsDefault="True"
+                  Style="{StaticResource MicroButton}"
+                  BorderBrush="{DynamicResource SubtleStroke}"
+                  Margin="0,2,3,2"
+                  Height="21"
+                  ToolTip="Go to address" />
+        </Grid>
+      </Border>
+
+      <StackPanel Grid.Row="0"
+                  Grid.Column="2"
+                  Orientation="Horizontal"
+                  VerticalAlignment="Center">
+        <Button x:Name="BookmarkButton"
+                Content="&#xE734;"
+                Click="Bookmark_Click"
+                Style="{StaticResource IconButton}"
+                BorderBrush="{DynamicResource Pink}"
+                ToolTip="Add bookmark"
+                Visibility="Visible" />
+        <Button x:Name="ReaderButton"
+                Content="&#xE8B9;"
+                Click="ReaderMode_Click"
+                Style="{StaticResource IconButton}"
+                Margin="4,0,0,0"
+                ToolTip="Toggle reader mode"
+                Visibility="Collapsed" />
+        <Button x:Name="PrivateButton"
+                Content="PVT"
+                Click="Private_Click"
+                Style="{StaticResource MicroButton}"
+                BorderBrush="{DynamicResource Pink}"
+                Margin="4,0,0,0"
+                ToolTip="Open private window"
+                Visibility="Collapsed" />
+        <Button x:Name="MemoryButton"
+                Content="RAM"
+                Click="SleepTabs_Click"
+                Style="{StaticResource MicroButton}"
+                BorderBrush="{DynamicResource SubtleStroke}"
+                Margin="4,0,0,0"
+                ToolTip="Click to hibernate all inactive tabs"
+                Visibility="Visible">
+          <Button.RenderTransform>
+            <ScaleTransform ScaleX="1" ScaleY="1" />
+          </Button.RenderTransform>
+          <Button.RenderTransformOrigin>
+            <Point X="0.5" Y="0.5" />
+          </Button.RenderTransformOrigin>
+        </Button>
+        <Button x:Name="AiToggleButton"
+                Content="AI"
+                Click="AiToggle_Click"
+                Style="{StaticResource MicroButton}"
+                BorderBrush="{DynamicResource SubtleStroke}"
+                Margin="4,0,0,0"
+                ToolTip="Toggle AI chat sidebar"
+                Visibility="Visible" />
+        <Button x:Name="MenuButton"
+                Content="&#xE712;"
+                Click="Menu_Click"
+                Style="{StaticResource IconButton}"
+                Margin="4,0,0,0"
+                ToolTip="Menu">
+          <Button.ContextMenu>
+            <ContextMenu x:Name="BrowserMenu"
+                         Style="{StaticResource BrowserContextMenuStyle}"
+                         Placement="Bottom">
+              <MenuItem Header="&#xE710;  New tab"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="NewTab_Click" />
+              <Separator Style="{StaticResource BrowserMenuSeparatorStyle}" />
+              <MenuItem Header="&#xE72B;  Back"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="Back_Click" />
+              <MenuItem Header="&#xE72A;  Forward"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="Forward_Click" />
+              <MenuItem Header="&#xE72C;  Reload"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="Reload_Click" />
+              <MenuItem Header="&#xE8B9;  Reader mode"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        IsCheckable="True"
+                        x:Name="ReaderModeMenuItem"
+                        Click="ReaderMode_Click"
+                        Visibility="Collapsed" />
+              <MenuItem Header="&#xE740;  Full screen"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="FullScreen_Click" />
+              <Separator Style="{StaticResource BrowserMenuSeparatorStyle}" />
+              <MenuItem Header="&#xE80F;  Home (start page)"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="Home_Click" />
+              <MenuItem Header="&#xE734;  Bookmark this page"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="Bookmark_Click" />
+              <MenuItem x:Name="ForceDarkMenuItem"
+                        Header="&#xE7B8;  Force dark page"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        IsCheckable="True"
+                        Checked="ForceDarkMenu_Checked"
+                        Unchecked="ForceDarkMenu_Unchecked" />
+              <MenuItem Header="&#xE81E;  Find in page"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="FindInPage_Click" />
+              <MenuItem Header="&#xE914;  Print"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="Print_Click" />
+              <MenuItem Header="&#xE8A4;  Library"
+                        Style="{StaticResource BrowserMenuItemStyle}">
+                <MenuItem Header="&#xE8A4;  Bookmarks"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="ShowBookmarks_Click" />
+                <MenuItem Header="&#xE81C;  History"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="ShowHistory_Click" />
+                <MenuItem Header="&#xE896;  Downloads"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="ShowDownloads_Click" />
+                <MenuItem Header="&#xE7B9;  Extensions"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="ShowExtensions_Click" />
+              </MenuItem>
+              <MenuItem Header="&#xE790;  Zoom"
+                        Style="{StaticResource BrowserMenuItemStyle}">
+                <MenuItem Header="&#xE7A1;  Zoom in"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="ZoomIn_Click" />
+                <MenuItem Header="&#xE7A0;  Zoom out"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="ZoomOut_Click" />
+                <MenuItem Header="&#xE777;  Reset zoom"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="ResetZoom_Click" />
+              </MenuItem>
+              <MenuItem Header="&#xE77B;  Privacy &amp; data"
+                        Style="{StaticResource BrowserMenuItemStyle}">
+                <MenuItem Header="&#xE83D;  Privacy settings"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="Privacy_Click" />
+                <MenuItem Header="&#xE708;  Open private window"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="Private_Click" />
+                <MenuItem Header="&#xE75C;  Clear browsing data"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="ClearData_Click" />
+                <MenuItem Header="&#xE825;  Cookies &amp; site data"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="SiteData_Click" />
+                <Separator Style="{StaticResource BrowserMenuSeparatorStyle}" />
+                <MenuItem x:Name="UblockMenuItem"
+                          Header="&#xE7B9;  uBlock Origin"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          IsCheckable="True"
+                          Click="UblockToggle_Click" />
+              </MenuItem>
+              <MenuItem Header="&#xE8B2;  Tools"
+                        Style="{StaticResource BrowserMenuItemStyle}">
+                <MenuItem Header="&#xE90D;  Hibernate inactive tabs"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="SleepTabs_Click" />
+                <MenuItem Header="&#xE710;  AI Chat"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="AiToggle_Click" />
+              </MenuItem>
+              <Separator Style="{StaticResource BrowserMenuSeparatorStyle}" />
+              <MenuItem Header="&#xE713;  Settings"
+                        Style="{StaticResource BrowserMenuItemStyle}"
+                        Click="ShowSettings_Click" />
+            </ContextMenu>
+          </Button.ContextMenu>
+        </Button>
+      </StackPanel>
+
+      <ScrollViewer x:Name="BookmarkBar"
+                    Grid.Row="1"
+                    Grid.ColumnSpan="3"
+                    HorizontalScrollBarVisibility="Hidden"
+                    VerticalScrollBarVisibility="Disabled"
+                    Height="26"
+                    Margin="0,4,0,0"
+                    Visibility="Collapsed">
+        <StackPanel x:Name="BookmarkBarItems"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center" />
+      </ScrollViewer>
+    </Grid>
+  </Border>
+</UserControl>

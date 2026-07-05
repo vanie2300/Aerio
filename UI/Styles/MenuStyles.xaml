@@ -1,0 +1,163 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style x:Key="BrowserContextMenuStyle" TargetType="ContextMenu">
+      <Setter Property="Background" Value="{DynamicResource ChromeBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="4" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ContextMenu">
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+              <ItemsPresenter />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="BrowserMenuItemStyle" TargetType="MenuItem">
+      <Setter Property="OverridesDefaultStyle" Value="True" />
+      <Setter Property="Foreground" Value="{DynamicResource Text}" />
+      <Setter Property="Background" Value="{DynamicResource ChromeBg}" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="MinWidth" Value="240" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="MenuItem">
+            <Grid SnapsToDevicePixels="True">
+              <Border x:Name="templateRoot"
+                      Background="{TemplateBinding Background}"
+                      Padding="{TemplateBinding Padding}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <ContentPresenter Grid.Column="0"
+                                    ContentSource="Header"
+                                    RecognizesAccessKey="True"
+                                    VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1"
+                             x:Name="SubmenuArrow"
+                             Text="&#xE76C;"
+                             FontFamily="Segoe MDL2 Assets"
+                             FontSize="10"
+                             Foreground="{DynamicResource Muted}"
+                             VerticalAlignment="Center"
+                             Visibility="Collapsed"
+                             Margin="12,0,0,0" />
+                </Grid>
+              </Border>
+              <Popup x:Name="PART_Popup"
+                     AllowsTransparency="True"
+                     IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                     Placement="Right"
+                     HorizontalOffset="-4"
+                     PopupAnimation="{DynamicResource {x:Static SystemParameters.MenuPopupAnimationKey}}">
+                <Border Background="{DynamicResource ChromeBg}"
+                        BorderBrush="{DynamicResource Stroke}"
+                        BorderThickness="1"
+                        Padding="2">
+                  <ScrollViewer Style="{DynamicResource MenuScrollViewerStyle}">
+                    <ItemsPresenter x:Name="ItemsPresenter"
+                                    KeyboardNavigation.DirectionalNavigation="Cycle" />
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="templateRoot" Property="Background" Value="{DynamicResource ButtonHover}" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.45" />
+              </Trigger>
+              <Trigger Property="HasItems" Value="True">
+                <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible" />
+              </Trigger>
+              <Trigger Property="IsSubmenuOpen" Value="True">
+                <Setter TargetName="templateRoot" Property="Background" Value="{DynamicResource ButtonHover}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="BrowserSubMenuItemStyle" TargetType="MenuItem" BasedOn="{StaticResource BrowserMenuItemStyle}">
+      <Setter Property="Padding" Value="18,7,14,7" />
+      <Setter Property="MinWidth" Value="200" />
+    </Style>
+
+    <Style x:Key="BrowserMenuSeparatorStyle" TargetType="Separator">
+      <Setter Property="OverridesDefaultStyle" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Separator">
+            <Border Height="1"
+                    Margin="8,5"
+                    Background="{DynamicResource Stroke}" />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="BrowserSubMenuStyle" TargetType="Menu" BasedOn="{StaticResource {x:Type Menu}}">
+      <Setter Property="Background" Value="{DynamicResource ChromeBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="4" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Menu">
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+              <ItemsPresenter />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="ScrollViewer" x:Key="MenuScrollViewerStyle">
+      <Setter Property="Background" Value="{DynamicResource ChromeBg}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollViewer">
+            <Grid Background="{TemplateBinding Background}">
+              <ScrollContentPresenter Margin="{TemplateBinding Padding}" />
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="MenuItem" x:Key="SubMenuSeparatorStyle">
+      <Setter Property="OverridesDefaultStyle" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Separator">
+            <Border Height="1"
+                    Margin="8,5"
+                    Background="{DynamicResource Stroke}" />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="Popup" x:Key="SubMenuPopupStyle">
+      <Setter Property="AllowsTransparency" Value="True" />
+    </Style>
+
+
+</ResourceDictionary>

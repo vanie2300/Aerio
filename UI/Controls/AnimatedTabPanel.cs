@@ -162,6 +162,11 @@ public class AnimatedTabPanel : Panel
             {
                 EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
             };
+            slide.Completed += (_, _) =>
+            {
+                if (child.RenderTransform == translate)
+                    child.RenderTransform = null;
+            };
             translate.BeginAnimation(TranslateTransform.XProperty, slide);
         }, DispatcherPriority.Loaded);
     }

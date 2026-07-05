@@ -105,7 +105,7 @@ public partial class MainWindow
         (AiSidebar.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, slideX);
 
         _dataStore.SaveSettings(settings with { AiSidebarOpen = true });
-        AiInputBox.Focus();
+        AiSidebar.AiInputBox.Focus();
     }
 
     private Popup? _aiSetupPopup;
@@ -483,7 +483,7 @@ public partial class MainWindow
     {
         try
         {
-            var text = AiInputBox.Text?.Trim();
+            var text = AiSidebar.AiInputBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(text)) return;
 
             var tab = _activeTab;
@@ -492,8 +492,8 @@ public partial class MainWindow
             var settings = _dataStore.Settings;
             if (!settings.AiEnabled) return;
 
-            AiInputBox.IsEnabled = false;
-            AiSendBtn.IsEnabled = false;
+            AiSidebar.AiInputBox.IsEnabled = false;
+            AiSidebar.AiSendBtn.IsEnabled = false;
 
             EnsureAiService(settings);
 
@@ -503,7 +503,7 @@ public partial class MainWindow
             var ct = _aiCts.Token;
 
             AddAiMessage("user", text);
-            AiInputBox.Clear();
+            AiSidebar.AiInputBox.Clear();
 
             AddAiMessage("assistant", "Thinking...", isPlaceholder: true);
 
@@ -512,7 +512,7 @@ public partial class MainWindow
 
             List<ChatMessage> messages;
 
-            if (AiPageContextToggle.IsChecked == true)
+            if (AiSidebar.AiPageContextToggle.IsChecked == true)
             {
                 var pageContent = await GetPageContentAsync();
                 if (pageContent is not null)
@@ -552,9 +552,9 @@ public partial class MainWindow
         }
         finally
         {
-            AiInputBox.IsEnabled = true;
-            AiSendBtn.IsEnabled = true;
-            AiInputBox.Focus();
+            AiSidebar.AiInputBox.IsEnabled = true;
+            AiSidebar.AiSendBtn.IsEnabled = true;
+            AiSidebar.AiInputBox.Focus();
         }
     }
 
@@ -655,14 +655,14 @@ public partial class MainWindow
         }
 
         bubble.Child = innerStack;
-        AiMessagesStack.Children.Add(bubble);
+        AiSidebar.AiMessagesStack.Children.Add(bubble);
 
-        if (AiMessagesScroll is not null)
+        if (AiSidebar.AiMessagesScroll is not null)
         {
             Dispatcher.BeginInvoke(() =>
             {
-                if (AiMessagesScroll is not null)
-                    AiMessagesScroll.ScrollToBottom();
+                if (AiSidebar.AiMessagesScroll is not null)
+                    AiSidebar.AiMessagesScroll.ScrollToBottom();
             }, System.Windows.Threading.DispatcherPriority.Background);
         }
     }
@@ -893,11 +893,11 @@ public partial class MainWindow
 
     private void RemoveLastAiPlaceholder()
     {
-        for (int i = AiMessagesStack.Children.Count - 1; i >= 0; i--)
+        for (int i = AiSidebar.AiMessagesStack.Children.Count - 1; i >= 0; i--)
         {
-            if (AiMessagesStack.Children[i] is Border { Tag: "placeholder" })
+            if (AiSidebar.AiMessagesStack.Children[i] is Border { Tag: "placeholder" })
             {
-                AiMessagesStack.Children.RemoveAt(i);
+                AiSidebar.AiMessagesStack.Children.RemoveAt(i);
                 return;
             }
         }
@@ -910,7 +910,7 @@ public partial class MainWindow
 
     private void ClearAiMessages()
     {
-        AiMessagesStack.Children.Clear();
+        AiSidebar.AiMessagesStack.Children.Clear();
     }
 
     private void AiClearChat_Click(object sender, RoutedEventArgs e)

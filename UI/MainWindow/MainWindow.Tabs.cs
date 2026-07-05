@@ -201,13 +201,13 @@ public partial class MainWindow
 
     private void ClearSplitView(bool clearState = true)
     {
-        SplitWebViewHost.Children.Clear();
-        SplitLoadingOverlay.Visibility = Visibility.Collapsed;
-        SplitPane.Visibility = Visibility.Collapsed;
-        SplitPaneSplitter.Visibility = Visibility.Collapsed;
-        SplitPaneDividerColumn.Width = new GridLength(0);
-        SplitPaneColumn.Width = new GridLength(0);
-        PrimaryPaneColumn.Width = new GridLength(1, GridUnitType.Star);
+        BrowserPane.SplitWebViewHost.Children.Clear();
+        BrowserPane.SplitLoadingOverlay.Visibility = Visibility.Collapsed;
+        BrowserPane.SplitPane.Visibility = Visibility.Collapsed;
+        BrowserPane.SplitPaneSplitter.Visibility = Visibility.Collapsed;
+        BrowserPane.SplitPaneDividerColumn.Width = new GridLength(0);
+        BrowserPane.SplitPaneColumn.Width = new GridLength(0);
+        BrowserPane.PrimaryPaneColumn.Width = new GridLength(1, GridUnitType.Star);
 
         if (clearState)
         {
@@ -236,13 +236,13 @@ public partial class MainWindow
             return false;
         }
 
-        WebViewHost.Children.Clear();
-        SplitWebViewHost.Children.Clear();
+        BrowserPane.WebViewHost.Children.Clear();
+        BrowserPane.SplitWebViewHost.Children.Clear();
 
         RemoveElementFromParent(primary.WebView);
         RemoveElementFromParent(secondary.WebView);
-        WebViewHost.Children.Add(primary.WebView);
-        SplitWebViewHost.Children.Add(secondary.WebView);
+        BrowserPane.WebViewHost.Children.Add(primary.WebView);
+        BrowserPane.SplitWebViewHost.Children.Add(secondary.WebView);
 
         primary.WebView.Visibility = Visibility.Visible;
         secondary.WebView.Visibility = Visibility.Visible;
@@ -252,17 +252,17 @@ public partial class MainWindow
         try { secondary.WebView.CoreWebView2?.Resume(); }
         catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException) { Debug.WriteLine(ex); }
 
-        PrimaryPaneColumn.Width = new GridLength(1, GridUnitType.Star);
-        SplitPaneDividerColumn.Width = new GridLength(5);
-        SplitPaneColumn.Width = new GridLength(1, GridUnitType.Star);
-        SplitPaneSplitter.Visibility = Visibility.Visible;
-        SplitPane.Visibility = Visibility.Visible;
+        BrowserPane.PrimaryPaneColumn.Width = new GridLength(1, GridUnitType.Star);
+        BrowserPane.SplitPaneDividerColumn.Width = new GridLength(5);
+        BrowserPane.SplitPaneColumn.Width = new GridLength(1, GridUnitType.Star);
+        BrowserPane.SplitPaneSplitter.Visibility = Visibility.Visible;
+        BrowserPane.SplitPane.Visibility = Visibility.Visible;
 
-        WebViewHost.Visibility = Visibility.Visible;
-        StartOverlay.Visibility = Visibility.Collapsed;
-        InternalPageHost.Visibility = Visibility.Collapsed;
-        LoadingOverlay.Visibility = primary.IsLoading ? Visibility.Visible : Visibility.Collapsed;
-        SplitLoadingOverlay.Visibility = secondary.IsLoading ? Visibility.Visible : Visibility.Collapsed;
+        BrowserPane.WebViewHost.Visibility = Visibility.Visible;
+        BrowserPane.StartOverlay.Visibility = Visibility.Collapsed;
+        BrowserPane.InternalPageHost.Visibility = Visibility.Collapsed;
+        BrowserPane.LoadingOverlay.Visibility = primary.IsLoading ? Visibility.Visible : Visibility.Collapsed;
+        BrowserPane.SplitLoadingOverlay.Visibility = secondary.IsLoading ? Visibility.Visible : Visibility.Collapsed;
 
         var focusedWebView = ReferenceEquals(focusedTab, secondary) ? secondary.WebView : primary.WebView;
         _ = Dispatcher.BeginInvoke(() => focusedWebView.Focus(), DispatcherPriority.ApplicationIdle);
@@ -344,9 +344,9 @@ public partial class MainWindow
             return;
         }
 
-        WebViewHost.Children.Clear();
+        BrowserPane.WebViewHost.Children.Clear();
         RemoveElementFromParent(webView);
-        WebViewHost.Children.Add(webView);
+        BrowserPane.WebViewHost.Children.Add(webView);
         webView.Visibility = Visibility.Visible;
 
         try
@@ -366,10 +366,10 @@ public partial class MainWindow
             Debug.WriteLine(ex);
         }
 
-        WebViewHost.Visibility = Visibility.Visible;
-        StartOverlay.Visibility = Visibility.Collapsed;
-        InternalPageHost.Visibility = Visibility.Collapsed;
-        LoadingOverlay.Visibility = tab.IsLoading ? Visibility.Visible : Visibility.Collapsed;
+        BrowserPane.WebViewHost.Visibility = Visibility.Visible;
+        BrowserPane.StartOverlay.Visibility = Visibility.Collapsed;
+        BrowserPane.InternalPageHost.Visibility = Visibility.Collapsed;
+        BrowserPane.LoadingOverlay.Visibility = tab.IsLoading ? Visibility.Visible : Visibility.Collapsed;
 
         Dispatcher.BeginInvoke(() => webView.Focus(), DispatcherPriority.ApplicationIdle);
 
@@ -560,7 +560,7 @@ public partial class MainWindow
                 return;
             }
 
-            WebViewHost.Children.Remove(webView);
+            BrowserPane.WebViewHost.Children.Remove(webView);
             tab.WebView = null;
             tab.IsWebViewInitialized = false;
             tab.RestoredUrl = hibernateUrl;
@@ -741,9 +741,9 @@ public partial class MainWindow
 
     private AnimatedTabPanel GetTabPanel()
     {
-        if (_tabPanel is null && VisualTreeHelper.GetChildrenCount(TabStrip) > 0)
+        if (_tabPanel is null && VisualTreeHelper.GetChildrenCount(TitleBar.TabStrip) > 0)
         {
-            var border = VisualTreeHelper.GetChild(TabStrip, 0);
+            var border = VisualTreeHelper.GetChild(TitleBar.TabStrip, 0);
             if (border is not null && VisualTreeHelper.GetChildrenCount(border) > 0)
             {
                 var presenter = VisualTreeHelper.GetChild(border, 0);
@@ -767,7 +767,7 @@ public partial class MainWindow
 
         _dragTab = tab;
         _tabDragFromIndex = index;
-        _tabDragStartPoint = e.GetPosition(TabStrip);
+        _tabDragStartPoint = e.GetPosition(TitleBar.TabStrip);
         _tabIsDragging = false;
     }
 
@@ -776,7 +776,7 @@ public partial class MainWindow
         if (_dragTab is null || _tabDragFromIndex < 0) return;
         if (e.LeftButton != MouseButtonState.Pressed) { AbortDrag(); return; }
 
-        var pos = e.GetPosition(TabStrip);
+        var pos = e.GetPosition(TitleBar.TabStrip);
 
         if (!_tabIsDragging)
         {
@@ -794,7 +794,7 @@ public partial class MainWindow
         var panel = GetTabPanel();
         if (panel is null) return;
 
-        var belowTabStrip = pos.Y > TabStrip.ActualHeight + 10;
+        var belowTabStrip = pos.Y > TitleBar.TabStrip.ActualHeight + 10;
         _tabDragDetaching = belowTabStrip && !IsSplitActive;
 
         if (belowTabStrip)
@@ -837,7 +837,7 @@ public partial class MainWindow
             }
 
             AbortDrag();
-            TabStrip.ReleaseMouseCapture();
+            TitleBar.TabStrip.ReleaseMouseCapture();
             return;
         }
 
@@ -846,7 +846,7 @@ public partial class MainWindow
         else
             _tabDragFromIndex = -1;
 
-        TabStrip.ReleaseMouseCapture();
+        TitleBar.TabStrip.ReleaseMouseCapture();
     }
 
     private void TabStrip_LostMouseCapture(object sender, MouseEventArgs e)
@@ -864,7 +864,7 @@ public partial class MainWindow
         _tabIsDragging = true;
         _tabDropInsertIndex = currentIndex;
         GetTabPanel()?.BeginDrag(currentIndex, panelPos);
-        TabStrip.CaptureMouse();
+        TitleBar.TabStrip.CaptureMouse();
     }
 
     private void EndDrag(MouseEventArgs e)

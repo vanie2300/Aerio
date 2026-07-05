@@ -104,7 +104,7 @@ public partial class MainWindow
                         args.State = ToWebViewPermissionState(requestedState);
                         args.Handled = true;
                         SaveRuntimeSitePermission(host, permission, requestedState);
-                        StatusText.Text = $"{PermissionLabel(permission)} {PermissionStateLabel(requestedState).ToLowerInvariant()} for {host}";
+                        StatusBar.StatusText.Text = $"{PermissionLabel(permission)} {PermissionStateLabel(requestedState).ToLowerInvariant()} for {host}";
                     }
                     finally { deferral.Dispose(); }
                 }
@@ -121,7 +121,7 @@ public partial class MainWindow
             args.SavesInProfile = false;
             args.State = ToWebViewPermissionState(rule.State);
             args.Handled = true;
-            StatusText.Text = $"{PermissionLabel(permission)} {PermissionStateLabel(rule.State).ToLowerInvariant()} for {host}";
+            StatusBar.StatusText.Text = $"{PermissionLabel(permission)} {PermissionStateLabel(rule.State).ToLowerInvariant()} for {host}";
         }
         catch (Exception ex)
         {

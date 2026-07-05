@@ -798,7 +798,7 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
                     Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.DenyCors);
                 wv.CoreWebView2.NavigateToString(CarouselHtml());
             }
-            catch (Exception ex) { Debug.WriteLine($"Carousel WebView2 init failed: {ex}"); _ = Dispatcher.BeginInvoke(() => { if (!Dispatcher.HasShutdownStarted) StatusText.Text = "Carousel failed to load"; }); }
+            catch (Exception ex) { Debug.WriteLine($"Carousel WebView2 init failed: {ex}"); _ = Dispatcher.BeginInvoke(() => { if (!Dispatcher.HasShutdownStarted) StatusBar.StatusText.Text = "Carousel failed to load"; }); }
         }
 
         void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)

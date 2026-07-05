@@ -40,17 +40,17 @@ public partial class MainWindow
     {
         if (!_isPrivate)
         {
-            LocalDataText.Text = "Local";
+            StatusBar.LocalDataText.Text = "Local";
             return;
         }
 
         Title = "Tabloid Browser - Private";
-        LocalDataText.Text = "Private";
-        LocalDataText.Foreground = GetBrush("Pink");
-        PrivateButton.Content = "PVT";
-        PrivateButton.ToolTip = "Private window";
-        PrivateButton.IsEnabled = false;
-        StatusText.Text = "Private browsing";
+        StatusBar.LocalDataText.Text = "Private";
+        StatusBar.LocalDataText.Foreground = GetBrush("Pink");
+        NavToolbar.PrivateButton.Content = "PVT";
+        NavToolbar.PrivateButton.ToolTip = "Private window";
+        NavToolbar.PrivateButton.IsEnabled = false;
+        StatusBar.StatusText.Text = "Private browsing";
     }
 
     private Brush GetBrush(string key)
@@ -76,36 +76,36 @@ public partial class MainWindow
 
     private void UpdateAddressBar()
     {
-        AddressBox.Text = _activeTab?.Address ?? string.Empty;
+        NavToolbar.AddressBox.Text = _activeTab?.Address ?? string.Empty;
     }
 
     private void UpdateNavigationButtons()
     {
         var tab = _activeTab;
         var webView = tab?.Kind == BrowserTabKind.Web ? tab.WebView : null;
-        BackButton.IsEnabled = webView?.CanGoBack == true;
-        ForwardButton.IsEnabled = webView?.CanGoForward == true;
+        NavToolbar.BackButton.IsEnabled = webView?.CanGoBack == true;
+        NavToolbar.ForwardButton.IsEnabled = webView?.CanGoForward == true;
     }
 
     private void UpdateBookmarkButton()
     {
         var tab = _activeTab;
         var canBookmark = tab is { Kind: BrowserTabKind.Web } && BrowserDataStore.IsHttpUrl(tab.Address);
-        BookmarkButton.IsEnabled = canBookmark;
+        NavToolbar.BookmarkButton.IsEnabled = canBookmark;
 
         if (!canBookmark || tab is null)
         {
-            if (BookmarkButton.Content?.ToString() != "\uE734")
-                BookmarkButton.Content = "\uE734";
-            BookmarkButton.BorderBrush = GetBrush("Stroke");
-            BookmarkButton.ToolTip = "Open a web page to bookmark";
+            if (NavToolbar.BookmarkButton.Content?.ToString() != "\uE734")
+                NavToolbar.BookmarkButton.Content = "\uE734";
+            NavToolbar.BookmarkButton.BorderBrush = GetBrush("Stroke");
+            NavToolbar.BookmarkButton.ToolTip = "Open a web page to bookmark";
             return;
         }
 
         var isBookmarked = _dataStore.IsBookmarked(tab.Address);
-        BookmarkButton.Content = isBookmarked ? "\uE735" : "\uE734";
-        BookmarkButton.BorderBrush = isBookmarked ? GetBrush("Pink") : GetBrush("Stroke");
-        BookmarkButton.ToolTip = isBookmarked ? "Remove bookmark" : "Add bookmark";
+        NavToolbar.BookmarkButton.Content = isBookmarked ? "\uE735" : "\uE734";
+        NavToolbar.BookmarkButton.BorderBrush = isBookmarked ? GetBrush("Pink") : GetBrush("Stroke");
+        NavToolbar.BookmarkButton.ToolTip = isBookmarked ? "Remove bookmark" : "Add bookmark";
     }
 
     private void UpdateLoadingOverlay()
@@ -114,16 +114,16 @@ public partial class MainWindow
         var show = tab?.IsLoading == true;
         if (show)
         {
-            LoadingOverlay.Visibility = Visibility.Visible;
-            LoadingOverlay.Opacity = 0;
+            BrowserPane.LoadingOverlay.Visibility = Visibility.Visible;
+            BrowserPane.LoadingOverlay.Opacity = 0;
             var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15))
             {
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
             };
-            LoadingOverlay.BeginAnimation(OpacityProperty, fadeIn);
-            LoadingTitleText.Text = $"Loading {TrimUrl(tab?.Address ?? string.Empty)}";
+            BrowserPane.LoadingOverlay.BeginAnimation(OpacityProperty, fadeIn);
+            BrowserPane.LoadingTitleText.Text = $"Loading {TrimUrl(tab?.Address ?? string.Empty)}";
         }
-        else if (LoadingOverlay.Visibility == Visibility.Visible)
+        else if (BrowserPane.LoadingOverlay.Visibility == Visibility.Visible)
         {
             var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.1))
             {
@@ -131,10 +131,10 @@ public partial class MainWindow
             };
             fadeOut.Completed += (_, _) =>
             {
-                LoadingOverlay.Visibility = Visibility.Collapsed;
-                LoadingOverlay.Opacity = 1;
+                BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
+                BrowserPane.LoadingOverlay.Opacity = 1;
             };
-            LoadingOverlay.BeginAnimation(OpacityProperty, fadeOut);
+            BrowserPane.LoadingOverlay.BeginAnimation(OpacityProperty, fadeOut);
         }
     }
 
@@ -170,7 +170,7 @@ public partial class MainWindow
                 AutoReverse = true,
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
             };
-            if (MemoryButton.RenderTransform is ScaleTransform scale)
+            if (NavToolbar.MemoryButton.RenderTransform is ScaleTransform scale)
             {
                 scale.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
                 scale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
@@ -178,11 +178,11 @@ public partial class MainWindow
         }
         _lastInactiveCount = inactive;
 
-        MemoryButton.Content = inactive == 0 ? "RAM" : inactive.ToString();
-        MemoryButton.ToolTip = inactive == 0
+        NavToolbar.MemoryButton.Content = inactive == 0 ? "RAM" : inactive.ToString();
+        NavToolbar.MemoryButton.ToolTip = inactive == 0
             ? "Click to hibernate all inactive tabs"
             : $"{hibernated} hibernated, {suspended} suspended — click to hibernate all";
-        MemoryStatusText.Text = inactive == 0
+        StatusBar.MemoryStatusText.Text = inactive == 0
             ? "0 hibernated — click RAM to hibernate"
             : suspended == 0
                 ? $"{hibernated} hibernated — click RAM to hibernate"
@@ -204,10 +204,10 @@ public partial class MainWindow
                 return;
             }
 
-            StartSearchBox.Focus();
-            FocusManager.SetFocusedElement(this, StartSearchBox);
-            Keyboard.Focus(StartSearchBox);
-            StartSearchBox.SelectAll();
+            BrowserPane.StartSearchBox.Focus();
+            FocusManager.SetFocusedElement(this, BrowserPane.StartSearchBox);
+            Keyboard.Focus(BrowserPane.StartSearchBox);
+            BrowserPane.StartSearchBox.SelectAll();
         }, DispatcherPriority.ApplicationIdle);
     }
 
@@ -231,7 +231,7 @@ public partial class MainWindow
         }
 
         _dataStore.ClearBrowsingState();
-        StatusText.Text = "Local browsing data cleared";
+        StatusBar.StatusText.Text = "Local browsing data cleared";
     }
 
     private void ImportBookmarks()
@@ -247,7 +247,7 @@ public partial class MainWindow
         }
 
         var count = _dataStore.ImportBookmarks(dialog.FileName);
-        StatusText.Text = $"Imported {count} bookmarks";
+        StatusBar.StatusText.Text = $"Imported {count} bookmarks";
         var importTab = _activeTab;
         if (importTab is not null)
         {
@@ -269,7 +269,7 @@ public partial class MainWindow
         }
 
         _dataStore.ExportBookmarks(dialog.FileName);
-        StatusText.Text = "Bookmarks exported";
+        StatusBar.StatusText.Text = "Bookmarks exported";
     }
 
     private static void OpenDownloadFolder(string path)
@@ -320,7 +320,7 @@ public partial class MainWindow
         {
             if (sender is FrameworkElement { Tag: BrowserTab tab })
             {
-                if (TabStrip.ItemContainerGenerator.ContainerFromItem(tab) is FrameworkElement container)
+                if (TitleBar.TabStrip.ItemContainerGenerator.ContainerFromItem(tab) is FrameworkElement container)
                 {
                     var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.12))
                     {
@@ -485,8 +485,8 @@ public partial class MainWindow
         {
         if (MatchesShortcut(e, "focus_address"))
         {
-            AddressBox.Focus();
-            AddressBox.SelectAll();
+            NavToolbar.AddressBox.Focus();
+            NavToolbar.AddressBox.SelectAll();
             e.Handled = true;
             return;
         }
@@ -644,7 +644,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Drag error: {ex.Message}";
+            StatusBar.StatusText.Text = $"Drag error: {ex.Message}";
         }
     }
 
@@ -675,16 +675,16 @@ public partial class MainWindow
         if (WindowState != WindowState.Maximized)
         {
             RootGrid.Margin = new Thickness(0);
-            MaximizeRestoreBtn.Content = "\uE922";
-            MaximizeRestoreBtn.ToolTip = "Maximize";
+            TitleBar.MaximizeRestoreBtn.Content = "\uE922";
+            TitleBar.MaximizeRestoreBtn.ToolTip = "Maximize";
             return;
         }
 
         {
             UpdateMaximizedMargins();
 
-            MaximizeRestoreBtn.Content = "\uE923";
-            MaximizeRestoreBtn.ToolTip = "Restore";
+            TitleBar.MaximizeRestoreBtn.Content = "\uE923";
+            TitleBar.MaximizeRestoreBtn.ToolTip = "Restore";
         }
     }
 
@@ -813,26 +813,26 @@ public partial class MainWindow
 
     private void ShowFindBar()
     {
-        if (FindPopup.IsOpen) { FindTextBox.Focus(); FindTextBox.SelectAll(); return; }
+        if (FindBar.FindPopup.IsOpen) { FindBar.FindTextBox.Focus(); FindBar.FindTextBox.SelectAll(); return; }
         var cwv = _activeTab?.WebView?.CoreWebView2;
         if (cwv is null) return;
         _suppressFindTextChanged = true;
-        FindTextBox.Text = string.Empty;
+        FindBar.FindTextBox.Text = string.Empty;
         _suppressFindTextChanged = false;
-        FindMatchCount.Text = string.Empty;
+        FindBar.FindMatchCount.Text = string.Empty;
         var host = BrowserHost;
-        FindPopup.PlacementTarget = null;
-        FindPopup.Placement = System.Windows.Controls.Primitives.PlacementMode.Absolute;
+        FindBar.FindPopup.PlacementTarget = null;
+        FindBar.FindPopup.Placement = System.Windows.Controls.Primitives.PlacementMode.Absolute;
         var screenPoint = host.PointToScreen(new Point(0, 0));
-        FindPopup.IsOpen = true;
-        FindPopupContent.Opacity = 0;
-        FindPopupContent.RenderTransform = new TranslateTransform(0, -8);
-        FindPopup.UpdateLayout();
+        FindBar.FindPopup.IsOpen = true;
+        FindBar.FindPopupContent.Opacity = 0;
+        FindBar.FindPopupContent.RenderTransform = new TranslateTransform(0, -8);
+        FindBar.FindPopup.UpdateLayout();
         Dispatcher.BeginInvoke(() =>
         {
-            if (!FindPopup.IsOpen) return;
-            FindPopup.HorizontalOffset = screenPoint.X + host.ActualWidth - FindPopupContent.ActualWidth;
-            FindPopup.VerticalOffset = screenPoint.Y;
+            if (!FindBar.FindPopup.IsOpen) return;
+            FindBar.FindPopup.HorizontalOffset = screenPoint.X + host.ActualWidth - FindBar.FindPopupContent.ActualWidth;
+            FindBar.FindPopup.VerticalOffset = screenPoint.Y;
             var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15))
             {
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
@@ -841,10 +841,10 @@ public partial class MainWindow
             {
                 EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
             };
-            FindPopupContent.BeginAnimation(OpacityProperty, fadeIn);
-            (FindPopupContent.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.YProperty, slideDown);
+            FindBar.FindPopupContent.BeginAnimation(OpacityProperty, fadeIn);
+            (FindBar.FindPopupContent.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.YProperty, slideDown);
         }, DispatcherPriority.Loaded);
-        FindTextBox.Focus();
+        FindBar.FindTextBox.Focus();
         var opts = cwv.Environment.CreateFindOptions();
         opts.SuppressDefaultFindDialog = true;
         FireAndForget(cwv.Find.StartAsync(opts), "Find.StartAsync");
@@ -852,12 +852,12 @@ public partial class MainWindow
 
     private void HideFindBar()
     {
-        if (!FindPopup.IsOpen) return;
-        FindPopup.IsOpen = false;
-        FindPopupContent.Opacity = 1;
-        FindPopupContent.RenderTransform = null;
-        FindTextBox.Text = string.Empty;
-        FindMatchCount.Text = string.Empty;
+        if (!FindBar.FindPopup.IsOpen) return;
+        FindBar.FindPopup.IsOpen = false;
+        FindBar.FindPopupContent.Opacity = 1;
+        FindBar.FindPopupContent.RenderTransform = null;
+        FindBar.FindTextBox.Text = string.Empty;
+        FindBar.FindMatchCount.Text = string.Empty;
         var cwv = _activeTab?.WebView?.CoreWebView2;
         if (cwv is null) return;
         cwv.Find.Stop();
@@ -865,17 +865,17 @@ public partial class MainWindow
 
     private void FindTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (!FindPopup.IsOpen || _suppressFindTextChanged) return;
+        if (!FindBar.FindPopup.IsOpen || _suppressFindTextChanged) return;
         var tab = _activeTab;
         var find = tab?.WebView?.CoreWebView2?.Find;
         if (find is null) return;
         var env = _environment;
         if (env is null) return;
-        var text = FindTextBox.Text;
+        var text = FindBar.FindTextBox.Text;
         if (string.IsNullOrEmpty(text))
         {
             find.Stop();
-            FindMatchCount.Text = string.Empty;
+            FindBar.FindMatchCount.Text = string.Empty;
             return;
         }
         var opts = env.CreateFindOptions();
@@ -933,10 +933,10 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(() =>
             {
                 var find = _activeTab?.WebView?.CoreWebView2?.Find;
-                if (find is null || !FindPopup.IsOpen) return;
+                if (find is null || !FindBar.FindPopup.IsOpen) return;
                 var count = find.MatchCount;
                 var index = find.ActiveMatchIndex;
-                FindMatchCount.Text = count > 0 ? $"{index + 1}/{count}" : "0/0";
+                FindBar.FindMatchCount.Text = count > 0 ? $"{index + 1}/{count}" : "0/0";
             });
         }
         catch (Exception ex)
@@ -949,19 +949,19 @@ public partial class MainWindow
     {
         _isFindBarDragging = true;
         _findBarDragStart = e.GetPosition(this);
-        FindDragGrip.CaptureMouse();
-        FindDragGrip.Cursor = Cursors.SizeAll;
+        FindBar.FindDragGrip.CaptureMouse();
+        FindBar.FindDragGrip.Cursor = Cursors.SizeAll;
         e.Handled = true;
     }
 
     private void FindDragGrip_MouseMove(object sender, MouseEventArgs e)
     {
-        if (!_isFindBarDragging || !FindDragGrip.IsMouseCaptured) return;
+        if (!_isFindBarDragging || !FindBar.FindDragGrip.IsMouseCaptured) return;
         var pos = e.GetPosition(this);
         var dx = pos.X - _findBarDragStart.X;
         var dy = pos.Y - _findBarDragStart.Y;
-        FindPopup.HorizontalOffset += dx;
-        FindPopup.VerticalOffset += dy;
+        FindBar.FindPopup.HorizontalOffset += dx;
+        FindBar.FindPopup.VerticalOffset += dy;
         _findBarDragStart = pos;
     }
 
@@ -969,8 +969,8 @@ public partial class MainWindow
     {
         if (!_isFindBarDragging) return;
         _isFindBarDragging = false;
-        FindDragGrip.ReleaseMouseCapture();
-        FindDragGrip.Cursor = Cursors.Hand;
+        FindBar.FindDragGrip.ReleaseMouseCapture();
+        FindBar.FindDragGrip.Cursor = Cursors.Hand;
         e.Handled = true;
     }
 
@@ -984,7 +984,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Print failed: {ex.Message}";
+            StatusBar.StatusText.Text = $"Print failed: {ex.Message}";
         }
     }
 
@@ -1171,21 +1171,21 @@ public partial class MainWindow
 
     private void ApplyReaderButtonVisibility(bool visible)
     {
-        if (ReaderButton is not null)
-            ReaderButton.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        if (ReaderModeMenuItem is not null)
-            ReaderModeMenuItem.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (NavToolbar.ReaderButton is not null)
+            NavToolbar.ReaderButton.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (NavToolbar.ReaderModeMenuItem is not null)
+            NavToolbar.ReaderModeMenuItem.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void UpdateReaderUi(bool isActive)
     {
-        if (ReaderModeMenuItem is not null)
+        if (NavToolbar.ReaderModeMenuItem is not null)
         {
-            ReaderModeMenuItem.IsChecked = isActive;
+            NavToolbar.ReaderModeMenuItem.IsChecked = isActive;
         }
-        if (ReaderButton is not null && ReaderButton.Visibility == Visibility.Visible)
+        if (NavToolbar.ReaderButton is not null && NavToolbar.ReaderButton.Visibility == Visibility.Visible)
         {
-            ReaderButton.BorderBrush = isActive ? GetReaderActiveBrush() : null;
+            NavToolbar.ReaderButton.BorderBrush = isActive ? GetReaderActiveBrush() : null;
         }
     }
 
@@ -1245,19 +1245,19 @@ public partial class MainWindow
         var tab = _activeTab;
         if (tab is not { Kind: BrowserTabKind.Web } || !BrowserDataStore.IsHttpUrl(tab.Address))
         {
-            StatusText.Text = "Open a web page before bookmarking";
+            StatusBar.StatusText.Text = "Open a web page before bookmarking";
             return;
         }
 
         if (_dataStore.IsBookmarked(tab.Address))
         {
             _dataStore.RemoveBookmark(tab.Address);
-            StatusText.Text = "Bookmark removed";
+            StatusBar.StatusText.Text = "Bookmark removed";
         }
         else
         {
             _dataStore.AddBookmark(tab.Title, tab.Address);
-            StatusText.Text = "Bookmarked";
+            StatusBar.StatusText.Text = "Bookmarked";
         }
 
         PopulateBookmarkBar();
@@ -1284,7 +1284,7 @@ public partial class MainWindow
 
     private void Privacy_Click(object sender, RoutedEventArgs e)
     {
-        StatusText.Text = _isPrivate
+        StatusBar.StatusText.Text = _isPrivate
             ? "Private mode uses an isolated temporary profile"
             : $"Tracker blocking {(_dataStore.Settings.BlockTrackers ? "on" : "off")}; blocked {_blockedTrackerCount} requests";
 
@@ -1310,9 +1310,9 @@ public partial class MainWindow
             return;
         }
 
-        ForceDarkMenuItem.IsChecked = _dataStore.Settings.ForceDarkPage;
+        NavToolbar.ForceDarkMenuItem.IsChecked = _dataStore.Settings.ForceDarkPage;
         var ublock = _dataStore.Settings.Extensions.FirstOrDefault(e => e.Id == "cjpalhdlnbpafiamejdnhcphjbkeiagm");
-        UblockMenuItem.IsChecked = ublock?.Enabled ?? false;
+        NavToolbar.UblockMenuItem.IsChecked = ublock?.Enabled ?? false;
         element.ContextMenu.PlacementTarget = element;
         element.ContextMenu.Placement = PlacementMode.Bottom;
         element.ContextMenu.IsOpen = true;
@@ -1344,7 +1344,7 @@ public partial class MainWindow
         var ext = _dataStore.Settings.Extensions.FirstOrDefault(e => e.Id == ublockId);
         if (ext is null)
         {
-            StatusText.Text = "Downloading uBlock Origin...";
+            StatusBar.StatusText.Text = "Downloading uBlock Origin...";
             await DownloadAndInstallCrxAsync(ublockId);
             if (_activeTab is not null) RenderNativeSurface(_activeTab, forceRebuild: true);
             return;
@@ -1365,7 +1365,7 @@ public partial class MainWindow
         if (sender is MenuItem menuItem)
             menuItem.IsChecked = newState;
 
-        StatusText.Text = $"{ext.Name} {(newState ? "enabled" : "disabled")}";
+        StatusBar.StatusText.Text = $"{ext.Name} {(newState ? "enabled" : "disabled")}";
     }
 
     private async void ShowExtensions_Click(object sender, RoutedEventArgs e)
@@ -1446,7 +1446,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Failed to load extension '{ext.Name}': {ex.Message}";
+            StatusBar.StatusText.Text = $"Failed to load extension '{ext.Name}': {ex.Message}";
             return null;
         }
     }
@@ -1508,7 +1508,7 @@ private void MainWindow_Closing(object? sender, CancelEventArgs e)
                         try
                         {
                             tab.RunCleanup();
-                            WebViewHost.Children.Remove(tab.WebView);
+                            BrowserPane.WebViewHost.Children.Remove(tab.WebView);
                             tab.WebView.Dispose();
                             tab.WebView = null;
                         }
@@ -1535,8 +1535,8 @@ private void MainWindow_Closing(object? sender, CancelEventArgs e)
     private void UpdateReloadStopButton()
     {
         var isLoading = _activeTab?.IsLoading == true;
-        ReloadButton.Content = isLoading ? "\uE71A" : "\uE72C";
-        ReloadButton.ToolTip = isLoading ? "Stop" : "Reload";
+        NavToolbar.ReloadButton.Content = isLoading ? "\uE71A" : "\uE72C";
+        NavToolbar.ReloadButton.ToolTip = isLoading ? "Stop" : "Reload";
     }
 
     private void ApplyZoom(BrowserTab tab, double delta)
@@ -1560,15 +1560,15 @@ private void MainWindow_Closing(object? sender, CancelEventArgs e)
     private void UpdateZoomDisplay()
     {
         var z = _activeTab?.ZoomLevel ?? 1.0;
-        if (ZoomText is null) return;
+        if (StatusBar.ZoomText is null) return;
         if (Math.Abs(z - 1.0) < 0.01)
         {
-            ZoomText.Visibility = Visibility.Collapsed;
+            StatusBar.ZoomText.Visibility = Visibility.Collapsed;
         }
         else
         {
-            ZoomText.Text = $"{(int)(z * 100)}%";
-            ZoomText.Visibility = Visibility.Visible;
+            StatusBar.ZoomText.Text = $"{(int)(z * 100)}%";
+            StatusBar.ZoomText.Visibility = Visibility.Visible;
         }
     }
 
@@ -1596,34 +1596,34 @@ private void MainWindow_Closing(object? sender, CancelEventArgs e)
 
     private void PopulateBookmarkBar()
     {
-        BookmarkBarItems.Children.Clear();
+        NavToolbar.BookmarkBarItems.Children.Clear();
         var bookmarks = _dataStore.Bookmarks;
         if (bookmarks.Count == 0)
         {
-            if (BookmarkBar.Visibility == Visibility.Visible)
+            if (NavToolbar.BookmarkBar.Visibility == Visibility.Visible)
             {
                 var slideOut = new DoubleAnimation(26, 0, TimeSpan.FromSeconds(0.15))
                 {
                     EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
                 };
-                slideOut.Completed += (_, _) => BookmarkBar.Visibility = Visibility.Collapsed;
-                BookmarkBar.BeginAnimation(HeightProperty, slideOut);
+                slideOut.Completed += (_, _) => NavToolbar.BookmarkBar.Visibility = Visibility.Collapsed;
+                NavToolbar.BookmarkBar.BeginAnimation(HeightProperty, slideOut);
             }
             return;
         }
-        if (BookmarkBar.Visibility != Visibility.Visible)
+        if (NavToolbar.BookmarkBar.Visibility != Visibility.Visible)
         {
-            BookmarkBar.Height = 0;
-            BookmarkBar.Visibility = Visibility.Visible;
+            NavToolbar.BookmarkBar.Height = 0;
+            NavToolbar.BookmarkBar.Visibility = Visibility.Visible;
             var slideIn = new DoubleAnimation(0, 26, TimeSpan.FromSeconds(0.2))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
             };
-            BookmarkBar.BeginAnimation(HeightProperty, slideIn);
+            NavToolbar.BookmarkBar.BeginAnimation(HeightProperty, slideIn);
         }
         else
         {
-            BookmarkBar.ClearValue(HeightProperty);
+            NavToolbar.BookmarkBar.ClearValue(HeightProperty);
         }
         foreach (var bm in bookmarks)
         {
@@ -1649,7 +1649,7 @@ private void MainWindow_Closing(object? sender, CancelEventArgs e)
                 }
                 catch (Exception ex) { Debug.WriteLine(ex); }
             };
-            BookmarkBarItems.Children.Add(btn);
+            NavToolbar.BookmarkBarItems.Children.Add(btn);
         }
     }
 
@@ -1711,7 +1711,7 @@ private void MainWindow_Closing(object? sender, CancelEventArgs e)
                 if (profile is not null)
                     await profile.ClearBrowsingDataAsync();
                 popup.IsOpen = false;
-                StatusText.Text = "Site data cleared";
+                StatusBar.StatusText.Text = "Site data cleared";
             }
             catch (Exception ex) { Debug.WriteLine(ex); }
         };

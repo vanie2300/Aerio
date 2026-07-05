@@ -5,7 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>Assets\the app icon.ico</ApplicationIcon>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <ApplicationIcon>UI\Assets\the app icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,14 +14,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Assets\the app icon.ico" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\The app icon.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\4578.jpg" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\ddg.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\startpage.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\brave.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\searxng.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="readability.min.js" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\Fonts\PureMechanic.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <ApplicationDefinition Include="UI\App.xaml" SubType="Designer" />
+    <Page Include="UI\MainWindow.xaml" SubType="Designer" />
+    <Page Include="UI\Controls\*.xaml" />
+    <Page Include="UI\Styles\*.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="UI\Assets\the app icon.ico" Link="Assets\the app icon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="UI\Assets\The app icon.png" Link="Assets\The app icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="UI\Assets\4578.jpg" Link="Assets\4578.jpg" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="UI\Assets\ddg.png" Link="Assets\ddg.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="UI\Assets\startpage.png" Link="Assets\startpage.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="UI\Assets\brave.png" Link="Assets\brave.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="UI\Assets\searxng.png" Link="Assets\searxng.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="UI\readability.min.js" Link="readability.min.js" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="UI\Assets\Fonts\PureMechanic.ttf" Link="Assets\Fonts\PureMechanic.ttf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

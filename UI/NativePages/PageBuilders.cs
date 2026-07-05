@@ -216,7 +216,7 @@ public partial class MainWindow
             var val = bgOpacity.Input.Value;
             if (bgPreview.Background is ImageBrush brush)
                 brush.Opacity = val;
-            if (StartOverlay.Background is ImageBrush mainBrush)
+            if (BrowserPane.StartOverlay.Background is ImageBrush mainBrush)
                 mainBrush.Opacity = val;
         };
         bgPreview.Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed;
@@ -340,11 +340,11 @@ public partial class MainWindow
                     var prev = aiModelCombo.Text;
                     aiModelCombo.ItemsSource = models;
                     aiModelCombo.Text = prev;
-                    StatusText.Text = $"Discovered {models.Count} models";
+                    StatusBar.StatusText.Text = $"Discovered {models.Count} models";
                 }
                 else
                 {
-                    StatusText.Text = "Could not reach endpoint — check URL or API key";
+                    StatusBar.StatusText.Text = "Could not reach endpoint — check URL or API key";
                 }
             }
             catch (OperationCanceledException) { }
@@ -391,13 +391,13 @@ public partial class MainWindow
         {
             blocklist.Text = string.Join(Environment.NewLine, BrowserSettings.Default.TrackerBlocklist);
             Save();
-            StatusText.Text = "Tracker blocklist reset";
+            StatusBar.StatusText.Text = "Tracker blocklist reset";
         });
         var clearAllowlist = MatteButton("Clear allowlist", (_, _) =>
         {
             allowlist.Clear();
             Save();
-            StatusText.Text = "Allowlist cleared";
+            StatusBar.StatusText.Text = "Allowlist cleared";
         }, new Thickness(8, 0, 0, 0));
 
         void Save()
@@ -947,8 +947,8 @@ public partial class MainWindow
             }
 
             _isPermissionsPopupOpen = true;
-            PrivacyButton.BorderBrush = GetBrush("Cyan");
-            PrivacyButton.Background = GetBrush("ButtonPressed");
+            NavToolbar.PrivacyButton.BorderBrush = GetBrush("Cyan");
+            NavToolbar.PrivacyButton.Background = GetBrush("ButtonPressed");
 
             var popup = new Popup
             {
@@ -965,7 +965,7 @@ public partial class MainWindow
                 _sitePermissionsPopup = null;
                 _isPermissionsPopupOpen = false;
                 UpdatePrivacyIndicator();
-                PrivacyButton.Background = GetBrush("ButtonBg");
+                NavToolbar.PrivacyButton.Background = GetBrush("ButtonBg");
             };
 
             popup.Child = BuildSitePermissionsPopupContent(popup);
@@ -1121,7 +1121,7 @@ public partial class MainWindow
             var norm = NormalizePermissionHost(host);
             if (string.IsNullOrWhiteSpace(norm))
             {
-                StatusText.Text = "Enter a site domain or URL";
+                StatusBar.StatusText.Text = "Enter a site domain or URL";
                 return;
             }
             selectedHost = norm;
@@ -1137,7 +1137,7 @@ public partial class MainWindow
                     refresh();
                 }
             }
-            StatusText.Text = $"Loaded permissions for {norm}";
+            StatusBar.StatusText.Text = $"Loaded permissions for {norm}";
         }
 
         siteCombo.SelectionChanged += (_, _) =>
@@ -1153,7 +1153,7 @@ public partial class MainWindow
             var host = NormalizePermissionHost(GetComboText(siteCombo)) ?? NormalizePermissionHost(selectedHost);
             if (string.IsNullOrWhiteSpace(host))
             {
-                StatusText.Text = "Choose or enter a site before saving permissions";
+                StatusBar.StatusText.Text = "Choose or enter a site before saving permissions";
                 return;
             }
 
@@ -1168,7 +1168,7 @@ public partial class MainWindow
             selectedHost = host;
             siteCombo.Text = host;
             siteCombo.ItemsSource = GetSitePermissionHosts(updated, host);
-            StatusText.Text = $"Saved permissions for {host}";
+            StatusBar.StatusText.Text = $"Saved permissions for {host}";
         }
 
         var resetBtn = MatteButton("Reset to Ask", async (_, _) =>
@@ -1382,7 +1382,7 @@ public partial class MainWindow
             {
                 if (_profile is null)
                 {
-                    StatusText.Text = "WebView is not initialized yet.";
+                    StatusBar.StatusText.Text = "WebView is not initialized yet.";
                     return;
                 }
 
@@ -1393,7 +1393,7 @@ public partial class MainWindow
 
                     if (existing.Any(e => string.Equals(e.FolderPath, dialog.FolderName, StringComparison.OrdinalIgnoreCase)))
                     {
-                        StatusText.Text = "Extension is already loaded.";
+                        StatusBar.StatusText.Text = "Extension is already loaded.";
                         return;
                     }
 
@@ -1401,12 +1401,12 @@ public partial class MainWindow
                     var updated = existing.Append(newExt).ToList();
                     _loadedExtensions[webExt.Id] = webExt;
                     _dataStore.SaveSettings(_dataStore.Settings with { Extensions = updated });
-                    StatusText.Text = $"Loaded extension: {webExt.Name}";
+                    StatusBar.StatusText.Text = $"Loaded extension: {webExt.Name}";
                     if (_activeTab is not null) RenderNativeSurface(_activeTab, forceRebuild: true);
                 }
                 catch (Exception ex)
                 {
-                    StatusText.Text = $"Failed to load extension: {ex.Message}";
+                    StatusBar.StatusText.Text = $"Failed to load extension: {ex.Message}";
                 }
             }
         });
@@ -1530,7 +1530,7 @@ public partial class MainWindow
                 var crxFile = files?.FirstOrDefault(f => f.EndsWith(".crx", StringComparison.OrdinalIgnoreCase));
                 if (crxFile is null)
                 {
-                    StatusText.Text = "Please drop a .crx file.";
+                    StatusBar.StatusText.Text = "Please drop a .crx file.";
                     return;
                 }
 
@@ -1627,7 +1627,7 @@ public partial class MainWindow
                 }
                 catch (Exception ex)
                 {
-                    StatusText.Text = $"Failed to remove extension: {ex.Message}";
+                    StatusBar.StatusText.Text = $"Failed to remove extension: {ex.Message}";
                 }
             });
 
@@ -1675,7 +1675,7 @@ public partial class MainWindow
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"Failed to {(enabled ? "enable" : "disable")} extension: {ex.Message}";
+                StatusBar.StatusText.Text = $"Failed to {(enabled ? "enable" : "disable")} extension: {ex.Message}";
             }
         }
     }
@@ -1690,7 +1690,7 @@ public partial class MainWindow
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"Failed to remove extension: {ex.Message}";
+                StatusBar.StatusText.Text = $"Failed to remove extension: {ex.Message}";
             }
             _loadedExtensions.Remove(ext.Id);
         }
@@ -1718,7 +1718,7 @@ public partial class MainWindow
             int zipStart = FindZipStart(bytes);
             if (zipStart < 0)
             {
-                await Dispatcher.InvokeAsync(() => StatusText.Text = "Invalid CRX file: ZIP data not found.");
+                await Dispatcher.InvokeAsync(() => StatusBar.StatusText.Text = "Invalid CRX file: ZIP data not found.");
                 return;
             }
 
@@ -1769,13 +1769,13 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            await Dispatcher.InvokeAsync(() => StatusText.Text = $"Failed to install CRX: {ex.Message}");
+            await Dispatcher.InvokeAsync(() => StatusBar.StatusText.Text = $"Failed to install CRX: {ex.Message}");
             return;
         }
 
         if (manifestError is not null)
         {
-            await Dispatcher.InvokeAsync(() => StatusText.Text = manifestError);
+            await Dispatcher.InvokeAsync(() => StatusBar.StatusText.Text = manifestError);
             return;
         }
 
@@ -1785,7 +1785,7 @@ public partial class MainWindow
             {
                 if (_profile is null)
                 {
-                    StatusText.Text = "WebView is not initialized yet.";
+                    StatusBar.StatusText.Text = "WebView is not initialized yet.";
                     return;
                 }
 
@@ -1796,19 +1796,19 @@ public partial class MainWindow
                 var existing = _dataStore.Settings.Extensions;
                 if (existing.Any(e => e.Id == webExt.Id))
                 {
-                    StatusText.Text = $"Extension '{webExtName}' is already installed.";
+                    StatusBar.StatusText.Text = $"Extension '{webExtName}' is already installed.";
                     return;
                 }
 
                 var newExt = new ExtensionInfo(webExt.Id, webExtName, extractDir, true, false);
                 _loadedExtensions[webExt.Id] = webExt;
                 _dataStore.SaveSettings(_dataStore.Settings with { Extensions = existing.Append(newExt).ToList() });
-                StatusText.Text = $"Installed extension: {webExtName}";
+                StatusBar.StatusText.Text = $"Installed extension: {webExtName}";
                 if (_activeTab is not null) RenderNativeSurface(_activeTab, forceRebuild: true);
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"Failed to install CRX: {ex.Message}";
+                StatusBar.StatusText.Text = $"Failed to install CRX: {ex.Message}";
             }
         }).Task.Unwrap();
     }

@@ -123,18 +123,18 @@ public partial class MainWindow
     private void SetStatusTextSafe(string text)
     {
         if (Dispatcher.CheckAccess())
-            StatusText.Text = text;
+            StatusBar.StatusText.Text = text;
         else
-            Dispatcher.BeginInvoke(() => StatusText.Text = text);
+            Dispatcher.BeginInvoke(() => StatusBar.StatusText.Text = text);
     }
 
     private void ShowStartupError(Exception exception)
     {
-        StatusText.Text = "Startup failed";
-        StartOverlay.Visibility = Visibility.Visible;
-        InternalPageHost.Visibility = Visibility.Collapsed;
-        WebViewHost.Visibility = Visibility.Hidden;
-        LoadingOverlay.Visibility = Visibility.Collapsed;
+        StatusBar.StatusText.Text = "Startup failed";
+        BrowserPane.StartOverlay.Visibility = Visibility.Visible;
+        BrowserPane.InternalPageHost.Visibility = Visibility.Collapsed;
+        BrowserPane.WebViewHost.Visibility = Visibility.Hidden;
+        BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
 
         MessageBox.Show(
             $"Tabloid Browser could not start WebView2.\n\n{exception.Message}\n\nTry installing or repairing Microsoft Edge WebView2 Runtime.",
@@ -383,7 +383,7 @@ public partial class MainWindow
 
             if (_activeTab == tab)
             {
-                StatusText.Text = $"Loading {TrimUrl(e.Uri)}";
+                StatusBar.StatusText.Text = $"Loading {TrimUrl(e.Uri)}";
                 UpdateAddressBar();
                 UpdateLoadingOverlay();
                 UpdateReloadStopButton();
@@ -450,12 +450,12 @@ public partial class MainWindow
             else
             {
                 tab.Title = "Navigation failed";
-                StatusText.Text = $"Navigation failed: {e.WebErrorStatus}";
+                StatusBar.StatusText.Text = $"Navigation failed: {e.WebErrorStatus}";
             }
 
             if (_activeTab == tab)
             {
-                StatusText.Text = e.IsSuccess ? "Ready" : StatusText.Text;
+                StatusBar.StatusText.Text = e.IsSuccess ? "Ready" : StatusBar.StatusText.Text;
                 UpdateNavigationButtons();
                 UpdateBookmarkButton();
                 UpdateLoadingOverlay();
@@ -633,8 +633,8 @@ public partial class MainWindow
 
     private void UpdatePrivacyIndicator()
     {
-        PrivacyButton.Foreground = _dataStore.Settings.BlockTrackers ? GetBrush("Lime") : GetBrush("Muted");
-        PrivacyButton.ToolTip = _dataStore.Settings.BlockTrackers
+        NavToolbar.PrivacyButton.Foreground = _dataStore.Settings.BlockTrackers ? GetBrush("Lime") : GetBrush("Muted");
+        NavToolbar.PrivacyButton.ToolTip = _dataStore.Settings.BlockTrackers
             ? $"Tracker blocking on. Blocked {_blockedTrackerCount} requests."
             : "Tracker blocking off";
     }
@@ -645,7 +645,7 @@ public partial class MainWindow
         var resultFilePath = args.ResultFilePath ?? "";
         var operation = args.DownloadOperation;
         var sourceUrl = operation.Uri;
-        Dispatcher.BeginInvoke(() => StatusText.Text = $"Downloading {fileName}");
+        Dispatcher.BeginInvoke(() => StatusBar.StatusText.Text = $"Downloading {fileName}");
 
         operation.StateChanged += OnDownloadCompleted;
         void OnDownloadCompleted(object? _, object? __)
@@ -659,7 +659,7 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(() =>
             {
                 _dataStore.AddDownload(fileName, resultFilePath, sourceUrl);
-                StatusText.Text = $"Downloaded {fileName}";
+                StatusBar.StatusText.Text = $"Downloaded {fileName}";
             });
         }
     }
