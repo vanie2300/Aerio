@@ -34,6 +34,26 @@ public partial class MainWindow
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, uint dwAttribute, ref int pvAttribute, uint cbAttribute);
 
+    [DllImport("shell32.dll")]
+    private static extern IntPtr SHAppBarMessage(int dwMessage, ref APPBARDATA pData);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct APPBARDATA
+    {
+        public int cbSize;
+        public IntPtr hWnd;
+        public int uCallbackMessage;
+        public int uEdge;
+        public RECT rc;
+        public int lParam;
+    }
+
+    private const int ABM_GETAUTOHIDEBAR = 7;
+    private const int ABE_LEFT = 0;
+    private const int ABE_TOP = 1;
+    private const int ABE_RIGHT = 2;
+    private const int ABE_BOTTOM = 3;
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
     private struct MONITORINFO
     {
@@ -613,7 +633,7 @@ public partial class MainWindow
 
     private void UpdatePrivacyIndicator()
     {
-        PrivacyButton.BorderBrush = _dataStore.Settings.BlockTrackers ? GetBrush("Lime") : GetBrush("Stroke");
+        PrivacyButton.Foreground = _dataStore.Settings.BlockTrackers ? GetBrush("Lime") : GetBrush("Muted");
         PrivacyButton.ToolTip = _dataStore.Settings.BlockTrackers
             ? $"Tracker blocking on. Blocked {_blockedTrackerCount} requests."
             : "Tracker blocking off";

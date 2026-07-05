@@ -439,7 +439,7 @@ public partial class MainWindow : Window
             StartOverlay.Background = new ImageBrush(new BitmapImage(new Uri(bg)))
             {
                 Stretch = Stretch.UniformToFill,
-                Opacity = 0.4
+                Opacity = _dataStore.Settings.BackgroundOpacity
             };
             return;
         }
@@ -459,19 +459,27 @@ public partial class MainWindow : Window
 
     private async void PopOutTab_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is MenuItem item && item.Tag is BrowserTab tab && tab.WebView?.CoreWebView2 is not null)
+        try
         {
-            var url = tab.RestoredUrl ?? tab.Address;
-            await CloseTabAsync(tab);
-            var window = new MainWindow(isPrivate: false, startupUrl: url, startupNativeKind: null, skipSessionPersistence: true);
-            window.Show();
+            if (sender is MenuItem item && item.Tag is BrowserTab tab && tab.WebView?.CoreWebView2 is not null)
+            {
+                var url = tab.RestoredUrl ?? tab.Address;
+                await CloseTabAsync(tab);
+                var window = new MainWindow(isPrivate: false, startupUrl: url, startupNativeKind: null, skipSessionPersistence: true);
+                window.Show();
+            }
         }
+        catch (Exception ex) { Debug.WriteLine(ex); }
     }
 
     private async void FocusSplitTab_Click(object sender, RoutedEventArgs e)
     {
-        if (_splitSecondaryTab is not null)
-            await ActivateTabAsync(_splitSecondaryTab);
+        try
+        {
+            if (_splitSecondaryTab is not null)
+                await ActivateTabAsync(_splitSecondaryTab);
+        }
+        catch (Exception ex) { Debug.WriteLine(ex); }
     }
 
     private void CloseSplit_Click(object sender, RoutedEventArgs e)

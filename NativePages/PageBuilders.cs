@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Microsoft.Web.WebView2.Core;
@@ -156,6 +157,7 @@ public partial class MainWindow
         var customBgPath = settings.Background is not "Default" && File.Exists(settings.Background)
             ? settings.Background
             : null;
+        var savedCustomBgPath = customBgPath;
         var background = ChoiceGroup(["Default", "Custom"], customBgPath is not null ? "Custom" : "Default");
 
         var customBgName = new TextBlock
@@ -183,11 +185,42 @@ public partial class MainWindow
             }
         };
 
-        var customBgPicker = new StackPanel
+        var bgPreview = new Border
         {
-            Orientation = Orientation.Horizontal,
-            Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed
+            Width = 200,
+            Height = 120,
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 10)
         };
+        if (customBgPath is not null)
+        {
+            try
+            {
+                var img = new BitmapImage(new Uri(customBgPath));
+                bgPreview.Background = new ImageBrush(img)
+                {
+                    Stretch = Stretch.UniformToFill,
+                    Opacity = settings.BackgroundOpacity
+                };
+            }
+            catch { }
+        }
+        var bgOpacity = SliderRow("Opacity",
+            "Brightness of the background image from 0% (invisible) to 100% (fully opaque).",
+            settings.BackgroundOpacity, 0.0, 1.0);
+        bgOpacity.Input.AutoToolTipPlacement = AutoToolTipPlacement.TopLeft;
+        bgOpacity.Input.ValueChanged += (_, _) =>
+        {
+            var val = bgOpacity.Input.Value;
+            if (bgPreview.Background is ImageBrush brush)
+                brush.Opacity = val;
+            if (StartOverlay.Background is ImageBrush mainBrush)
+                mainBrush.Opacity = val;
+        };
+        bgPreview.Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed;
+        bgOpacity.Control.Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed;
 
         var browseBg = MatteButton("Browse...", (_, _) =>
         {
@@ -199,17 +232,34 @@ public partial class MainWindow
             if (dialog.ShowDialog() == true)
             {
                 customBgPath = dialog.FileName;
+                savedCustomBgPath = dialog.FileName;
                 var saved = _dataStore.Settings with { Background = dialog.FileName };
                 _dataStore.SaveSettings(saved);
                 ApplySettings();
                 customBgName.Text = Path.GetFileName(dialog.FileName);
                 customBgBadge.Visibility = Visibility.Visible;
+                try
+                {
+                    var img = new BitmapImage(new Uri(dialog.FileName));
+                    bgPreview.Background = new ImageBrush(img)
+                    {
+                        Stretch = Stretch.UniformToFill,
+                        Opacity = bgOpacity.Input.Value
+                    };
+                }
+                catch { }
             }
         });
 
+        var customBgPicker = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed
+        };
         customBgPicker.Children.Add(browseBg);
         customBgPicker.Children.Add(customBgName);
         customBgPicker.Children.Add(customBgBadge);
+
         var sleep = NumericStepper(settings.TabSleepMinutes, 1, 60);
         var quickLinks = ToggleRow(
             "Show quick links",
@@ -361,7 +411,10 @@ public partial class MainWindow
                 ShowQuickLinks: quickLinks.IsChecked == true,
                 Background: background.GetValue() == "Custom" && customBgPath is not null
                     ? customBgPath
-                    : "Default",
+                    : background.GetValue() == "Custom" && savedCustomBgPath is not null
+                        ? savedCustomBgPath
+                        : "Default",
+                BackgroundOpacity: bgOpacity.GetValue(),
                 BlockTrackers: blockTrackers.IsChecked == true,
                 TrackerBlocklist: ParseDomains(blocklist.Text, BrowserSettings.Default.TrackerBlocklist),
                 TrackerAllowlist: ParseDomains(allowlist.Text, []),
@@ -406,11 +459,23 @@ public partial class MainWindow
                 {
                     var isCustom = string.Equals(btn.Tag?.ToString(), "Custom", StringComparison.Ordinal);
                     customBgPicker.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
-                    if (!isCustom)
+                    bgPreview.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+                    bgOpacity.Control.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+                    if (isCustom && customBgPath is null && savedCustomBgPath is not null)
                     {
-                        customBgPath = null;
-                        customBgName.Text = "";
-                        customBgBadge.Visibility = Visibility.Collapsed;
+                        customBgPath = savedCustomBgPath;
+                        customBgName.Text = Path.GetFileName(savedCustomBgPath);
+                        customBgBadge.Visibility = Visibility.Visible;
+                        try
+                        {
+                            var img = new BitmapImage(new Uri(savedCustomBgPath));
+                            bgPreview.Background = new ImageBrush(img)
+                            {
+                                Stretch = Stretch.UniformToFill,
+                                Opacity = bgOpacity.Input.Value
+                            };
+                        }
+                        catch { }
                     }
                     Save();
                 };
@@ -504,6 +569,8 @@ public partial class MainWindow
                 SettingRow("Background", "Choose the start page background style.", background.Control),
                 SettingRow("Custom image", "Select your own image file for the start page background.",
                     customBgPicker),
+                bgPreview,
+                bgOpacity.Control,
                 quickLinks),
             ["Engine"] = SettingsSection(
                 "Engine",
@@ -527,7 +594,8 @@ public partial class MainWindow
                 "Manage your local browsing data and session state.",
                 clearOnExit,
                 dataActions),
-            ["Extensions"] = BuildExtensionsContent(settings),
+            ["Extensions"] = SettingsSection("Extensions", "Manage installed browser extensions.",
+                BuildExtensionsContent(settings)),
             ["Advanced"] = SettingsSection(
                 "Advanced",
                 "Developer-oriented settings.",
@@ -566,19 +634,63 @@ public partial class MainWindow
             Margin = new Thickness(0, 0, 0, 0)
         };
 
+        var sepColor = ((SolidColorBrush)GetBrush("SubtleStroke")).Color;
         var separator = new Border
         {
             Height = 1,
-            Background = GetBrush("SubtleStroke"),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0.5),
+                EndPoint = new Point(1, 0.5),
+                GradientStops = new GradientStopCollection
+                {
+                    new GradientStop(Colors.Transparent, 0),
+                    new GradientStop(sepColor, 0.5),
+                    new GradientStop(Colors.Transparent, 1)
+                }
+            },
             Margin = new Thickness(0, 0, 0, 20)
         };
+
+        var backToTop = new Button
+        {
+            Content = new TextBlock { Text = "\u2191", FontSize = 18, Foreground = GetBrush("Text") },
+            Width = 36, Height = 36,
+            Cursor = Cursors.Hand,
+            Visibility = Visibility.Collapsed,
+            Opacity = 0,
+            Padding = new Thickness(0),
+            Background = GetBrush("ButtonBg"),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(1)
+        };
+        Panel.SetZIndex(backToTop, 10);
 
         var contentScroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = new StackPanel { MaxWidth = 780, HorizontalAlignment = HorizontalAlignment.Stretch }
         };
-        contentScroll.ScrollChanged += (_, _) => tab.NativeScrollY = contentScroll.VerticalOffset;
+        backToTop.Click += (_, _) => contentScroll.ScrollToTop();
+        contentScroll.ScrollChanged += (_, _) =>
+        {
+            tab.NativeScrollY = contentScroll.VerticalOffset;
+            bool show = contentScroll.VerticalOffset > 200;
+            if (show && backToTop.Visibility != Visibility.Visible)
+            {
+                backToTop.Visibility = Visibility.Visible;
+                backToTop.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 0.85, TimeSpan.FromSeconds(0.15))
+                {
+                    EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+                });
+            }
+            else if (!show && backToTop.Visibility == Visibility.Visible)
+            {
+                var fadeOut = new DoubleAnimation(backToTop.Opacity, 0, TimeSpan.FromSeconds(0.12));
+                fadeOut.Completed += (_, _) => backToTop.Visibility = Visibility.Collapsed;
+                backToTop.BeginAnimation(OpacityProperty, fadeOut);
+            }
+        };
         contentScroll.Loaded += (_, _) =>
             Dispatcher.BeginInvoke(
                 () => contentScroll.ScrollToVerticalOffset(Math.Max(0, tab.NativeScrollY)),
@@ -601,20 +713,82 @@ public partial class MainWindow
             }
         }
         string selectedCategory = initialCategory;
+        bool _firstCategory = true;
 
         void SelectCategory(string category)
         {
             selectedCategory = category;
             contentStack.Children.Clear();
-            contentStack.Children.Add(sections[category]);
+            var section = sections[category];
+            contentStack.Children.Add(section);
+            if (!_firstCategory)
+            {
+                section.Opacity = 0;
+                var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.1))
+                {
+                    EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+                };
+                section.BeginAnimation(OpacityProperty, fadeIn);
+            }
+            _firstCategory = false;
+            AnimateStaggered(section);
             for (int i = 0; i < categories.Length; i++)
             {
                 var isSelected = categories[i].Name == category;
                 tabButtons[i].Background = isSelected ? GetBrush("ButtonPressed") : GetBrush("ButtonBg");
-                tabButtons[i].BorderBrush = GetBrush("Stroke");
+                tabButtons[i].BorderBrush = isSelected ? GetBrush("Cyan") : Brushes.Transparent;
                 tabButtons[i].Opacity = isSelected ? 1 : 0.7;
-                tabIndicators[i].Opacity = isSelected ? 1 : 0;
+                var anim = new DoubleAnimation(isSelected ? 1.0 : 0.0, TimeSpan.FromSeconds(0.12))
+                {
+                    EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+                };
+                tabIndicators[i].BeginAnimation(OpacityProperty, anim);
             }
+        }
+
+        void AnimateStaggered(UIElement section)
+        {
+            if (section is Border b && b.Child is StackPanel sp)
+            {
+                for (int i = 0; i < sp.Children.Count; i++)
+                {
+                    if (sp.Children[i] is FrameworkElement fe)
+                    {
+                        double offset = -6 * (sp.Children.Count - i);
+                        fe.Opacity = 0;
+                        if (fe is not Button and not ToggleButton)
+                            fe.RenderTransform = new TranslateTransform(0, offset);
+                    }
+                }
+            }
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (section is Border b2 && b2.Child is StackPanel sp2)
+                {
+                    for (int i = 0; i < sp2.Children.Count; i++)
+                    {
+                        if (sp2.Children[i] is FrameworkElement fe)
+                        {
+                            double offset = -6 * (sp2.Children.Count - i);
+                            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.2))
+                            {
+                                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+                                BeginTime = TimeSpan.FromSeconds(i * 0.04)
+                            };
+                            fe.BeginAnimation(OpacityProperty, fadeIn);
+                            if (fe is not Button and not ToggleButton)
+                            {
+                                var slideIn = new DoubleAnimation(offset, 0, TimeSpan.FromSeconds(0.25))
+                                {
+                                    EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut },
+                                    BeginTime = TimeSpan.FromSeconds(i * 0.04)
+                                };
+                                (fe.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.YProperty, slideIn);
+                            }
+                        }
+                    }
+                }
+            }, DispatcherPriority.Loaded);
         }
 
         for (int i = 0; i < categories.Length; i++)
@@ -667,7 +841,17 @@ public partial class MainWindow
                 MinWidth = 0,
                 Padding = new Thickness(14, 6, 14, 0),
                 Margin = new Thickness(0, 0, 6, 0),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                BorderThickness = new Thickness(1)
+            };
+            btn.MouseEnter += (_, _) =>
+            {
+                if (selectedCategory != captured)
+                    btn.Background = GetBrush("ButtonHover");
+            };
+            btn.MouseLeave += (_, _) =>
+            {
+                if (selectedCategory != captured) btn.Background = GetBrush("ButtonBg");
             };
 
             btn.Click += (_, _) => SelectCategory(captured);
@@ -675,6 +859,17 @@ public partial class MainWindow
             tabIndicators.Add(indicator);
             tabBar.Children.Add(btn);
         }
+        tabBar.PreviewKeyDown += (_, e) =>
+        {
+            int idx = Array.FindIndex(categories, c => c.Name == selectedCategory);
+            int next = e.Key == Key.Right ? idx + 1 : e.Key == Key.Left ? idx - 1 : -1;
+            if (next >= 0 && next < categories.Length)
+            {
+                SelectCategory(categories[next].Name);
+                tabButtons[next].Focus();
+                e.Handled = true;
+            }
+        };
 
         SelectCategory(selectedCategory);
 
@@ -696,6 +891,12 @@ public partial class MainWindow
 
         Grid.SetRow(contentScroll, 3);
         root.Children.Add(contentScroll);
+
+        Grid.SetRow(backToTop, 3);
+        backToTop.HorizontalAlignment = HorizontalAlignment.Right;
+        backToTop.VerticalAlignment = VerticalAlignment.Bottom;
+        backToTop.Margin = new Thickness(0, 0, 4, 4);
+        root.Children.Add(backToTop);
 
         return root;
     }

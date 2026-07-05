@@ -90,13 +90,19 @@ public partial class MainWindow
         AiSidebarColumn.Width = new GridLength(_aiSidebarWidth);
         AiSidebar.Visibility = Visibility.Visible;
         AiSidebar.Opacity = 0;
+        AiSidebar.RenderTransform = new TranslateTransform(20, 0);
         AiSplitter.Visibility = Visibility.Visible;
 
-        var slideIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.25))
+        var slideFade = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.25))
         {
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
-        AiSidebar.BeginAnimation(OpacityProperty, slideIn);
+        AiSidebar.BeginAnimation(OpacityProperty, slideFade);
+        var slideX = new DoubleAnimation(20, 0, TimeSpan.FromSeconds(0.3))
+        {
+            EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+        };
+        (AiSidebar.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, slideX);
 
         _dataStore.SaveSettings(settings with { AiSidebarOpen = true });
         AiInputBox.Focus();
@@ -440,14 +446,20 @@ public partial class MainWindow
         {
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
         };
+        var slideX = new DoubleAnimation(0, 20, TimeSpan.FromSeconds(0.2))
+        {
+            EasingFunction = new CircleEase { EasingMode = EasingMode.EaseIn }
+        };
         fadeOut.Completed += (_, _) =>
         {
             AiSidebarColumn.Width = new GridLength(0);
             AiSidebar.Visibility = Visibility.Collapsed;
             AiSidebar.Opacity = 1;
+            AiSidebar.RenderTransform = null;
             AiSplitter.Visibility = Visibility.Collapsed;
         };
         AiSidebar.BeginAnimation(OpacityProperty, fadeOut);
+        (AiSidebar.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, slideX);
 
         _dataStore.SaveSettings(_dataStore.Settings with { AiSidebarOpen = false });
     }

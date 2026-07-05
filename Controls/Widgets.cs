@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Microsoft.Web.WebView2.Core;
 
 namespace TabloidBrowser;
@@ -19,25 +20,36 @@ public partial class MainWindow
             BorderBrush = GetBrush("SubtleStroke"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(16),
-            Margin = new Thickness(0, 0, 0, 12)
+            Padding = new Thickness(20),
+            Margin = new Thickness(0, 0, 0, 10)
         };
-
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
+
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 2) };
+        titleRow.Children.Add(new Border
+        {
+            Width = 3, Height = 18,
+            Background = GetBrush("Cyan"),
+            CornerRadius = new CornerRadius(1.5),
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        titleRow.Children.Add(new TextBlock
         {
             Text = title,
             Foreground = GetBrush("Text"),
             FontSize = 16,
             FontWeight = FontWeights.SemiBold
         });
+        stack.Children.Add(titleRow);
+
         if (!string.IsNullOrEmpty(detail))
             stack.Children.Add(new TextBlock
         {
             Text = detail,
             Foreground = GetBrush("Muted"),
             FontSize = 12,
-            Margin = new Thickness(0, 3, 0, 14),
+            Margin = new Thickness(11, 3, 0, 14),
             TextWrapping = TextWrapping.Wrap
         });
 
@@ -239,7 +251,7 @@ public partial class MainWindow
             Text = title,
             Foreground = GetBrush("Text"),
             FontSize = 13,
-            FontWeight = FontWeights.SemiBold
+            FontWeight = FontWeights.Bold
         });
         text.Children.Add(new TextBlock
         {
@@ -250,13 +262,17 @@ public partial class MainWindow
             TextWrapping = TextWrapping.Wrap
         });
 
-        var stateText = new TextBlock
+        var thumb = new Border
         {
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
+            Width = 16, Height = 16,
+            CornerRadius = new CornerRadius(8),
+            Background = GetBrush("Text"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 0, 0)
         };
+        var pillGrid = new Grid();
+        pillGrid.Children.Add(thumb);
         var statePill = new Border
         {
             Width = 46,
@@ -264,7 +280,7 @@ public partial class MainWindow
             CornerRadius = new CornerRadius(12),
             BorderThickness = new Thickness(1),
             VerticalAlignment = VerticalAlignment.Center,
-            Child = stateText
+            Child = pillGrid
         };
 
         Grid.SetColumn(statePill, 1);
@@ -275,10 +291,16 @@ public partial class MainWindow
         void update()
         {
             var on = toggle.IsChecked == true;
-            stateText.Text = on ? "On" : "Off";
-            stateText.Foreground = on ? GetBrush("AppBg") : GetBrush("Muted");
             statePill.Background = on ? GetBrush("Cyan") : GetBrush("ButtonBg");
             statePill.BorderBrush = on ? GetBrush("Cyan") : GetBrush("Stroke");
+            thumb.Background = on ? GetBrush("AppBg") : GetBrush("Text");
+            var anim = new ThicknessAnimation(
+                on ? new Thickness(27, 0, 0, 0) : new Thickness(2, 0, 0, 0),
+                TimeSpan.FromSeconds(0.12))
+            {
+                EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+            };
+            thumb.BeginAnimation(Border.MarginProperty, anim);
         }
 
         toggle.Checked += (_, _) => update();
@@ -447,6 +469,32 @@ public partial class MainWindow
         return (SettingRow(label, detail, box), box, () => box.Password);
     }
 
+    private Slider StyleSlider(Slider slider)
+    {
+        slider.Foreground = GetBrush("Cyan");
+        slider.Resources.Add(SystemColors.ControlBrushKey, GetBrush("ButtonBg"));
+        slider.Resources.Add(SystemColors.ControlLightBrushKey, GetBrush("ButtonPressed"));
+        slider.Resources.Add(SystemColors.ControlLightLightBrushKey, GetBrush("ButtonHover"));
+        slider.Resources.Add(SystemColors.HighlightBrushKey, GetBrush("Cyan"));
+        slider.Resources.Add(SystemColors.WindowBrushKey, GetBrush("InputBg"));
+        return slider;
+    }
+
+    private Border ValueChip(TextBlock text)
+    {
+        return new Border
+        {
+            Background = GetBrush("ButtonBg"),
+            BorderBrush = GetBrush("SubtleStroke"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 3, 8, 3),
+            MinWidth = 36,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Child = text
+        };
+    }
+
     private (FrameworkElement Control, Slider Input, Func<int> GetValue) SliderRow(string label, string detail, int value, int min, int max)
     {
         var currentText = new TextBlock
@@ -455,12 +503,11 @@ public partial class MainWindow
             Foreground = GetBrush("Text"),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
-            MinWidth = 36,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        var slider = new Slider
+        var slider = StyleSlider(new Slider
         {
             Minimum = min,
             Maximum = max,
@@ -470,18 +517,19 @@ public partial class MainWindow
             Height = 28,
             Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center
-        };
+        });
 
         slider.ValueChanged += (_, e) => currentText.Text = ((int)e.NewValue).ToString();
 
+        var chip = ValueChip(currentText);
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         Grid.SetColumn(slider, 0);
-        Grid.SetColumn(currentText, 1);
+        Grid.SetColumn(chip, 1);
         row.Children.Add(slider);
-        row.Children.Add(currentText);
+        row.Children.Add(chip);
 
         return (SettingRow(label, detail, row), slider, () => (int)slider.Value);
     }
@@ -494,12 +542,11 @@ public partial class MainWindow
             Foreground = GetBrush("Text"),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
-            MinWidth = 36,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        var slider = new Slider
+        var slider = StyleSlider(new Slider
         {
             Minimum = min,
             Maximum = max,
@@ -511,18 +558,19 @@ public partial class MainWindow
             Height = 28,
             Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center
-        };
+        });
 
         slider.ValueChanged += (_, e) => currentText.Text = e.NewValue.ToString("F1");
 
+        var chip = ValueChip(currentText);
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         Grid.SetColumn(slider, 0);
-        Grid.SetColumn(currentText, 1);
+        Grid.SetColumn(chip, 1);
         row.Children.Add(slider);
-        row.Children.Add(currentText);
+        row.Children.Add(chip);
 
         return (SettingRow(label, detail, row), slider, () => slider.Value);
     }

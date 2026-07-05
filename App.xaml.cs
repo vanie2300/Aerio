@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -23,6 +24,10 @@ public partial class App : Application
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
+            if (args.ExceptionObject is Win32Exception { NativeErrorCode: 1400 } ex && ex.StackTrace?.Contains("HwndWrapper") == true)
+            {
+                return;
+            }
             WriteCrashLog(args.ExceptionObject as Exception);
             try { MessageBox.Show($"Tabloid Browser encountered a fatal error.\n\nLog file:\n{_logPath}", "Tabloid Browser", MessageBoxButton.OK, MessageBoxImage.Error); } catch { }
             Environment.Exit(1);
@@ -30,10 +35,14 @@ public partial class App : Application
 
         DispatcherUnhandledException += (_, args) =>
         {
+            if (args.Exception is Win32Exception { NativeErrorCode: 1400 } && args.Exception.StackTrace?.Contains("HwndWrapper") == true)
+            {
+                args.Handled = true;
+                return;
+            }
             WriteCrashLog(args.Exception);
             Debug.WriteLine(args.Exception);
             args.Handled = true;
-            Shutdown(1);
         };
     }
 

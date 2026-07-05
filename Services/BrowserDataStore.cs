@@ -324,7 +324,8 @@ public sealed class BrowserDataStore : IDisposable
             DownloadsInternal.Clear();
             SaveDownloads();
         }
-        finally { _lock.ExitWriteLock(); }
+        finally { _lock.ExitWriteLock();
+        }
     }
 
     public void SaveSettings(BrowserSettings settings)
@@ -445,6 +446,7 @@ public sealed class BrowserDataStore : IDisposable
                 AiApiKey = settings.AiApiKey ?? BrowserSettings.Default.AiApiKey,
                 AiSystemPrompt = string.IsNullOrWhiteSpace(settings.AiSystemPrompt) ? BrowserSettings.Default.AiSystemPrompt : settings.AiSystemPrompt,
                 AiMaxTokens = settings.AiMaxTokens <= 0 ? BrowserSettings.Default.AiMaxTokens : settings.AiMaxTokens,
+                BackgroundOpacity = settings.BackgroundOpacity is >= 0 and <= 1 ? settings.BackgroundOpacity : BrowserSettings.Default.BackgroundOpacity,
                 AiTemperature = settings.AiTemperature < 0 || settings.AiTemperature > 2 ? BrowserSettings.Default.AiTemperature : settings.AiTemperature
             };
         }
@@ -562,6 +564,7 @@ public sealed record BrowserSettings(
     List<ExtensionInfo> Extensions,
     List<SearchEngineDef> CustomEngines,
     Dictionary<string, string>? Shortcuts,
+    double BackgroundOpacity = 1.0,
     bool AiEnabled = false,
     bool AiSidebarOpen = false,
     string AiProvider = "Ollama",
@@ -622,6 +625,7 @@ public sealed record BrowserSettings(
         Theme: "Dark",
         ShowQuickLinks: true,
         Background: "Default",
+        BackgroundOpacity: 1.0,
         BlockTrackers: true,
         TrackerBlocklist: DefaultTrackerBlocklist,
         TrackerAllowlist: [],

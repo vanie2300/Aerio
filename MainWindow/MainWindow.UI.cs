@@ -29,8 +29,6 @@ public partial class MainWindow
     private IntPtr _windowHandle;
     private bool _isFindBarDragging;
     private bool _isFullScreen;
-    private bool _closeCleanupStarted;
-    private bool _closeCleanupComplete;
     private WindowState _previousWindowState;
     private Point _findBarDragStart;
     private bool _suppressFindTextChanged;
@@ -114,9 +112,30 @@ public partial class MainWindow
     {
         var tab = _activeTab;
         var show = tab?.IsLoading == true;
-        LoadingOverlay.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         if (show)
+        {
+            LoadingOverlay.Visibility = Visibility.Visible;
+            LoadingOverlay.Opacity = 0;
+            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            LoadingOverlay.BeginAnimation(OpacityProperty, fadeIn);
             LoadingTitleText.Text = $"Loading {TrimUrl(tab?.Address ?? string.Empty)}";
+        }
+        else if (LoadingOverlay.Visibility == Visibility.Visible)
+        {
+            var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.1))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+            };
+            fadeOut.Completed += (_, _) =>
+            {
+                LoadingOverlay.Visibility = Visibility.Collapsed;
+                LoadingOverlay.Opacity = 1;
+            };
+            LoadingOverlay.BeginAnimation(OpacityProperty, fadeOut);
+        }
     }
 
     private void UpdateMemoryStatus()
@@ -301,6 +320,24 @@ public partial class MainWindow
         {
             if (sender is FrameworkElement { Tag: BrowserTab tab })
             {
+                if (TabStrip.ItemContainerGenerator.ContainerFromItem(tab) is FrameworkElement container)
+                {
+                    var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.12))
+                    {
+                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+                    };
+                    var scaleDown = new DoubleAnimation(1, 0.85, TimeSpan.FromSeconds(0.12))
+                    {
+                        EasingFunction = new CircleEase { EasingMode = EasingMode.EaseIn }
+                    };
+                    container.BeginAnimation(OpacityProperty, fadeOut);
+                    if (container.RenderTransform is ScaleTransform st)
+                    {
+                        st.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDown);
+                        st.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDown);
+                    }
+                    await Task.Delay(130);
+                }
                 await CloseTabAsync(tab);
             }
         }
@@ -570,6 +607,9 @@ public partial class MainWindow
 
     private void TitleBar_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (IsFromControl<Button>(e.OriginalSource))
+            return;
+
         if (e.ClickCount == 2)
         {
             _dragReady = false;
@@ -581,9 +621,6 @@ public partial class MainWindow
         if (pos.Y < 6) return;
 
         if (FindTabFromVisual(e.OriginalSource) is not null)
-            return;
-
-        if (IsFromControl<Button>(e.OriginalSource))
             return;
 
         _dragStartPoint = pos;
@@ -629,7 +666,7 @@ public partial class MainWindow
             SendMessage(_windowHandle, WM_SYSCOMMAND, new IntPtr(SC_MAXIMIZE), IntPtr.Zero);
     }
 
-    private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
+    private void CloseWindow_Click(object? sender, RoutedEventArgs e) => Environment.Exit(0);
 
     private void MainWindow_StateChanged(object? sender, EventArgs e)
     {
@@ -675,11 +712,26 @@ public partial class MainWindow
         var sy = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1.0;
         var border = 6.0;
 
-        RootGrid.Margin = new Thickness(
-            (info.rcWork.Left - info.rcMonitor.Left) / sx + border,
-            (info.rcWork.Top - info.rcMonitor.Top) / sy + border,
-            (info.rcMonitor.Right - info.rcWork.Right) / sx + border,
-            (info.rcMonitor.Bottom - info.rcWork.Bottom) / sy + border);
+        var left = (info.rcWork.Left - info.rcMonitor.Left) / sx + border;
+        var top = (info.rcWork.Top - info.rcMonitor.Top) / sy + border;
+        var right = (info.rcMonitor.Right - info.rcWork.Right) / sx + border;
+        var bottom = (info.rcMonitor.Bottom - info.rcWork.Bottom) / sy + border;
+
+        var abd = new APPBARDATA { cbSize = Marshal.SizeOf<APPBARDATA>() };
+        int[] edges = [ABE_LEFT, ABE_TOP, ABE_RIGHT, ABE_BOTTOM];
+        int[] autoHideEdges = [0, 0, 0, 0];
+        for (int i = 0; i < edges.Length; i++)
+        {
+            abd.uEdge = edges[i];
+            autoHideEdges[i] = SHAppBarMessage(ABM_GETAUTOHIDEBAR, ref abd) != IntPtr.Zero ? 1 : 0;
+        }
+
+        if (autoHideEdges[0] != 0 && left <= border) left = 3 / sx;
+        if (autoHideEdges[1] != 0 && top <= border) top = 3 / sy;
+        if (autoHideEdges[2] != 0 && right <= border) right = 3 / sx;
+        if (autoHideEdges[3] != 0 && bottom <= border) bottom = 3 / sy;
+
+        RootGrid.Margin = new Thickness(left, top, right, bottom);
     }
 
     private void ToggleMaximizeRestore()
@@ -773,12 +825,24 @@ public partial class MainWindow
         FindPopup.Placement = System.Windows.Controls.Primitives.PlacementMode.Absolute;
         var screenPoint = host.PointToScreen(new Point(0, 0));
         FindPopup.IsOpen = true;
+        FindPopupContent.Opacity = 0;
+        FindPopupContent.RenderTransform = new TranslateTransform(0, -8);
         FindPopup.UpdateLayout();
         Dispatcher.BeginInvoke(() =>
         {
             if (!FindPopup.IsOpen) return;
             FindPopup.HorizontalOffset = screenPoint.X + host.ActualWidth - FindPopupContent.ActualWidth;
             FindPopup.VerticalOffset = screenPoint.Y;
+            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            var slideDown = new DoubleAnimation(-8, 0, TimeSpan.FromSeconds(0.2))
+            {
+                EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+            };
+            FindPopupContent.BeginAnimation(OpacityProperty, fadeIn);
+            (FindPopupContent.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.YProperty, slideDown);
         }, DispatcherPriority.Loaded);
         FindTextBox.Focus();
         var opts = cwv.Environment.CreateFindOptions();
@@ -790,6 +854,8 @@ public partial class MainWindow
     {
         if (!FindPopup.IsOpen) return;
         FindPopup.IsOpen = false;
+        FindPopupContent.Opacity = 1;
+        FindPopupContent.RenderTransform = null;
         FindTextBox.Text = string.Empty;
         FindMatchCount.Text = string.Empty;
         var cwv = _activeTab?.WebView?.CoreWebView2;
@@ -1385,34 +1451,8 @@ public partial class MainWindow
         }
     }
 
-    private async void MainWindow_Closing(object? sender, CancelEventArgs e)
+private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
-        if (_closeCleanupComplete)
-        {
-            return;
-        }
-
-        e.Cancel = true;
-        if (_closeCleanupStarted)
-        {
-            return;
-        }
-
-        _closeCleanupStarted = true;
-        try
-        {
-            await CleanupBeforeCloseAsync();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"MainWindow_Closing failed: {ex}");
-        }
-        finally
-        {
-            _closeCleanupComplete = true;
-            Closing -= MainWindow_Closing;
-            _ = Dispatcher.BeginInvoke(() => Close());
-        }
     }
 
     private async Task CleanupBeforeCloseAsync()
@@ -1560,10 +1600,31 @@ public partial class MainWindow
         var bookmarks = _dataStore.Bookmarks;
         if (bookmarks.Count == 0)
         {
-            BookmarkBar.Visibility = Visibility.Collapsed;
+            if (BookmarkBar.Visibility == Visibility.Visible)
+            {
+                var slideOut = new DoubleAnimation(26, 0, TimeSpan.FromSeconds(0.15))
+                {
+                    EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
+                };
+                slideOut.Completed += (_, _) => BookmarkBar.Visibility = Visibility.Collapsed;
+                BookmarkBar.BeginAnimation(HeightProperty, slideOut);
+            }
             return;
         }
-        BookmarkBar.Visibility = Visibility.Visible;
+        if (BookmarkBar.Visibility != Visibility.Visible)
+        {
+            BookmarkBar.Height = 0;
+            BookmarkBar.Visibility = Visibility.Visible;
+            var slideIn = new DoubleAnimation(0, 26, TimeSpan.FromSeconds(0.2))
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
+            };
+            BookmarkBar.BeginAnimation(HeightProperty, slideIn);
+        }
+        else
+        {
+            BookmarkBar.ClearValue(HeightProperty);
+        }
         foreach (var bm in bookmarks)
         {
             var btn = new Button

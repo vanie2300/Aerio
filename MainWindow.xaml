@@ -67,19 +67,18 @@
       <Setter Property="MinWidth" Value="28" />
       <Setter Property="Height" Value="28" />
       <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="RenderTransform">
-        <Setter.Value>
-          <ScaleTransform ScaleX="1" ScaleY="1" />
-        </Setter.Value>
-      </Setter>
-      <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border Background="{TemplateBinding Background}"
+            <Border x:Name="TemplateRoot"
+                    Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="6">
+                    CornerRadius="6"
+                    RenderTransformOrigin="0.5,0.5">
+              <Border.RenderTransform>
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+              </Border.RenderTransform>
               <Grid>
                 <Border x:Name="HoverOverlay"
                         Background="{DynamicResource ButtonHover}"
@@ -103,10 +102,12 @@
                       <DoubleAnimation Storyboard.TargetName="HoverOverlay"
                                        Storyboard.TargetProperty="Opacity"
                                        To="1" Duration="0:0:0.1" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
                                        To="1.05" Duration="0:0:0.12"
                                        EasingFunction="{StaticResource SpringEase}" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
                                        To="1.05" Duration="0:0:0.12"
                                        EasingFunction="{StaticResource SpringEase}" />
                     </Storyboard>
@@ -118,10 +119,12 @@
                       <DoubleAnimation Storyboard.TargetName="HoverOverlay"
                                        Storyboard.TargetProperty="Opacity"
                                        To="0" Duration="0:0:0.2" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
                                        To="1" Duration="0:0:0.2"
                                        EasingFunction="{StaticResource SpringEase}" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
                                        To="1" Duration="0:0:0.2"
                                        EasingFunction="{StaticResource SpringEase}" />
                     </Storyboard>
@@ -135,9 +138,11 @@
                       <DoubleAnimation Storyboard.TargetName="PressedOverlay"
                                        Storyboard.TargetProperty="Opacity"
                                        To="1" Duration="0:0:0.05" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
                                        To="0.95" Duration="0:0:0.05" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
                                        To="0.95" Duration="0:0:0.05" />
                     </Storyboard>
                   </BeginStoryboard>
@@ -148,9 +153,11 @@
                       <DoubleAnimation Storyboard.TargetName="PressedOverlay"
                                        Storyboard.TargetProperty="Opacity"
                                        To="0" Duration="0:0:0.2" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
                                        To="1" Duration="0:0:0.15" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
                                        To="1" Duration="0:0:0.15" />
                     </Storyboard>
                   </BeginStoryboard>
@@ -171,19 +178,18 @@
       <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="RenderTransform">
-        <Setter.Value>
-          <ScaleTransform ScaleX="1" ScaleY="1" />
-        </Setter.Value>
-      </Setter>
-      <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ToggleButton">
-            <Border Background="{TemplateBinding Background}"
+            <Border x:Name="TemplateRoot"
+                    Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="6">
+                    CornerRadius="6"
+                    RenderTransformOrigin="0.5,0.5">
+              <Border.RenderTransform>
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+              </Border.RenderTransform>
               <Grid>
                 <Border x:Name="HoverOverlay"
                         Background="{DynamicResource ButtonHover}"
@@ -207,10 +213,12 @@
                       <DoubleAnimation Storyboard.TargetName="HoverOverlay"
                                        Storyboard.TargetProperty="Opacity"
                                        To="1" Duration="0:0:0.1" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
                                        To="1.04" Duration="0:0:0.12"
                                        EasingFunction="{StaticResource SpringEase}" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
                                        To="1.04" Duration="0:0:0.12"
                                        EasingFunction="{StaticResource SpringEase}" />
                     </Storyboard>
@@ -222,10 +230,12 @@
                       <DoubleAnimation Storyboard.TargetName="HoverOverlay"
                                        Storyboard.TargetProperty="Opacity"
                                        To="0" Duration="0:0:0.2" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleX"
                                        To="1" Duration="0:0:0.2"
                                        EasingFunction="{StaticResource SpringEase}" />
-                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                      <DoubleAnimation Storyboard.TargetName="TemplateRoot"
+                                       Storyboard.TargetProperty="RenderTransform.ScaleY"
                                        To="1" Duration="0:0:0.2"
                                        EasingFunction="{StaticResource SpringEase}" />
                     </Storyboard>
@@ -687,11 +697,11 @@
                     Orientation="Horizontal"
                     VerticalAlignment="Center"
                     Margin="13,0,14,0">
-          <TextBlock Text="T"
-                     Foreground="{DynamicResource Cyan}"
-                     FontSize="17"
-                     FontWeight="Bold"
-                     VerticalAlignment="Center" />
+          <Path Data="M 152,110 H 238 V 194 H 324 V 264 H 238 V 345 C 238,410 275,435 322,435 H 324 V 500 H 314 C 212,500 152,445 152,335 Z"
+                Fill="#FFFFFF"
+                Stretch="Uniform"
+                Height="18"
+                VerticalAlignment="Center" />
         </StackPanel>
 
         <Grid Grid.Column="1"
@@ -780,11 +790,12 @@
                         </Style>
                       </Border.Style>
                       <Grid>
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="Auto" />
-                          <ColumnDefinition Width="*" />
-                          <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0"
                                     Orientation="Horizontal"
@@ -846,6 +857,8 @@
 
         <StackPanel Grid.Column="2"
                     Orientation="Horizontal"
+                    Margin="0,7,8,0"
+                    VerticalAlignment="Top"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
           <Button Content="&#xE921;"
                   Click="Minimize_Click"
@@ -857,7 +870,7 @@
                   ToolTip="Maximize" />
           <Button Content="&#xE8BB;"
                   Click="CloseWindow_Click"
-                  Style="{StaticResource CloseTitleBarButton}"
+                  Style="{StaticResource TitleBarButton}"
                   ToolTip="Close" />
         </StackPanel>
       </Grid>
@@ -893,18 +906,18 @@
                   Content="&#xE72A;"
                   Click="Forward_Click"
                   Style="{StaticResource IconButton}"
-                  Margin="4,0,0,0"
+                  Margin="2,0,0,0"
                   ToolTip="Forward" />
           <Button x:Name="ReloadButton"
                   Content="&#xE72C;"
                   Click="Reload_Click"
                   Style="{StaticResource IconButton}"
-                  Margin="4,0,0,0"
+                  Margin="2,0,0,0"
                   ToolTip="Reload" />
           <Button Content="&#xE80F;"
                   Click="Home_Click"
                   Style="{StaticResource IconButton}"
-                  Margin="4,0,0,0"
+                  Margin="2,0,0,0"
                   ToolTip="Start page" />
         </StackPanel>
 
@@ -912,35 +925,46 @@
                 Grid.Column="1"
                 Margin="0,0,8,0"
                 Background="{DynamicResource InputBg}"
-                BorderBrush="{DynamicResource Stroke}"
-                BorderThickness="1"
-                CornerRadius="7"
+                BorderThickness="3,0,0,0"
+                BorderBrush="#555555"
+                CornerRadius="0,7,7,0"
                 Height="27"
                 VerticalAlignment="Center">
-          <Grid>
+           <Grid>
             <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
               <ColumnDefinition Width="Auto" />
               <ColumnDefinition Width="*" />
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-               <TextBlock Grid.Column="0"
-                           Text="&#xE721;"
-                           FontFamily="Segoe MDL2 Assets"
-                           Foreground="{DynamicResource Muted}"
-                           Margin="12,0,8,0"
-                           VerticalAlignment="Center"
-                           FontSize="12" />
+                <Button x:Name="PrivacyButton"
+                        Grid.Column="0"
+                        Content="&#xE83D;"
+                        Click="Privacy_Click"
+                        Style="{StaticResource IconButton}"
+                        Foreground="{DynamicResource Lime}"
+                        FontSize="14"
+                        BorderThickness="0"
+                        Margin="0,0,0,0"
+                        ToolTip="Privacy permissions" />
+                <TextBlock Grid.Column="1"
+                            Text="&#xE721;"
+                            FontFamily="Segoe MDL2 Assets"
+                            Foreground="{DynamicResource Muted}"
+                            Margin="8,0,4,0"
+                            VerticalAlignment="Center"
+                            FontSize="13" />
             <TextBox x:Name="AddressBox"
-                     Grid.Column="1"
+                     Grid.Column="2"
                      Background="Transparent"
                      BorderThickness="0"
                      Foreground="{DynamicResource Text}"
-                     CaretBrush="{DynamicResource Lime}"
+                     CaretBrush="{DynamicResource Cyan}"
                      FontSize="12.5"
                      Padding="0,5,8,0"
                      PreviewKeyDown="AddressBox_PreviewKeyDown" />
-            <Button Grid.Column="2"
+            <Button Grid.Column="3"
                     Content="Go"
                     Click="Go_Click"
                     IsDefault="True"
@@ -971,37 +995,7 @@
                   Margin="4,0,0,0"
                   ToolTip="Toggle reader mode"
                   Visibility="Collapsed" />
-          <Button Content="&#xE8A4;"
-                  Click="ShowBookmarks_Click"
-                  Style="{StaticResource IconButton}"
-                  Margin="4,0,0,0"
-                   ToolTip="Saved bookmarks"
-                   Visibility="Visible" />
-          <Button Content="&#xE81C;"
-                  Click="ShowHistory_Click"
-                  Style="{StaticResource IconButton}"
-                  Margin="4,0,0,0"
-                   ToolTip="History"
-                   Visibility="Visible" />
-          <Button Content="&#xE896;"
-                  Click="ShowDownloads_Click"
-                  Style="{StaticResource IconButton}"
-                  Margin="4,0,0,0"
-                   ToolTip="Downloads"
-                   Visibility="Visible" />
-          <Button Content="&#xE75C;"
-                  Click="ClearData_Click"
-                  Style="{StaticResource IconButton}"
-                  Margin="4,0,0,0"
-                   ToolTip="Clear browsing data"
-                   Visibility="Visible" />
-          <Button x:Name="PrivacyButton"
-                  Content="&#xE83D;"
-                  Click="Privacy_Click"
-                  Style="{StaticResource IconButton}"
-                  BorderBrush="{DynamicResource Lime}"
-                  Margin="8,0,0,0"
-                  ToolTip="Privacy permissions" />
+
           <Button x:Name="PrivateButton"
                   Content="PVT"
                   Click="Private_Click"
@@ -1084,21 +1078,21 @@
                 <MenuItem Header="&#xE914;  Print"
                           Style="{StaticResource BrowserMenuItemStyle}"
                           Click="Print_Click" />
-                <MenuItem Header="&#xE8A4;  Library"
+                 <MenuItem Header="&#xE8A4;  Library"
                           Style="{StaticResource BrowserMenuItemStyle}">
-                  <MenuItem Header="&#xE8A4;  Bookmarks"
-                            Style="{StaticResource BrowserSubMenuItemStyle}"
-                            Click="ShowBookmarks_Click" />
-                  <MenuItem Header="&#xE81C;  History"
-                            Style="{StaticResource BrowserSubMenuItemStyle}"
-                            Click="ShowHistory_Click" />
-                  <MenuItem Header="&#xE896;  Downloads"
-                            Style="{StaticResource BrowserSubMenuItemStyle}"
-                            Click="ShowDownloads_Click" />
-                  <MenuItem Header="&#xE7B9;  Extensions"
-                            Style="{StaticResource BrowserSubMenuItemStyle}"
-                            Click="ShowExtensions_Click" />
-                </MenuItem>
+                   <MenuItem Header="&#xE8A4;  Bookmarks"
+                             Style="{StaticResource BrowserSubMenuItemStyle}"
+                             Click="ShowBookmarks_Click" />
+                   <MenuItem Header="&#xE81C;  History"
+                             Style="{StaticResource BrowserSubMenuItemStyle}"
+                             Click="ShowHistory_Click" />
+                   <MenuItem Header="&#xE896;  Downloads"
+                             Style="{StaticResource BrowserSubMenuItemStyle}"
+                             Click="ShowDownloads_Click" />
+                   <MenuItem Header="&#xE7B9;  Extensions"
+                             Style="{StaticResource BrowserSubMenuItemStyle}"
+                             Click="ShowExtensions_Click" />
+                 </MenuItem>
                 <MenuItem Header="&#xE790;  Zoom"
                           Style="{StaticResource BrowserMenuItemStyle}">
                   <MenuItem Header="&#xE7A1;  Zoom in"
@@ -1275,8 +1269,9 @@
                 </EventTrigger>
               </StackPanel.Triggers>
               <TextBlock Text="Tabloid"
+                         FontFamily="./Assets/Fonts/#Font208"
                          Foreground="{DynamicResource Text}"
-                         FontSize="44"
+                         FontSize="55"
                          FontWeight="SemiBold"
                          HorizontalAlignment="Center"
                          Margin="0,0,0,4">
@@ -1301,11 +1296,12 @@
                         CornerRadius="8"
                         PreviewMouseDown="StartSearchSurface_PreviewMouseDown">
                 <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
 
                   <TextBlock Text="&#xE721;"
                              FontFamily="Segoe MDL2 Assets"
@@ -1541,7 +1537,7 @@
                             Height="20"
                             IsChecked="True"
                             ToolTip="Include page content for context"
-                            BorderThickness="1"
+                BorderThickness="1,1,0,1"
                             Background="{DynamicResource ButtonBg}"
                             BorderBrush="{DynamicResource SubtleStroke}"
                             Padding="0"

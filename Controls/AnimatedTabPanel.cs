@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 namespace TabloidBrowser;
 
 public class AnimatedTabPanel : Panel
 {
+    private readonly HashSet<UIElement> _animatedIn = [];
     private TranslateTransform? _dragTransform;
     private int _dragIndex = -1;
     private int _insertIndex = -1;
@@ -13,6 +17,13 @@ public class AnimatedTabPanel : Panel
     private double _grabOffset;
 
     public double CurrentTabWidth => _tabWidth;
+
+    protected override void OnVisualChildrenChanged(DependencyObject visualAdded, DependencyObject visualRemoved)
+    {
+        if (visualRemoved is UIElement removed)
+            _animatedIn.Remove(removed);
+        base.OnVisualChildrenChanged(visualAdded, visualRemoved);
+    }
 
     public void BeginDrag(int tabIndex, Point panelPos)
     {
@@ -140,6 +151,52 @@ public class AnimatedTabPanel : Panel
         return new Size(_tabWidth * tabCount + totalMargin, availableSize.Height);
     }
 
+    private void AnimateSlide(UIElement child, double fromX, double toX)
+    {
+        var translate = new TranslateTransform(fromX - toX, 0);
+        child.RenderTransform = translate;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!Children.Contains(child)) return;
+            var slide = new DoubleAnimation(fromX - toX, 0, TimeSpan.FromSeconds(0.12))
+            {
+                EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+            };
+            translate.BeginAnimation(TranslateTransform.XProperty, slide);
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void AnimateEntry(UIElement child)
+    {
+        if (_animatedIn.Contains(child)) return;
+        _animatedIn.Add(child);
+        child.Opacity = 0;
+        child.RenderTransform = new ScaleTransform(0.85, 0.85);
+        child.RenderTransformOrigin = new Point(0.5, 0.5);
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!Children.Contains(child)) return;
+            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.2))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            var scaleUp = new DoubleAnimation(0.85, 1, TimeSpan.FromSeconds(0.25))
+            {
+                EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+            };
+            child.BeginAnimation(OpacityProperty, fadeIn);
+            child.RenderTransformOrigin = new Point(0.5, 0.5);
+            var transform = child.RenderTransform as ScaleTransform;
+            if (transform is not null)
+            {
+                transform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleUp);
+                transform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleUp);
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    private readonly Dictionary<UIElement, double> _lastX = [];
+
     protected override Size ArrangeOverride(Size finalSize)
     {
         double availableHeight = finalSize.Height;
@@ -151,6 +208,8 @@ public class AnimatedTabPanel : Panel
             {
                 var m = (child as FrameworkElement)?.Margin ?? new Thickness();
                 child.Arrange(new Rect(x + m.Left, m.Top, Math.Max(0, _tabWidth), Math.Max(0, availableHeight - m.Top - m.Bottom)));
+                AnimateEntry(child);
+                _lastX[child] = x + m.Left;
                 x += _tabWidth;
             }
             return new Size(x, finalSize.Height);
@@ -166,7 +225,11 @@ public class AnimatedTabPanel : Panel
             int visualIdx = i > _dragIndex ? i - 1 : i;
             double arrangeX = (visualIdx >= _insertIndex ? visualIdx + 1 : visualIdx) * _tabWidth + m.Left;
 
+            if (_lastX.TryGetValue(child, out var prevX) && Math.Abs(prevX - arrangeX) > 0.5 && !_animatedIn.Contains(child))
+                AnimateSlide(child, prevX, arrangeX);
+
             child.Arrange(new Rect(arrangeX, m.Top, Math.Max(0, _tabWidth), Math.Max(0, availableHeight - m.Top - m.Bottom)));
+            _lastX[child] = arrangeX;
         }
 
         if (GetChild(_dragIndex) is { } draggedChild)

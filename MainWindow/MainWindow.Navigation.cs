@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
 namespace TabloidBrowser;
@@ -52,19 +53,34 @@ public partial class MainWindow
         InternalPageHost.Visibility = Visibility.Visible;
         InternalPageHost.Children.Clear();
 
+        UIElement page;
         if (!forceRebuild && tab.CachedContent is not null)
         {
-            InternalPageHost.Children.Add(tab.CachedContent);
-            if (tab.NativeScrollY > 0 && FindChild<ScrollViewer>(tab.CachedContent) is { } scroll)
+            page = tab.CachedContent;
+            InternalPageHost.Children.Add(page);
+            if (tab.NativeScrollY > 0 && FindChild<ScrollViewer>(page) is { } scroll)
             {
                 Dispatcher.BeginInvoke(
                     () => scroll.ScrollToVerticalOffset(Math.Max(0, tab.NativeScrollY)),
                     DispatcherPriority.Loaded);
             }
-            return;
+        }
+        else
+        {
+            page = BuildNativePage(tab);
+            InternalPageHost.Children.Add(page);
         }
 
-        InternalPageHost.Children.Add(BuildNativePage(tab));
+        page.Opacity = 0;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!InternalPageHost.Children.Contains(page)) return;
+            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            page.BeginAnimation(OpacityProperty, fadeIn);
+        }, DispatcherPriority.Loaded);
     }
 
     private async Task NavigateWebAsync(BrowserTab tab, string input, bool restoreScroll = false)
@@ -183,6 +199,7 @@ public partial class MainWindow
             BrowserTabKind.Bookmarks => BuildBookmarksPage(tab),
             BrowserTabKind.History => BuildHistoryPage(tab),
             BrowserTabKind.Downloads => BuildDownloadsPage(tab),
+
             BrowserTabKind.Settings => BuildSettingsPage(tab),
             _ => new Grid()
         };

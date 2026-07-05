@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>Assets\Icon.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\the app icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,13 +13,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Assets\Icon.ico" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\Icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\the app icon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\The app icon.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\4578.jpg" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\ddg.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\startpage.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\brave.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\searxng.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="readability.min.js" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Fonts\PureMechanic.ttf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
