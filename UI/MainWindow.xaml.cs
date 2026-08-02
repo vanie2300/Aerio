@@ -240,6 +240,7 @@ public partial class MainWindow : Window
 
         _startBgTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
         _startBgTimer.Tick += StartBgTimer_Tick;
+        _startBgTimer.Start();
         BrowserPane.StartBgCanvas.SizeChanged += StartBg_SizeChanged;
 
         ApplySettings();

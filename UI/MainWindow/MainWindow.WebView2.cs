@@ -93,6 +93,13 @@ public partial class MainWindow
 
     private async Task InitializeEnvironmentAsync()
     {
+        var availableVersion = CoreWebView2Environment.GetAvailableBrowserVersionString();
+        if (string.IsNullOrEmpty(availableVersion))
+        {
+            throw new InvalidOperationException(
+                "Microsoft Edge WebView2 Runtime is not installed.");
+        }
+
         var userDataFolder = _privateUserDataFolder ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TabloidBrowser",
@@ -136,11 +143,27 @@ public partial class MainWindow
         BrowserPane.WebViewHost.Visibility = Visibility.Hidden;
         BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
 
-        MessageBox.Show(
-            $"Tabloid Browser could not start WebView2.\n\n{exception.Message}\n\nTry installing or repairing Microsoft Edge WebView2 Runtime.",
-            "Tabloid Browser",
-            MessageBoxButton.OK,
+        var result = MessageBox.Show(
+            $"Tabloid Browser could not start.\n\n{exception.Message}\n\nOpen the WebView2 download page?",
+            "Tabloid Browser - WebView2 Required",
+            MessageBoxButton.YesNo,
             MessageBoxImage.Error);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "https://developer.microsoft.com/en-us/microsoft-edge/webview2/",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to open download page: {ex}");
+            }
+        }
     }
 
     private async Task EnsureWebViewAsync(BrowserTab tab, bool attachBeforeInitialize = false)
@@ -562,11 +585,32 @@ public partial class MainWindow
         return false;
     }
 
+    private static readonly HashSet<string> DangerousExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".msi", ".bat", ".cmd", ".ps1", ".vbs", ".scr", ".jar", ".msix", ".appx"
+    };
+
     private void WebView_DownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs args)
     {
         try
         {
             var url = args.DownloadOperation.Uri;
+            var ext = Path.GetExtension(new Uri(url).LocalPath);
+
+            if (DangerousExtensions.Contains(ext))
+            {
+                var fileName = Path.GetFileName(new Uri(url).LocalPath);
+                var result = MessageBox.Show(
+                    $"Download \"{fileName}\"?\n\nThis file type ({ext}) can harm your computer.",
+                    "Confirm Download",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (result != MessageBoxResult.Yes)
+                {
+                    args.Cancel = true;
+                    return;
+                }
+            }
 
             if (!url.Contains(".crx", StringComparison.OrdinalIgnoreCase) &&
                 !url.Contains("clients2.google.com/service/update2/crx", StringComparison.OrdinalIgnoreCase))

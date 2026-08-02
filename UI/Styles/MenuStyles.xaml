@@ -108,7 +108,7 @@
       </Setter>
     </Style>
 
-    <Style x:Key="BrowserSubMenuStyle" TargetType="Menu" BasedOn="{StaticResource {x:Type Menu}}">
+    <Style x:Key="BrowserSubMenuStyle" TargetType="Menu">
       <Setter Property="Background" Value="{DynamicResource ChromeBg}" />
       <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
       <Setter Property="BorderThickness" Value="1" />

@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 
@@ -137,16 +139,20 @@ public sealed class BrowserDataStore : IDisposable
 
     public void AddBookmark(string title, string url)
     {
-        if (IsBookmarked(url))
-        {
-            return;
-        }
-
         _lock.EnterWriteLock();
         try
         {
+            if (BookmarksInternal.Any(b => string.Equals(b.Url, url, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
             BookmarksInternal.Insert(0, new BookmarkItem(CleanTitle(title), url, DateTimeOffset.Now));
-            SaveBookmarks();
+
+            if (!SaveBookmarks())
+            {
+                BookmarksInternal.RemoveAt(0);
+            }
         }
         finally { _lock.ExitWriteLock(); }
     }
@@ -156,8 +162,19 @@ public sealed class BrowserDataStore : IDisposable
         _lock.EnterWriteLock();
         try
         {
+            var snapshot = new List<BookmarkItem>(BookmarksInternal);
             BookmarksInternal.RemoveAll(bookmark => string.Equals(bookmark.Url, url, StringComparison.OrdinalIgnoreCase));
-            SaveBookmarks();
+
+            if (BookmarksInternal.Count == snapshot.Count)
+            {
+                return;
+            }
+
+            if (!SaveBookmarks())
+            {
+                BookmarksInternal.Clear();
+                BookmarksInternal.AddRange(snapshot);
+            }
         }
         finally { _lock.ExitWriteLock(); }
     }
@@ -334,8 +351,9 @@ public sealed class BrowserDataStore : IDisposable
         try
         {
             Settings = settings;
+            var forDisk = settings with { AiApiKey = EncryptApiKey(settings.AiApiKey) };
             var tmp = _settingsPath + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(Settings, JsonOptions));
+            File.WriteAllText(tmp, JsonSerializer.Serialize(forDisk, JsonOptions));
             File.Move(tmp, _settingsPath, overwrite: true);
         }
         catch (Exception ex)
@@ -345,9 +363,9 @@ public sealed class BrowserDataStore : IDisposable
         finally { _lock.ExitWriteLock(); }
     }
 
-    private void SaveBookmarks()
+    private bool SaveBookmarks()
     {
-        Save(_bookmarksPath, BookmarksInternal);
+        return Save(_bookmarksPath, BookmarksInternal);
     }
 
     private void SaveHistory()
@@ -401,7 +419,7 @@ public sealed class BrowserDataStore : IDisposable
         }
     }
 
-    private static void Save<T>(string path, List<T> items)
+    private static bool Save<T>(string path, List<T> items)
     {
         try
         {
@@ -410,10 +428,12 @@ public sealed class BrowserDataStore : IDisposable
             var tmp = path + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(items, JsonOptions));
             File.Move(tmp, path, overwrite: true);
+            return true;
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Save failed for {path}: {ex.Message}");
+            return false;
         }
     }
 
@@ -443,7 +463,7 @@ public sealed class BrowserDataStore : IDisposable
                 CustomEngines = settings.CustomEngines ?? [],
                 AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) ? BrowserSettings.Default.AiEndpoint : settings.AiEndpoint,
                 AiModel = string.IsNullOrWhiteSpace(settings.AiModel) ? BrowserSettings.Default.AiModel : settings.AiModel,
-                AiApiKey = settings.AiApiKey ?? BrowserSettings.Default.AiApiKey,
+                AiApiKey = DecryptApiKey(settings.AiApiKey) ?? BrowserSettings.Default.AiApiKey,
                 AiSystemPrompt = string.IsNullOrWhiteSpace(settings.AiSystemPrompt) ? BrowserSettings.Default.AiSystemPrompt : settings.AiSystemPrompt,
                 AiMaxTokens = settings.AiMaxTokens <= 0 ? BrowserSettings.Default.AiMaxTokens : settings.AiMaxTokens,
                 BackgroundOpacity = settings.BackgroundOpacity is >= 0 and <= 1 ? settings.BackgroundOpacity : BrowserSettings.Default.BackgroundOpacity,
@@ -458,6 +478,32 @@ public sealed class BrowserDataStore : IDisposable
         {
             return BrowserSettings.Default;
         }
+    }
+
+    private const string EncryptedApiKeyPrefix = "$dpapi$";
+
+    private static string EncryptApiKey(string plaintext)
+    {
+        if (string.IsNullOrEmpty(plaintext))
+            return string.Empty;
+
+        var plainBytes = Encoding.UTF8.GetBytes(plaintext);
+        var encryptedBytes = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
+        return EncryptedApiKeyPrefix + Convert.ToBase64String(encryptedBytes);
+    }
+
+    private static string DecryptApiKey(string stored)
+    {
+        if (string.IsNullOrEmpty(stored))
+            return string.Empty;
+
+        if (!stored.StartsWith(EncryptedApiKeyPrefix, StringComparison.Ordinal))
+            return stored;
+
+        var base64 = stored[EncryptedApiKeyPrefix.Length..];
+        var encryptedBytes = Convert.FromBase64String(base64);
+        var plainBytes = ProtectedData.Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
+        return Encoding.UTF8.GetString(plainBytes);
     }
 
     private static string CleanTitle(string title)

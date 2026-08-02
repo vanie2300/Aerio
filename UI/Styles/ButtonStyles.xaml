@@ -46,12 +46,18 @@
                                        To="1" Duration="0:0:0.1" />
                       <DoubleAnimation Storyboard.TargetName="TemplateRoot"
                                        Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                       To="1.05" Duration="0:0:0.12"
-                                       EasingFunction="{StaticResource SpringEase}" />
+                 To="1.05" Duration="0:0:0.12">
+  <DoubleAnimation.EasingFunction>
+    <CircleEase EasingMode="EaseOut" />
+  </DoubleAnimation.EasingFunction>
+</DoubleAnimation>
                       <DoubleAnimation Storyboard.TargetName="TemplateRoot"
                                        Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                       To="1.05" Duration="0:0:0.12"
-                                       EasingFunction="{StaticResource SpringEase}" />
+                 To="1.05" Duration="0:0:0.12">
+  <DoubleAnimation.EasingFunction>
+    <CircleEase EasingMode="EaseOut" />
+  </DoubleAnimation.EasingFunction>
+</DoubleAnimation>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -63,12 +69,18 @@
                                        To="0" Duration="0:0:0.2" />
                       <DoubleAnimation Storyboard.TargetName="TemplateRoot"
                                        Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                       To="1" Duration="0:0:0.2"
-                                       EasingFunction="{StaticResource SpringEase}" />
+                 To="1" Duration="0:0:0.2">
+  <DoubleAnimation.EasingFunction>
+    <CircleEase EasingMode="EaseOut" />
+  </DoubleAnimation.EasingFunction>
+</DoubleAnimation>
                       <DoubleAnimation Storyboard.TargetName="TemplateRoot"
                                        Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                       To="1" Duration="0:0:0.2"
-                                       EasingFunction="{StaticResource SpringEase}" />
+                 To="1" Duration="0:0:0.2">
+  <DoubleAnimation.EasingFunction>
+    <CircleEase EasingMode="EaseOut" />
+  </DoubleAnimation.EasingFunction>
+</DoubleAnimation>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.ExitActions>
@@ -157,12 +169,18 @@
                                        To="1" Duration="0:0:0.1" />
                       <DoubleAnimation Storyboard.TargetName="TemplateRoot"
                                        Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                       To="1.04" Duration="0:0:0.12"
-                                       EasingFunction="{StaticResource SpringEase}" />
+                 To="1.04" Duration="0:0:0.12">
+  <DoubleAnimation.EasingFunction>
+    <CircleEase EasingMode="EaseOut" />
+  </DoubleAnimation.EasingFunction>
+</DoubleAnimation>
                       <DoubleAnimation Storyboard.TargetName="TemplateRoot"
                                        Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                       To="1.04" Duration="0:0:0.12"
-                                       EasingFunction="{StaticResource SpringEase}" />
+                 To="1.04" Duration="0:0:0.12">
+  <DoubleAnimation.EasingFunction>
+    <CircleEase EasingMode="EaseOut" />
+  </DoubleAnimation.EasingFunction>
+</DoubleAnimation>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -174,12 +192,18 @@
                                        To="0" Duration="0:0:0.2" />
                       <DoubleAnimation Storyboard.TargetName="TemplateRoot"
                                        Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                       To="1" Duration="0:0:0.2"
-                                       EasingFunction="{StaticResource SpringEase}" />
+                 To="1" Duration="0:0:0.2">
+  <DoubleAnimation.EasingFunction>
+    <CircleEase EasingMode="EaseOut" />
+  </DoubleAnimation.EasingFunction>
+</DoubleAnimation>
                       <DoubleAnimation Storyboard.TargetName="TemplateRoot"
                                        Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                       To="1" Duration="0:0:0.2"
-                                       EasingFunction="{StaticResource SpringEase}" />
+                 To="1" Duration="0:0:0.2">
+  <DoubleAnimation.EasingFunction>
+    <CircleEase EasingMode="EaseOut" />
+  </DoubleAnimation.EasingFunction>
+</DoubleAnimation>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.ExitActions>
@@ -230,8 +254,8 @@
     </Style>
 
     <Style x:Key="TitleBarButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
-      <Setter Property="Width" Value="44" />
-      <Setter Property="Height" Value="41" />
+      <Setter Property="Width" Value="46" />
+      <Setter Property="Height" Value="40" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
     </Style>

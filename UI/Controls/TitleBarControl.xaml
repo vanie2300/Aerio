@@ -3,9 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              xmlns:local="clr-namespace:TabloidBrowser">
-  <Border Background="{DynamicResource TitleBg}"
-          BorderBrush="{DynamicResource SubtleStroke}"
-          BorderThickness="0,0,0,1"
+  <Border Background="{DynamicResource ChromeBg}"
+          BorderThickness="0"
           PreviewMouseLeftButtonDown="TitleBar_PreviewMouseLeftButtonDown"
           PreviewMouseMove="TitleBar_PreviewMouseMove"
           PreviewMouseLeftButtonUp="TitleBar_PreviewMouseLeftButtonUp">
@@ -19,7 +18,7 @@
       <StackPanel Grid.Column="0"
                   Orientation="Horizontal"
                   VerticalAlignment="Center"
-                  Margin="13,0,14,0">
+                  Margin="8,0,12,0">
         <Path Data="M 152,110 H 238 V 194 H 324 V 264 H 238 V 345 C 238,410 275,435 322,435 H 324 V 500 H 314 C 212,500 152,445 152,335 Z"
               Fill="#FFFFFF"
               Stretch="Uniform"
@@ -28,7 +27,7 @@
       </StackPanel>
 
       <Grid Grid.Column="1"
-            Margin="0,5,8,3"
+            Margin="0,5,8,5"
             shell:WindowChrome.IsHitTestVisibleInChrome="True">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
@@ -180,22 +179,43 @@
 
       <StackPanel Grid.Column="2"
                   Orientation="Horizontal"
-                  Margin="0,7,8,0"
-                  VerticalAlignment="Top"
+                  Margin="0,0,8,0"
+                  VerticalAlignment="Stretch"
                   shell:WindowChrome.IsHitTestVisibleInChrome="True">
-        <Button Content="&#xE921;"
-                Click="Minimize_Click"
+        <Button Click="Minimize_Click"
                 Style="{StaticResource TitleBarButton}"
-                ToolTip="Minimize" />
+                ToolTip="Minimize">
+          <Path Data="M 2 10 L 10 10"
+                Stroke="{DynamicResource Text}"
+                StrokeThickness="1.2"
+                StrokeStartLineCap="Flat"
+                StrokeEndLineCap="Flat" />
+        </Button>
         <Button x:Name="MaximizeRestoreBtn"
-                Content="&#xE922;"
                 Click="MaximizeRestore_Click"
                 Style="{StaticResource TitleBarButton}"
-                ToolTip="Maximize" />
-        <Button Content="&#xE8BB;"
-                Click="CloseWindow_Click"
-                Style="{StaticResource TitleBarButton}"
-                ToolTip="Close" />
+                ToolTip="Maximize">
+          <Grid Width="12" Height="12">
+            <Path x:Name="MaximizeGlyph"
+                  Data="M 2.5 2.5 H 9.5 V 9.5 H 2.5 Z"
+                  Stroke="{DynamicResource Text}"
+                  StrokeThickness="1.2" />
+            <Path x:Name="RestoreGlyph"
+                  Data="M 4.5 2.5 H 9.5 V 7.5 H 4.5 Z M 2.5 4.5 H 7.5 V 9.5 H 2.5 Z"
+                  Stroke="{DynamicResource Text}"
+                  StrokeThickness="1.2"
+                  Visibility="Collapsed" />
+          </Grid>
+        </Button>
+        <Button Click="CloseWindow_Click"
+                Style="{StaticResource CloseTitleBarButton}"
+                ToolTip="Close">
+          <Path Data="M 3 3 L 9 9 M 9 3 L 3 9"
+                Stroke="{DynamicResource Text}"
+                StrokeThickness="1.2"
+                StrokeStartLineCap="Flat"
+                StrokeEndLineCap="Flat" />
+        </Button>
       </StackPanel>
     </Grid>
   </Border>

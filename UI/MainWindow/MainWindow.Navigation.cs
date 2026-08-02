@@ -263,6 +263,10 @@ public partial class MainWindow
         if (Uri.TryCreate(input, UriKind.Absolute, out var absolute) &&
             (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps || absolute.Scheme == Uri.UriSchemeFile))
         {
+            if (absolute.Scheme == Uri.UriSchemeHttp && !IsLocalAddress(absolute.Host))
+            {
+                return absolute.ToString().Replace("http://", "https://", StringComparison.OrdinalIgnoreCase);
+            }
             return absolute.ToString();
         }
 
@@ -276,6 +280,13 @@ public partial class MainWindow
         return template.Contains("{q}")
             ? template.Replace("{q}", escapedQuery)
             : template + escapedQuery;
+    }
+
+    private static bool IsLocalAddress(string host)
+    {
+        return string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+               host == "127.0.0.1" ||
+               host == "::1";
     }
 
     private static string GetSearchUrlTemplate(string searchEngine, List<SearchEngineDef>? customEngines = null)

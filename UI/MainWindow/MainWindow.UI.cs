@@ -666,7 +666,7 @@ public partial class MainWindow
             SendMessage(_windowHandle, WM_SYSCOMMAND, new IntPtr(SC_MAXIMIZE), IntPtr.Zero);
     }
 
-    private void CloseWindow_Click(object? sender, RoutedEventArgs e) => Environment.Exit(0);
+    private void CloseWindow_Click(object? sender, RoutedEventArgs e) => Close();
 
     private void MainWindow_StateChanged(object? sender, EventArgs e)
     {
@@ -675,7 +675,8 @@ public partial class MainWindow
         if (WindowState != WindowState.Maximized)
         {
             RootGrid.Margin = new Thickness(0);
-            TitleBar.MaximizeRestoreBtn.Content = "\uE922";
+            TitleBar.MaximizeGlyph.Visibility = Visibility.Visible;
+            TitleBar.RestoreGlyph.Visibility = Visibility.Collapsed;
             TitleBar.MaximizeRestoreBtn.ToolTip = "Maximize";
             return;
         }
@@ -683,7 +684,8 @@ public partial class MainWindow
         {
             UpdateMaximizedMargins();
 
-            TitleBar.MaximizeRestoreBtn.Content = "\uE923";
+            TitleBar.MaximizeGlyph.Visibility = Visibility.Collapsed;
+            TitleBar.RestoreGlyph.Visibility = Visibility.Visible;
             TitleBar.MaximizeRestoreBtn.ToolTip = "Restore";
         }
     }
@@ -1451,82 +1453,109 @@ public partial class MainWindow
         }
     }
 
+private bool _isClosing;
+
 private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
+        if (_isClosing)
+        {
+            DisposeWebViewsAndExit();
+            return;
+        }
+
+        e.Cancel = true;
+        _isClosing = true;
+        _ = DeferredCloseAsync();
     }
 
-    private async Task CleanupBeforeCloseAsync()
+private async Task DeferredCloseAsync()
+    {
+        try { await SaveStateBeforeCloseAsync(); }
+        catch (Exception ex) { Debug.WriteLine($"Save state on close failed: {ex}"); }
+
+        try { await Dispatcher.InvokeAsync(Close); }
+        catch { Environment.Exit(0); }
+    }
+
+private void DisposeWebViewsAndExit()
     {
         try
         {
-            _sleepTimer.Stop();
-            _sleepTimer.Tick -= SleepTimer_Tick;
-            if (_startBgTimer is not null)
+            _tabOperationLock.Wait();
+            try
             {
-                _startBgTimer.Stop();
-                _startBgTimer.Tick -= StartBgTimer_Tick;
-            }
-
-            if (_isPrivate)
-            {
-                await ClearPrivateProfileAsync();
-            }
-            else
-            {
-                if (_dataStore.Settings.AiSidebarOpen)
-                    _dataStore.SaveSettings(_dataStore.Settings with { AiSidebarOpen = false });
-
-                await CaptureScrollPositionAsync(_activeTab);
-                await SaveCurrentSessionAsync();
-
-                if (_dataStore.Settings.ClearDataOnExit)
-                {
-                    try
-                    {
-                        var profile = _activeTab?.WebView?.CoreWebView2?.Profile;
-                        if (profile is not null)
-                        {
-                            await profile.ClearBrowsingDataAsync();
-                        }
-                        _dataStore.ClearBrowsingState();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine(ex);
-                    }
-                }
-
-                BrowserTab[] tabsSnapshot;
-                await _tabOperationLock.WaitAsync();
-                try { tabsSnapshot = _tabs.ToArray(); }
-                finally { _tabOperationLock.Release(); }
-
-                foreach (var tab in tabsSnapshot)
+                foreach (var tab in _tabs)
                 {
                     if (tab.WebView is not null)
                     {
                         try
                         {
                             tab.RunCleanup();
-                            BrowserPane.WebViewHost.Children.Remove(tab.WebView);
+                            RemoveElementFromParent(tab.WebView);
                             tab.WebView.Dispose();
                             tab.WebView = null;
+                            tab.IsWebViewInitialized = false;
                         }
                         catch (Exception ex) { Debug.WriteLine($"Tab WebView dispose on close: {ex}"); }
                     }
                 }
             }
+            finally { _tabOperationLock.Release(); }
 
-            try { _carouselWebView?.Dispose(); } catch (Exception ex) { Debug.WriteLine($"Carousel WebView dispose: {ex}"); }
-            try { _crxHttpClient.Dispose(); } catch (Exception ex) { Debug.WriteLine($"CrxHttpClient dispose: {ex}"); }
-            try { _tabOperationLock.Dispose(); } catch (Exception ex) { Debug.WriteLine($"TabOperationLock dispose: {ex}"); }
-            try { _readabilityCacheLock.Dispose(); } catch (Exception ex) { Debug.WriteLine($"ReadabilityCacheLock dispose: {ex}"); }
-            try { _aiService?.Dispose(); } catch (Exception ex) { Debug.WriteLine($"AiService dispose: {ex}"); }
-            try { _dataStore.Dispose(); } catch (Exception ex) { Debug.WriteLine($"DataStore dispose: {ex}"); }
+            if (_isPrivate && !string.IsNullOrWhiteSpace(_privateUserDataFolder) && Directory.Exists(_privateUserDataFolder))
+            {
+                try { Directory.Delete(_privateUserDataFolder, recursive: true); }
+                catch (Exception ex) { Debug.WriteLine($"Private profile delete failed: {ex}"); }
+            }
+
+            try { _carouselWebView?.Dispose(); } catch { }
+            try { _crxHttpClient.Dispose(); } catch { }
+            try { _tabOperationLock.Dispose(); } catch { }
+            try { _readabilityCacheLock.Dispose(); } catch { }
+            try { _aiService?.Dispose(); } catch { }
+            try { _dataStore.Dispose(); } catch { }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"CleanupBeforeCloseAsync failed: {ex}");
+            Debug.WriteLine($"DisposeWebViewsAndExit failed: {ex}");
+        }
+    }
+
+    private async Task SaveStateBeforeCloseAsync()
+    {
+        _sleepTimer.Stop();
+        _sleepTimer.Tick -= SleepTimer_Tick;
+        if (_startBgTimer is not null)
+        {
+            _startBgTimer.Stop();
+            _startBgTimer.Tick -= StartBgTimer_Tick;
+            _startBgTimer = null;
+        }
+
+        if (!_isPrivate)
+        {
+            if (_dataStore.Settings.AiSidebarOpen)
+                _dataStore.SaveSettings(_dataStore.Settings with { AiSidebarOpen = false });
+
+            await CaptureScrollPositionAsync(_activeTab);
+
+            await SaveCurrentSessionAsync();
+
+            if (_dataStore.Settings.ClearDataOnExit)
+            {
+                try
+                {
+                    var profile = _activeTab?.WebView?.CoreWebView2?.Profile;
+                    if (profile is not null)
+                    {
+                        var clearTask = profile.ClearBrowsingDataAsync();
+                        var timedOut = await Task.WhenAny(clearTask, Task.Delay(3000)) != clearTask;
+                        if (timedOut) Debug.WriteLine("ClearBrowsingDataAsync timed out after 3s");
+                    }
+                    _dataStore.ClearBrowsingState();
+                }
+                catch (Exception ex) { Debug.WriteLine(ex); }
+            }
         }
     }
 
@@ -1587,8 +1616,8 @@ private void MainWindow_Closing(object? sender, CancelEventArgs e)
         else
         {
             WindowStyle = WindowStyle.None;
-            RootGrid.RowDefinitions[0].Height = new GridLength(42);
-            RootGrid.RowDefinitions[1].Height = new GridLength(42);
+            RootGrid.RowDefinitions[0].Height = new GridLength(40);
+            RootGrid.RowDefinitions[1].Height = new GridLength(40);
             RootGrid.RowDefinitions[3].Height = new GridLength(22);
             WindowState = _previousWindowState;
         }

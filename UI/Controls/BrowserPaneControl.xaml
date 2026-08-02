@@ -78,7 +78,7 @@
       <StackPanel Width="620"
                   HorizontalAlignment="Center"
                   VerticalAlignment="Center"
-                  Margin="0,0,0,42"
+                  Margin="0,0,0,40"
                   Opacity="0"
                   RenderTransformOrigin="0.5,0.5">
         <StackPanel.RenderTransform>
@@ -99,7 +99,7 @@
           </EventTrigger>
         </StackPanel.Triggers>
         <TextBlock Text="Tabloid"
-                   FontFamily="./Assets/Fonts/#Font208"
+                   FontFamily="./Assets/Fonts/#Font208, Segoe UI Emoji, Segoe UI"
                    Foreground="{DynamicResource Text}"
                    FontSize="55"
                    FontWeight="SemiBold"

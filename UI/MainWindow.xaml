@@ -30,8 +30,8 @@
 
   <Grid x:Name="RootGrid" Background="{DynamicResource AppBg}" Opacity="0">
     <Grid.RowDefinitions>
-      <RowDefinition Height="42" />
-      <RowDefinition Height="42" />
+      <RowDefinition Height="40" />
+      <RowDefinition Height="40" />
       <RowDefinition Height="*" />
       <RowDefinition Height="22" />
     </Grid.RowDefinitions>

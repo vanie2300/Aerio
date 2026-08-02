@@ -8,7 +8,7 @@
           Visibility="Collapsed">
     <Grid>
       <Grid.RowDefinitions>
-        <RowDefinition Height="42" />
+        <RowDefinition Height="40" />
         <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
