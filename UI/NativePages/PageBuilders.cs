@@ -573,9 +573,9 @@ public partial class MainWindow
                 bgOpacity.Control,
                 quickLinks),
             ["Engine"] = SettingsSection(
-                "Engine",
-                "",
-                SettingRow("Engine", "", searchCtrl.Control)),
+                "Search engine",
+                "Choose the default search engine used for address bar searches.",
+                searchCtrl.Control),
             ["Tabs"] = SettingsSection(
                 "Tabs",
                 "Memory and tab management.",
@@ -878,10 +878,19 @@ public partial class MainWindow
             Text = "Settings",
             Foreground = GetBrush("Text"),
             FontSize = 30,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 34, 0, 20)
+            FontWeight = FontWeights.SemiBold
         };
-        root.Children.Add(titleBlock);
+        var subtitleBlock = new TextBlock
+        {
+            Text = "Customize how Tabloid looks and behaves.",
+            Foreground = GetBrush("Muted"),
+            FontSize = 13,
+            Margin = new Thickness(0, 4, 0, 0)
+        };
+        var header = new StackPanel { Margin = new Thickness(0, 34, 0, 20) };
+        header.Children.Add(titleBlock);
+        header.Children.Add(subtitleBlock);
+        root.Children.Add(header);
 
         Grid.SetRow(tabBar, 1);
         root.Children.Add(tabBar);

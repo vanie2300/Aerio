@@ -19,13 +19,13 @@ public partial class MainWindow
             Background = GetBrush("ChromeBg"),
             BorderBrush = GetBrush("SubtleStroke"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(20),
             Margin = new Thickness(0, 0, 0, 10)
         };
         var stack = new StackPanel();
 
-        var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 2) };
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
         titleRow.Children.Add(new Border
         {
             Width = 3, Height = 18,
@@ -49,7 +49,7 @@ public partial class MainWindow
             Text = detail,
             Foreground = GetBrush("Muted"),
             FontSize = 12,
-            Margin = new Thickness(11, 3, 0, 14),
+            Margin = new Thickness(11, 3, 0, 16),
             TextWrapping = TextWrapping.Wrap
         });
 
@@ -64,14 +64,14 @@ public partial class MainWindow
 
     private FrameworkElement SettingRow(string label, string detail, FrameworkElement control)
     {
-        var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
+        var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
         stack.Children.Add(new TextBlock
         {
             Text = label,
             Foreground = GetBrush("Text"),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 3)
+            Margin = new Thickness(0, 0, 0, 4)
         });
         if (!string.IsNullOrEmpty(detail))
             stack.Children.Add(new TextBlock
@@ -580,145 +580,214 @@ public partial class MainWindow
         return """
 <!DOCTYPE html>
 <html><head><meta charset='utf-8'><style>
+/* ─── design tokens ─────────────────────────────────────────── */
+:root{
+  --card-w:212px; --card-h:146px; --card-radius:16px;
+  --hero-scale:1.16; --side-scale:.7;
+  --side-offset:160px; --hidden-offset:320px;
+  --stage-pad:38px;
+  --stage-h:calc(var(--card-h)*var(--hero-scale) + var(--stage-pad)*2);
+  --ease:cubic-bezier(.32,.72,.24,1);
+  --dur-slow:540ms; --dur-fast:200ms;
+  --bg-card:#202226;
+  --line:rgba(255,255,255,.09);
+  --line-strong:rgba(255,255,255,.18);
+  --text:#f2f2f2; --text-dim:#a9afb8; --muted:#8b9099;
+  --ok:#34d399;
+}
+/* ─── base ──────────────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:transparent;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;user-select:none}
-.carousel{width:460px;margin:0 auto;position:relative;height:385px;overflow:hidden}
-.cards{position:relative;height:345px}
-.card{position:absolute;left:50%;top:6px;width:270px;border-radius:14px;background:#202020;border:1px solid rgba(255,255,255,.08);
-  transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .4s ease,box-shadow .4s ease;
-  will-change:transform,opacity;display:flex;align-items:center;justify-content:center;overflow:hidden}
+html,body{height:100%}
+body{background:transparent;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden;user-select:none;color:var(--text)}
+.carousel{width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+/* ─── card band: fixed-height area reserved for the cards ───── */
+.stage{position:relative;flex:0 0 var(--stage-h);width:100%;overflow:hidden}
+.cards{position:absolute;inset:0}
+/* ─── cards ─────────────────────────────────────────────────── */
+.card{position:absolute;left:50%;top:50%;
+  width:var(--card-w);height:var(--card-h);
+  border-radius:var(--card-radius);
+  background:var(--bg-card);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  transition:transform var(--dur-slow) var(--ease),opacity var(--dur-fast) ease,
+             border-color var(--dur-fast) ease,box-shadow var(--dur-slow) var(--ease);
+  will-change:transform,opacity}
 .card.no-trans{transition:none!important}
-.card.hero{z-index:3;padding:22px 20px 18px;opacity:1;
-  transform:translate(-50%,0) scale(1);
-  box-shadow:0 8px 32px rgba(0,0,0,.4)}
-.card.side{z-index:1;padding:14px 12px;opacity:.35;
-  box-shadow:0 4px 16px rgba(0,0,0,.25)}
-.card.side.left{transform:translate(calc(-50% - 175px),28px) scale(.55)}
-.card.side.right{transform:translate(calc(-50% + 175px),28px) scale(.55)}
-.card.hidden{z-index:0;padding:14px 12px;opacity:0;pointer-events:none;
-  box-shadow:none}
-.card.hidden.left{transform:translate(calc(-50% - 320px),28px) scale(.4)}
-.card.hidden.right{transform:translate(calc(-50% + 320px),28px) scale(.4)}
-.card-inner{text-align:center;width:100%}
-.logo-badge{width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;
-  box-shadow:0 4px 18px rgba(0,0,0,.3)}
-.logo-badge img{width:72px;height:72px;border-radius:50%;object-fit:cover}
-.logo-letter{color:#fff;font-size:34px;font-weight:700}
-.name{color:#f0f0f0;font-weight:700;font-size:26px;margin-bottom:6px}
-.accent{height:2px;border-radius:1px;margin:0 auto 8px;width:44px}
-.desc{color:#aaa;font-size:11px;line-height:1.4;text-align:center;display:block}
-.card:not(.hero) .accent,.card:not(.hero) .desc{display:none}
-.glass{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;
-  background:linear-gradient(135deg,rgba(255,255,255,.04) 0%,transparent 60%);border-radius:14px}
-.nav{display:flex;justify-content:center;align-items:center;gap:10px;position:relative;z-index:10}
-.nav button{background:rgba(255,255,255,.08);border:none;border-radius:8px;padding:6px 18px;color:#ccc;font-size:14px;
-  cursor:pointer;transition:all .25s ease}
-.nav button:hover{background:rgba(255,255,255,.15)}
-.nav button:disabled{opacity:.3;cursor:default;background:rgba(255,255,255,.04)}
-.selected-badge{display:none;font-size:11px;color:#4ade80;font-weight:600;margin-top:4px;letter-spacing:.5px;text-transform:uppercase}
-.selected-badge.show{display:block}
+.card.hero{z-index:3;opacity:1;border-color:var(--line-strong);
+  transform:translate(-50%,-50%) scale(var(--hero-scale));
+  box-shadow:0 10px 26px rgba(0,0,0,.42)}
+.card.prev,.card.next{z-index:1;opacity:.5;
+  box-shadow:0 8px 20px rgba(0,0,0,.3)}
+.card.prev{transform:translate(-50%,-50%) translateX(calc(-1*var(--side-offset))) scale(var(--side-scale))}
+.card.next{transform:translate(-50%,-50%) translateX(var(--side-offset)) scale(var(--side-scale))}
+.card.hidden{z-index:0;opacity:0;pointer-events:none;box-shadow:none}
+.card.hidden.from-left{transform:translate(-50%,-50%) translateX(calc(-1*var(--hidden-offset))) scale(var(--side-scale))}
+.card.hidden.from-right{transform:translate(-50%,-50%) translateX(var(--hidden-offset)) scale(var(--side-scale))}
+.card.selectable{cursor:pointer}
+.card.selectable:hover{opacity:.72;border-color:var(--line-strong)}
+/* ─── card content ──────────────────────────────────────────── */
+.card-inner{position:relative;width:100%;padding:14px 16px 12px;text-align:center}
+.logo-badge{position:relative;width:52px;height:52px;border-radius:50%;margin:0 auto 7px;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.logo-badge img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.logo-letter{font-size:20px;font-weight:700;color:#fff}
+.name{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.accent{display:block;width:38px;height:2.5px;border-radius:2px;margin:0 auto 5px}
+.desc{font-size:10.5px;line-height:1.35;color:var(--muted);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card:not(.hero) .desc,.card:not(.hero) .accent{display:none}
+/* ─── hero status chip ───────────────────────────────────────── */
+.status{display:none}
+.card.hero .status{display:flex}
+.status{position:absolute;top:12px;left:12px;align-items:center;gap:5px;
+  font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  color:#101010;background:var(--ok);padding:3px 9px;border-radius:999px}
+.status::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
+/* ─── lock toggle: floating pill under the selected card ─────── */
+.lock-toggle{position:absolute;left:50%;z-index:5;
+  bottom:calc((var(--stage-pad) - 26px)/2);
+  transform:translateX(-50%);
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  height:26px;padding:0 12px;border-radius:999px;white-space:nowrap;
+  font-size:11px;font-weight:600;letter-spacing:.3px;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.26);
+  color:var(--text);cursor:pointer;
+  box-shadow:0 4px 12px rgba(0,0,0,.4);
+  transition:background var(--dur-fast) ease,border-color var(--dur-fast) ease,
+             color var(--dur-fast) ease}
+.lock-toggle:hover{background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.42)}
+.lock-toggle.locked{background:var(--ok);border-color:var(--ok);color:#0d0d0d}
+.lock-toggle.locked:hover{background:#2ec393;border-color:#2ec393}
+.lock-toggle svg{flex:0 0 auto}
+/* ─── navigation ────────────────────────────────────────────── */
+.nav{display:flex;align-items:center;justify-content:center;gap:14px;
+  flex:0 0 auto;padding:10px 0 4px}
+.nav-btn{width:36px;height:36px;border-radius:10px;padding:0;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.24);
+  color:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background var(--dur-fast) ease,border-color var(--dur-fast) ease}
+.nav-btn:hover:not(:disabled){background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.42)}
+.nav-btn:disabled{opacity:.35;cursor:default}
+.dots{display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:999px;padding:0;
+  background:rgba(255,255,255,.3);border:none;cursor:pointer;
+  transition:width var(--dur-slow) var(--ease),background var(--dur-fast) ease}
+.dot.active{width:18px;background:var(--ok)}
+.dot:disabled{cursor:default}
+/* ─── a11y + motion ─────────────────────────────────────────── */
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
 <div class='carousel'>
-  <div class='cards' id='cards'></div>
-  <div class='nav'>
-    <button id='prevBtn' onclick='nav(-1)'>◀</button>
-    <button id='lockBtn' onclick='toggleLock()'>🔒</button>
-    <button id='nextBtn' onclick='nav(1)'>▶</button>
+  <div class='stage'>
+    <div class='cards' id='cards' role='listbox' aria-label='Search engine selection'></div>
+    <button type='button' class='lock-toggle' id='lockToggle' onclick='toggleLock()' aria-pressed='false' aria-label='Lock engine selection'></button>
   </div>
+  <nav class='nav' aria-label='Search engine navigation'>
+    <button type='button' class='nav-btn' id='prevBtn' onclick='nav(-1)' aria-label='Previous engine'><svg viewBox='0 0 24 24' width='16' height='16' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 18l-6-6 6-6'/></svg></button>
+    <div class='dots' id='dots' role='tablist' aria-label='Engine pages'></div>
+    <button type='button' class='nav-btn' id='nextBtn' onclick='nav(1)' aria-label='Next engine'><svg viewBox='0 0 24 24' width='16' height='16' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 6l6 6-6 6'/></svg></button>
+  </nav>
+  <span class='visually-hidden' id='announcer' aria-live='polite'></span>
 </div>
 <script>
-let data=null,idx=0,locked=true;
+let data=null,idx=0,locked=false;
+const $=id=>document.getElementById(id);
+const wrap=(a,n)=>(a+n)%n;
+const posOf=(i,n)=> i===idx?'hero' : i===wrap(idx-1,n)?'prev' : i===wrap(idx+1,n)?'next' : 'hidden';
+const fromLeft=(i,n)=> wrap(idx-i,n) < wrap(i-idx,n);
+const ICON_LOCK='<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M8 1.5A3.5 3.5 0 0 0 4.5 5v1H4a1.5 1.5 0 0 0-1.5 1.5V13A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V7.5A1.5 1.5 0 0 0 12 6h-.5V5A3.5 3.5 0 0 0 8 1.5Zm0 2A1.5 1.5 0 0 1 9.5 5v1h-3V5A1.5 1.5 0 0 1 8 3.5Z"/></svg>';
+const ICON_UNLOCK='<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M8 1.5A3.5 3.5 0 0 0 4.5 5v1h2V5a1.5 1.5 0 0 1 3 0 1 1 0 0 0 2 0A3.5 3.5 0 0 0 8 1.5Zm-4 5h8a1.5 1.5 0 0 1 1.5 1.5V13A1.5 1.5 0 0 1 12 14.5H4A1.5 1.5 0 0 1 2.5 13V8A1.5 1.5 0 0 1 4 6.5Z"/></svg>';
+
 window.chrome.webview.addEventListener('message',e=>{
   const m=JSON.parse(e.data);
-  if(m.type==='init'){data=m;idx=m.currentIndex;locked=m.locked;build();updateNav();}
-  if(m.type==='update'){data=m;build();}
+  if(m.type==='init'){data=m;idx=m.currentIndex;locked=!!m.locked;build();renderLock();updateNav();announce();}
+  if(m.type==='update'){data=m;idx=m.currentIndex;locked=!!m.locked;build();renderLock();updateNav();announce();}
 });
+
 function build(){
-  const c=document.getElementById('cards');c.innerHTML='';
-  for(let i=0;i<data.engines.length;i++)c.appendChild(render(i));
-  highlightSelected();
-}
-function cls(i){
-  if(i===idx)return'hero';
-  const n=data.engines.length,p=(idx-1+n)%n,nx=(idx+1)%n;
-  if(i===p)return'side left';
-  if(i===nx)return'side right';
-  return((idx-i+n)%n)<((i-idx+n)%n)?'hidden left':'hidden right';
-}
-function render(i){
-  const e=data.engines[i],div=document.createElement('div');
-  div.className='card '+cls(i);
-  const clr=e.color||'#666';
-  const inner=document.createElement('div');
-  inner.className='card-inner';
-  const badge=document.createElement('div');
-  badge.className='logo-badge';
-  badge.style.background=clr;
-  if(e.icon){
-    const img=document.createElement('img');
-    img.src='https://assets.local/'+e.icon;
-    img.onerror=function(){this.style.display='none';this.nextElementSibling.style.display='block'};
-    badge.appendChild(img);
-    const letter=document.createElement('span');
-    letter.className='logo-letter';
-    letter.style.display='none';
-    letter.textContent=e.letter;
-    badge.appendChild(letter);
-  }else{
-    const letter=document.createElement('span');
-    letter.className='logo-letter';
-    letter.textContent=e.letter;
-    badge.appendChild(letter);
+  const cards=$('cards');
+  cards.innerHTML='';
+  for(let i=0;i<data.engines.length;i++){
+    const card=document.createElement('article');
+    card.className='card';
+    card.dataset.i=i;card.dataset.pos='init';
+    card.setAttribute('role','option');
+    card.setAttribute('aria-label',data.engines[i].name);
+    card.addEventListener('click',()=>goTo(i));
+    card.innerHTML=cardHtml(data.engines[i]);
+    cards.appendChild(card);
   }
-  inner.appendChild(badge);
-  const name=document.createElement('div');
-  name.className='name';
-  name.textContent=e.name;
-  inner.appendChild(name);
-  const accent=document.createElement('div');
-  accent.className='accent';
-  accent.style.background=clr;
-  inner.appendChild(accent);
-  const desc=document.createElement('div');
-  desc.className='desc';
-  desc.textContent=e.desc||'';
-  inner.appendChild(desc);
-  const selBadge=document.createElement('div');
-  selBadge.className='selected-badge';
-  selBadge.textContent='Active';
-  inner.appendChild(selBadge);
-  div.appendChild(inner);
-  const glass=document.createElement('div');
-  glass.className='glass';
-  div.appendChild(glass);
-  if(i!==idx)div.addEventListener('click',()=>clickTo(i));
-  return div;
+  paint();renderDots();
 }
-function clickTo(i){if(!locked&&i!==idx){idx=i;apply();updateNav();send('select',idx)}}
-function nav(dir){if(locked)return;idx=(idx+dir+data.engines.length)%data.engines.length;apply();updateNav();send('select',idx)}
-function apply(){
-  const cs=document.querySelectorAll('.card');
-  cs.forEach((c,i)=>{
-    const nw='card '+cls(i);
-    if(c.className===nw)return;
-    const was=c.className.includes('hero')||c.className.includes('side');
-    const will=nw.includes('hero')||nw.includes('side');
-    if(!was&&!will){c.classList.add('no-trans');c.className=nw;requestAnimationFrame(()=>c.classList.remove('no-trans'))}
-    else c.className=nw;
+function cardHtml(e){
+  const clr=e.color||'#666';
+  const badge=e.icon
+    ? '<div class="logo-badge" style="background:'+clr+'"><span class="logo-letter">'+e.letter+'</span><img src="https://assets.local/'+e.icon+'" alt="" onerror="this.remove()"></div>'
+    : '<div class="logo-badge" style="background:'+clr+'"><span class="logo-letter">'+e.letter+'</span></div>';
+  return '<div class="card-inner">'
+    +'<span class="status">Active</span>'
+    +badge
+    +'<div class="name">'+e.name+'</div>'
+    +'<span class="accent" style="background:'+clr+'"></span>'
+    +'<p class="desc">'+(e.desc||'')+'</p>'
+    +'</div>';
+}
+function goTo(i){if(locked||i===idx)return;idx=i;select();}
+function nav(dir){if(locked)return;idx=wrap(idx+dir,data.engines.length);select();}
+function select(){paint();renderDots();announce();send('select',idx);}
+function toggleLock(){
+  locked=!locked;
+  renderLock();
+  updateNav();paint();
+  send('lock',idx);
+}
+function renderLock(){
+  const t=$('lockToggle');
+  const stateLabel=locked?'Locked':'Lock';
+  const actionLabel=locked?'Unlock engine selection':'Lock engine selection';
+  t.innerHTML=(locked?ICON_LOCK:ICON_UNLOCK)+'<span>'+stateLabel+'</span>';
+  t.classList.toggle('locked',locked);
+  t.title=actionLabel;
+  t.setAttribute('aria-label',actionLabel);
+  t.setAttribute('aria-pressed',locked?'true':'false');
+}
+function paint(){
+  const n=data.engines.length;
+  document.querySelectorAll('.card').forEach(card=>{
+    const i=+card.dataset.i;
+    const next=posOf(i,n);
+    const prev=card.dataset.pos;
+    card.dataset.pos=next;
+    card.className='card '+next+(next==='hidden'?(fromLeft(i,n)?' from-left':' from-right'):'');
+    card.classList.toggle('no-trans',prev==='hidden'&&next==='hidden');
+    card.classList.toggle('selectable',!locked&&next!=='hero');
+    card.setAttribute('aria-selected',next==='hero'?'true':'false');
   });
 }
-function toggleLock(){locked=!locked;document.getElementById('lockBtn').textContent=locked?'🔒':'🔓';updateNav();highlightSelected();if(locked)send('lock',idx)}
-function updateNav(){
-  const p=document.getElementById('prevBtn'),n=document.getElementById('nextBtn');
-  p.disabled=locked;n.disabled=locked;
-}
-function highlightSelected(){
-  document.querySelectorAll('.selected-badge').forEach(b=>b.classList.remove('show'));
-  if(locked){
-    const hero=document.querySelector('.card.hero');
-    if(hero){const badge=hero.querySelector('.selected-badge');if(badge)badge.classList.add('show');}
+function renderDots(){
+  const dots=$('dots');
+  dots.innerHTML='';
+  for(let i=0;i<data.engines.length;i++){
+    const d=document.createElement('button');
+    d.type='button';
+    d.className='dot'+(i===idx?' active':'');
+    d.setAttribute('aria-label','Go to '+data.engines[i].name);
+    if(i===idx)d.setAttribute('aria-current','true');
+    d.addEventListener('click',()=>goTo(i));
+    dots.appendChild(d);
   }
+  updateNav();
 }
+function updateNav(){
+  $('prevBtn').disabled=locked;
+  $('nextBtn').disabled=locked;
+  document.querySelectorAll('.dot').forEach(d=>d.disabled=locked);
+}
+function announce(){$('announcer').textContent='Selected engine: '+data.engines[idx].name;}
 function send(type,index){const eng=data.engines[index];window.chrome.webview.postMessage(JSON.stringify({type:type,index:index,engine:eng.name}))}
 window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
 </script></body></html>
@@ -766,7 +835,7 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
         int currentIndex = engines.FindIndex(e => e.Name == selected);
         if (currentIndex < 0) currentIndex = 0;
         bool isCustomSelected = currentIndex >= builtInNames.Length;
-        bool isLocked = true;
+        bool isLocked = false;
         bool addingEngine = false;
         bool webReady = false;
 
@@ -783,8 +852,9 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
         wv = new Microsoft.Web.WebView2.Wpf.WebView2
         {
             Width = 470,
-            Height = 380,
-            DefaultBackgroundColor = System.Drawing.Color.Transparent
+            Height = 316,
+            DefaultBackgroundColor = System.Drawing.Color.Transparent,
+            HorizontalAlignment = HorizontalAlignment.Center
         };
         _carouselWebView = wv;
 
@@ -856,7 +926,7 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
                 }).ToList(),
                 currentIndex = ci,
                 selected = engines[ci].Name,
-                locked = true
+                locked = isLocked
             };
             wv.CoreWebView2.PostWebMessageAsString(JsonSerializer.Serialize(msgObj));
         }
@@ -988,7 +1058,7 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 8, 0, 0)
+            Margin = new Thickness(0, 16, 0, 0)
         };
         btnRow.Children.Add(addBtn);
         btnRow.Children.Add(removeBtn);
@@ -1017,4 +1087,3 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
             () => [.. currentCustoms]);
     }
 }
-

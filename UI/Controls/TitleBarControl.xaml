@@ -210,11 +210,13 @@
         <Button Click="CloseWindow_Click"
                 Style="{StaticResource CloseTitleBarButton}"
                 ToolTip="Close">
-          <Path Data="M 3 3 L 9 9 M 9 3 L 3 9"
-                Stroke="{DynamicResource Text}"
-                StrokeThickness="1.2"
-                StrokeStartLineCap="Flat"
-                StrokeEndLineCap="Flat" />
+          <Grid Width="12" Height="12">
+            <Path Data="M 2.5 2.5 L 9.5 9.5 M 9.5 2.5 L 2.5 9.5"
+                  Stroke="{DynamicResource Text}"
+                  StrokeThickness="1.2"
+                  StrokeStartLineCap="Flat"
+                  StrokeEndLineCap="Flat" />
+          </Grid>
         </Button>
       </StackPanel>
     </Grid>
