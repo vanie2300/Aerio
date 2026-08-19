@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -59,6 +58,7 @@ public partial class MainWindow
     private DispatcherTimer? _startBgTimer;
     private bool _bgInitialized;
     private double _bgTime;
+    private int _bgFrame;
 
     private void InitBgParticles()
     {
@@ -69,7 +69,7 @@ public partial class MainWindow
         BrowserPane.StartBgCanvas.Children.Clear();
 
         var rng = new Random();
-        var count = Math.Min(100, Math.Max(30, (int)(w / 6)));
+        var count = Math.Min(70, Math.Max(30, (int)(w / 6)));
         var particleColor = GetAccentColor();
         var glowColor = Color.FromArgb(25, particleColor.R, particleColor.G, particleColor.B);
         var whiteGlow = Color.FromArgb(15, 255, 255, 255);
@@ -191,11 +191,19 @@ public partial class MainWindow
             var connectionIdx = 0;
             var glowIdx = 0;
             var particleColor = GetAccentColor();
+            var updateConnections = (_bgFrame++ & 1) == 0;
 
             for (int a = 0; a < particles.Length; a++)
             {
                 for (int b = a + 1; b < particles.Length; b++)
                 {
+                    if (!updateConnections)
+                    {
+                        connectionIdx++;
+                        glowIdx++;
+                        continue;
+                    }
+
                     double dx = particles[a].X - particles[b].X;
                     double dy = particles[a].Y - particles[b].Y;
                     double distSq = dx * dx + dy * dy;
@@ -236,7 +244,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Bg animation error: {ex}");
+            Log.Error(ex, "Bg animation error");
         }
     }
 

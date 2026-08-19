@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture - Tabloid Browser</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav>
+            <a class="brand" href="index.html"><span>Tabloid</span> Browser</a>
+            <ul>
+                <li><a href="index.html">Overview</a></li>
+                <li><a href="features.html">Features</a></li>
+                <li><a href="keyboard-shortcuts.html">Shortcuts</a></li>
+                <li><a href="settings.html">Settings</a></li>
+                <li><a href="ai-features.html">AI Features</a></li>
+                <li><a href="architecture.html" class="active">Architecture</a></li>
+                <li><a href="contributing.html">Contributing</a></li>
+                <li><a href="changelog.html">Changelog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <h1>Architecture</h1>
+            <p class="subtitle">Developer documentation for the codebase.</p>
+
+            <div class="section">
+                <h2>Tech Stack</h2>
+                <table>
+                    <tr><th>Layer</th><th>Technology</th></tr>
+                    <tr><td>UI Framework</td><td>WPF (.NET 8)</td></tr>
+                    <tr><td>Browser Engine</td><td>Microsoft WebView2</td></tr>
+                    <tr><td>Target</td><td>Windows 10 (19041+) / Windows 11</td></tr>
+                    <tr><td>Dependencies</td><td>Microsoft.Web.WebView2, System.Security.Cryptography.ProtectedData</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Project Structure</h2>
+<pre><code>TabloidBrowser/
+├── TabloidBrowser.csproj
+├── UI/
+│   ├── App.xaml(.cs)                 Entry point, exception handlers
+│   ├── MainWindow.xaml(.cs)          Constructor, startup, core logic
+│   ├── MainWindow/                   Partial class files
+│   │   ├── MainWindow.AI.cs          AI sidebar, agent loop
+│   │   ├── MainWindow.Navigation.cs  URL parsing, navigation
+│   │   ├── MainWindow.Particles.cs   Start page animation
+│   │   ├── MainWindow.Permissions.cs Site permission management
+│   │   ├── MainWindow.Tabs.cs        Tab lifecycle
+│   │   ├── MainWindow.UI.cs          Menus, bookmarks, settings UI
+│   │   └── MainWindow.WebView2.cs    WebView2 init and events
+│   ├── Controls/                     Reusable XAML controls
+│   ├── NativePages/                  WPF-rendered internal pages
+│   ├── Styles/                       XAML resource dictionaries
+│   └── Assets/                       Icons, images, fonts
+├── Processes/
+│   ├── AI/                           AI services
+│   │   ├── AiService.cs              OpenAI-compatible API client
+│   │   ├── AiTools.cs                Tool calling models
+│   │   ├── AiToolDefinitions.cs      Tool definitions + executor
+│   │   ├── WebSearchService.cs       Web search backends
+│   │   └── ChatMessage.cs            Chat message model
+│   ├── Models/                       Data models
+│   └── Services/                     Business logic
+│       ├── BrowserDataStore.cs       Settings, bookmarks, history
+│       ├── AdBlockEngine.cs          Ad/tracker blocking
+│       └── MediaService.cs           Media detection</code></pre>
+            </div>
+
+            <div class="section">
+                <h2>Main Window (Partial Classes)</h2>
+                <p>The <code>MainWindow</code> class is split across 7 files using C# partial classes:</p>
+                <table>
+                    <tr><th>File</th><th>Responsibility</th><th>Key Methods</th></tr>
+                    <tr><td><code>.cs</code></td><td>Constructor, startup</td><td><code>MainWindow()</code>, <code>OnLoaded</code>, <code>ApplySettings</code></td></tr>
+                    <tr><td><code>.AI.cs</code></td><td>AI sidebar</td><td><code>AgentLoopAsync</code>, <code>AiSend_Click</code>, <code>ToggleAiSidebar</code></td></tr>
+                    <tr><td><code>.Navigation.cs</code></td><td>URL handling</td><td><code>NormalizeInput</code>, <code>NavigateQuickAsync</code></td></tr>
+                    <tr><td><code>.Particles.cs</code></td><td>Start page</td><td><code>InitBgParticles</code>, <code>AnimateBgParticles</code></td></tr>
+                    <tr><td><code>.Permissions.cs</code></td><td>Site permissions</td><td><code>PermissionRequested</code>, <code>BuildPermissionPopup</code></td></tr>
+                    <tr><td><code>.Tabs.cs</code></td><td>Tab management</td><td><code>AddWebTabAsync</code>, <code>ActivateTabAsync</code>, <code>CloseTabAsync</code></td></tr>
+                    <tr><td><code>.UI.cs</code></td><td>Settings, menus</td><td><code>BuildSettingsPage</code>, <code>FindInPage</code></td></tr>
+                    <tr><td><code>.WebView2.cs</code></td><td>WebView2 events</td><td><code>InitializeEnvironmentAsync</code>, <code>EnsureWebViewAsync</code></td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Native Pages</h2>
+                <p>Internal pages are rendered as WPF elements (not WebView2). Built in <code>PageBuilders.cs</code>:</p>
+                <table>
+                    <tr><th>URI</th><th>Tab Kind</th><th>Description</th></tr>
+                    <tr><td>(blank)</td><td><code>Start</code></td><td>Start page with search and particles</td></tr>
+                    <tr><td><code>tabloid://bookmarks</code></td><td><code>Bookmarks</code></td><td>Bookmark manager</td></tr>
+                    <tr><td><code>tabloid://history</code></td><td><code>History</code></td><td>Browsing history</td></tr>
+                    <tr><td><code>tabloid://downloads</code></td><td><code>Downloads</code></td><td>Download history</td></tr>
+                    <tr><td><code>tabloid://settings</code></td><td><code>Settings</code></td><td>Settings page (8 categories)</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Data Flow</h2>
+<pre><code>WebView2 tab event
+    → MainWindow.WebView2.cs (event handler)
+    → MainWindow.Tabs.cs (tab state update)
+    → BrowserDataStore.cs (persistence)
+    → Settings/History/Bookmarks JSON files</code></pre>
+            </div>
+
+            <div class="section">
+                <h2>AI Architecture</h2>
+<pre><code>User input → AiSend_Click
+    → AgentLoopAsync (max 10 iterations)
+        → AiService.CompleteWithToolsAsync (API call)
+        → If tool_calls: AiToolExecutor.ExecuteToolAsync
+            → WebSearchService / GetPageContent / NavigateToUrl
+        → Add tool results to messages
+        → Loop back to API call
+    → Display final response in sidebar</code></pre>
+            </div>
+
+            <div class="section">
+                <h2>Thread Safety</h2>
+                <ul>
+                    <li><code>ReaderWriterLockSlim</code> protects all data store operations</li>
+                    <li><code>SemaphoreSlim</code> for web search rate limiting</li>
+                    <li><code>Dispatcher.Invoke</code> for UI thread marshaling</li>
+                    <li><code>_tabOperationLock</code> serializes tab mutations</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>Data Storage</h2>
+                <table>
+                    <tr><th>File</th><th>Format</th><th>Limit</th></tr>
+                    <tr><td><code>settings.json</code></td><td><code>BrowserSettings</code> record</td><td>Single object</td></tr>
+                    <tr><td><code>bookmarks.json</code></td><td><code>List&lt;BookmarkItem&gt;</code></td><td>Unbounded</td></tr>
+                    <tr><td><code>history.json</code></td><td><code>List&lt;HistoryItem&gt;</code></td><td>500 items</td></tr>
+                    <tr><td><code>downloads.json</code></td><td><code>List&lt;DownloadItem&gt;</code></td><td>100 items</td></tr>
+                    <tr><td><code>session.json</code></td><td><code>BrowserSession</code></td><td>Tab state</td></tr>
+                </table>
+                <p>All writes use atomic operations (write to <code>.tmp</code>, then <code>File.Move</code>).</p>
+            </div>
+
+            <div class="footer">
+                <a href="index.html">Back to Overview</a>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

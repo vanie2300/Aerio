@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Windows.Media.Control;
+using TabloidBrowser;
 
 namespace TabloidBrowser.Services;
 
@@ -37,8 +38,9 @@ public class MediaService
             OnCurrentSessionChanged(_manager, null);
             _initialized = true;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug(ex, "Media transport controls not available");
         }
     }
 
@@ -91,8 +93,9 @@ public class MediaService
                 TrackArtist = props?.Artist ?? "";
             });
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug(ex, "Failed to read media properties");
         }
     }
 
@@ -109,8 +112,9 @@ public class MediaService
                 PlaybackChanged?.Invoke();
             });
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug(ex, "Failed to read playback info");
         }
     }
 
@@ -133,8 +137,9 @@ public class MediaService
             bitmap.Freeze();
             return bitmap;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug(ex, "Failed to load media thumbnail");
             return null;
         }
     }
@@ -149,18 +154,23 @@ public class MediaService
             else
                 await _session.TryPlayAsync();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Media transport controls not available");
+        }
     }
 
     public async Task NextAsync()
     {
         if (_session == null) return;
-        try { await _session.TrySkipNextAsync(); } catch { }
+        try { await _session.TrySkipNextAsync(); }
+        catch (Exception ex) { Log.Debug(ex, "Skip next failed"); }
     }
 
     public async Task PreviousAsync()
     {
         if (_session == null) return;
-        try { await _session.TrySkipPreviousAsync(); } catch { }
+        try { await _session.TrySkipPreviousAsync(); }
+        catch (Exception ex) { Log.Debug(ex, "Skip previous failed"); }
     }
 }

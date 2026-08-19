@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Tabloid Browser</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav>
+            <a class="brand" href="index.html"><span>Tabloid</span> Browser</a>
+            <ul>
+                <li><a href="index.html">Overview</a></li>
+                <li><a href="features.html">Features</a></li>
+                <li><a href="keyboard-shortcuts.html">Shortcuts</a></li>
+                <li><a href="settings.html" class="active">Settings</a></li>
+                <li><a href="ai-features.html">AI Features</a></li>
+                <li><a href="architecture.html">Architecture</a></li>
+                <li><a href="contributing.html">Contributing</a></li>
+                <li><a href="changelog.html">Changelog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <h1>Settings Reference</h1>
+            <p class="subtitle">All settings stored in <code>%LOCALAPPDATA%\TabloidBrowser\Data\settings.json</code>.</p>
+
+            <div class="section">
+                <h2>Appearance</h2>
+                <table>
+                    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+                    <tr><td><code>Theme</code></td><td><span class="badge badge-string">string</span></td><td><code>"Dark"</code></td><td>Dark or Light chrome theme</td></tr>
+                    <tr><td><code>Accent</code></td><td><span class="badge badge-string">string</span></td><td><code>"Purple"</code></td><td>Accent color: Blue, Purple, Gray, Green, White</td></tr>
+                    <tr><td><code>Background</code></td><td><span class="badge badge-string">string</span></td><td><code>"Default"</code></td><td>Start page background: "Default" or image file path</td></tr>
+                    <tr><td><code>BackgroundOpacity</code></td><td><span class="badge badge-number">double</span></td><td><code>1.0</code></td><td>Background image opacity (0.0 - 1.0)</td></tr>
+                    <tr><td><code>ShowQuickLinks</code></td><td><span class="badge badge-bool">bool</span></td><td><code>true</code></td><td>Show quick links on start page</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Search Engine</h2>
+                <table>
+                    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+                    <tr><td><code>SearchEngine</code></td><td><span class="badge badge-string">string</span></td><td><code>"DuckDuckGo"</code></td><td>Default search engine for address bar</td></tr>
+                    <tr><td><code>CustomEngines</code></td><td><span class="badge badge-type">list</span></td><td><code>[]</code></td><td>User-defined search engines (name + URL template)</td></tr>
+                </table>
+                <p>Built-in engines: DuckDuckGo, Startpage, Brave, SearXNG.</p>
+            </div>
+
+            <div class="section">
+                <h2>Tabs</h2>
+                <table>
+                    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+                    <tr><td><code>TabSleepMinutes</code></td><td><span class="badge badge-number">int</span></td><td><code>2</code></td><td>Minutes before tab hibernation (1 - 60)</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Privacy &amp; Security</h2>
+                <table>
+                    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+                    <tr><td><code>BlockTrackers</code></td><td><span class="badge badge-bool">bool</span></td><td><code>true</code></td><td>Block common tracker domains</td></tr>
+                    <tr><td><code>TrackerBlocklist</code></td><td><span class="badge badge-type">list</span></td><td>10 domains</td><td>Domains to block (one per line, supports wildcards)</td></tr>
+                    <tr><td><code>TrackerAllowlist</code></td><td><span class="badge badge-type">list</span></td><td><code>[]</code></td><td>Domains that bypass tracker blocking</td></tr>
+                    <tr><td><code>EnableAdBlock</code></td><td><span class="badge badge-bool">bool</span></td><td><code>true</code></td><td>EasyList-style ad filtering</td></tr>
+                    <tr><td><code>UblockEnabled</code></td><td><span class="badge badge-bool">bool</span></td><td><code>true</code></td><td>uBlock Origin extension</td></tr>
+                    <tr><td><code>EnableAutofill</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Form autofill</td></tr>
+                    <tr><td><code>EnablePasswordSave</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Password saving</td></tr>
+                    <tr><td><code>SitePermissions</code></td><td><span class="badge badge-type">list</span></td><td><code>[]</code></td><td>Per-site permission rules (host, permission, state)</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Data</h2>
+                <table>
+                    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+                    <tr><td><code>ClearDataOnExit</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Clear history, downloads, and session on close</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Advanced</h2>
+                <table>
+                    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+                    <tr><td><code>EnableDevTools</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Enable F12 developer tools</td></tr>
+                    <tr><td><code>ForceDarkPage</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>CSS invert filter for dark pages</td></tr>
+                    <tr><td><code>Shortcuts</code></td><td><span class="badge badge-type">dict</span></td><td><code>null</code></td><td>Custom keyboard shortcuts (action → key binding)</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>AI</h2>
+                <table>
+                    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+                    <tr><td><code>AiEnabled</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Enable AI chat sidebar</td></tr>
+                    <tr><td><code>AiProvider</code></td><td><span class="badge badge-string">string</span></td><td><code>"Ollama"</code></td><td>Provider: Ollama, OpenAI, Groq, OpenRouter, Custom</td></tr>
+                    <tr><td><code>AiEndpoint</code></td><td><span class="badge badge-string">string</span></td><td><code>"http://localhost:11434/v1"</code></td><td>API endpoint URL</td></tr>
+                    <tr><td><code>AiModel</code></td><td><span class="badge badge-string">string</span></td><td><code>""</code></td><td>Model name (auto-discovered)</td></tr>
+                    <tr><td><code>AiApiKey</code></td><td><span class="badge badge-string">string</span></td><td><code>""</code></td><td>API key (encrypted with DPAPI on disk)</td></tr>
+                    <tr><td><code>AiSystemPrompt</code></td><td><span class="badge badge-string">string</span></td><td><code>"You are a helpful assistant..."</code></td><td>System prompt for the AI</td></tr>
+                    <tr><td><code>AiMaxTokens</code></td><td><span class="badge badge-number">int</span></td><td><code>2048</code></td><td>Max tokens per response (256 - 16384)</td></tr>
+                    <tr><td><code>AiTemperature</code></td><td><span class="badge badge-number">double</span></td><td><code>0.7</code></td><td>Temperature (0.0 - 2.0)</td></tr>
+                </table>
+                <p>See <a href="ai-features.html">AI Features</a> for provider setup details.</p>
+            </div>
+
+            <div class="section">
+                <h2>File Format</h2>
+                <p>Settings are stored as a single JSON object. Example:</p>
+<pre><code>{
+  "Theme": "Dark",
+  "Accent": "Purple",
+  "SearchEngine": "DuckDuckGo",
+  "TabSleepMinutes": 2,
+  "BlockTrackers": true,
+  "EnableAdBlock": true,
+  "AiEnabled": false,
+  "AiProvider": "Ollama",
+  "AiEndpoint": "http://localhost:11434/v1"
+}</code></pre>
+            </div>
+
+            <div class="footer">
+                <a href="index.html">Back to Overview</a>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

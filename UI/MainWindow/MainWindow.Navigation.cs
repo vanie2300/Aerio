@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
@@ -131,7 +130,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"NavigateWebAsync failed: {ex}");
+            Log.Error(ex, "NavigateWebAsync failed");
             if (!tab.IsWebViewInitialized && tab.WebView is not null)
             {
                 tab.RunCleanup();
@@ -199,8 +198,8 @@ public partial class MainWindow
             BrowserTabKind.Bookmarks => BuildBookmarksPage(tab),
             BrowserTabKind.History => BuildHistoryPage(tab),
             BrowserTabKind.Downloads => BuildDownloadsPage(tab),
-
             BrowserTabKind.Settings => BuildSettingsPage(tab),
+            BrowserTabKind.AiManagement => BuildAiManagementPage(tab),
             _ => new Grid()
         };
         tab.CachedContent = page;
@@ -331,10 +330,11 @@ public partial class MainWindow
             "history" => BrowserTabKind.History,
             "downloads" => BrowserTabKind.Downloads,
             "settings" => BrowserTabKind.Settings,
+            "ai" => BrowserTabKind.AiManagement,
             _ => BrowserTabKind.Start
         };
 
-        return page is "start" or "bookmarks" or "history" or "downloads" or "settings";
+        return page is "start" or "bookmarks" or "history" or "downloads" or "settings" or "ai";
     }
 
     private static string GetNativePageTitle(BrowserTabKind kind)
@@ -345,6 +345,7 @@ public partial class MainWindow
             BrowserTabKind.History => "History",
             BrowserTabKind.Downloads => "Downloads",
             BrowserTabKind.Settings => "Settings",
+            BrowserTabKind.AiManagement => "AI Management",
             _ => "New tab"
         };
     }
@@ -357,6 +358,7 @@ public partial class MainWindow
             BrowserTabKind.History => "tabloid://history",
             BrowserTabKind.Downloads => "tabloid://downloads",
             BrowserTabKind.Settings => "tabloid://settings",
+            BrowserTabKind.AiManagement => "tabloid://ai",
             _ => string.Empty
         };
     }
@@ -385,7 +387,7 @@ public partial class MainWindow
                 Keyboard.ClearFocus();
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private void StartSearchBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -424,7 +426,7 @@ public partial class MainWindow
                 Keyboard.ClearFocus();
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private static bool IsSubmitKey(Key key) => key is Key.Enter or Key.Return;

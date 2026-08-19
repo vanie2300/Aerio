@@ -18,6 +18,9 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.ComponentModel;
+using System.IO.Compression;
+using System.Net.Http;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -58,7 +61,7 @@ public partial class MainWindow
         try { return (Brush)FindResource(key); }
         catch (ResourceReferenceKeyNotFoundException)
         {
-            Debug.WriteLine($"Missing resource key: {key}");
+            Log.Debug("Missing resource key: {Key}", key);
             return Brushes.Transparent;
         }
     }
@@ -223,11 +226,11 @@ public partial class MainWindow
         }
         catch (InvalidOperationException ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
         catch (COMException ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
 
         _dataStore.ClearBrowsingState();
@@ -311,7 +314,7 @@ public partial class MainWindow
     private async void NewTab_Click(object sender, RoutedEventArgs e)
     {
         try { await AddStartTabAsync(); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void CloseTab_Click(object sender, RoutedEventArgs e)
@@ -341,7 +344,7 @@ public partial class MainWindow
                 await CloseTabAsync(tab);
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private void MuteButton_Click(object sender, RoutedEventArgs e)
@@ -354,7 +357,7 @@ public partial class MainWindow
                 tab.WebView.CoreWebView2.IsMuted = tab.IsMuted;
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void Tab_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -372,7 +375,7 @@ public partial class MainWindow
                 await ActivateTabAsync(tab);
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private static bool IsFromControl<TControl>(object source)
@@ -421,25 +424,25 @@ public partial class MainWindow
     private async void QuickDuckDuckGo_Click(object sender, RoutedEventArgs e)
     {
         try { await NavigateQuickAsync("https://duckduckgo.com"); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void QuickStartpage_Click(object sender, RoutedEventArgs e)
     {
         try { await NavigateQuickAsync("https://startpage.com"); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void QuickGitHub_Click(object sender, RoutedEventArgs e)
     {
         try { await NavigateQuickAsync("https://github.com"); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void QuickHackerNews_Click(object sender, RoutedEventArgs e)
     {
         try { await NavigateQuickAsync("https://news.ycombinator.com"); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private static (ModifierKeys Mods, Key Key) ParseShortcut(string combo)
@@ -602,7 +605,7 @@ public partial class MainWindow
             return;
         }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private void TitleBar_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -754,7 +757,7 @@ public partial class MainWindow
                 tab.WebView.GoBack();
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private void Forward_Click(object sender, RoutedEventArgs e)
@@ -767,7 +770,7 @@ public partial class MainWindow
                 tab.WebView.GoForward();
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private void Reload_Click(object sender, RoutedEventArgs e)
@@ -917,7 +920,7 @@ public partial class MainWindow
         var find = _activeTab?.WebView?.CoreWebView2?.Find;
         if (find is null) return;
         try { find.FindNext(); }
-        catch (Exception ex) { Debug.WriteLine($"FindNext failed: {ex}"); }
+        catch (Exception ex) { Log.Error(ex, "FindNext failed"); }
     }
 
     private void FindPrev()
@@ -925,7 +928,7 @@ public partial class MainWindow
         var find = _activeTab?.WebView?.CoreWebView2?.Find;
         if (find is null) return;
         try { find.FindPrevious(); }
-        catch (Exception ex) { Debug.WriteLine($"FindPrev failed: {ex}"); }
+        catch (Exception ex) { Log.Error(ex, "FindPrev failed"); }
     }
 
     private void Find_MatchChanged(object? sender, object? e)
@@ -943,7 +946,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Find_MatchChanged failed: {ex}");
+            Log.Error(ex, "Find_MatchChanged failed");
         }
     }
 
@@ -1017,7 +1020,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"ToggleReaderModeAsync failed: {ex}");
+            Log.Error(ex, "ToggleReaderModeAsync failed");
         }
     }
 
@@ -1155,7 +1158,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Reader detection failed: {ex}");
+            Log.Error(ex, "Reader detection failed");
         }
     }
 
@@ -1233,13 +1236,13 @@ public partial class MainWindow
             finally { _tabOperationLock.Release(); }
             await Task.WhenAll(snapshot.Select(HibernateTabAsync));
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void ClearData_Click(object sender, RoutedEventArgs e)
     {
         try { await ClearBrowsingDataAsync(); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private void Bookmark_Click(object sender, RoutedEventArgs e)
@@ -1269,26 +1272,26 @@ public partial class MainWindow
     private async void ShowBookmarks_Click(object sender, RoutedEventArgs e)
     {
         try { await AddNativePageTabAsync(BrowserTabKind.Bookmarks); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void ShowHistory_Click(object sender, RoutedEventArgs e)
     {
         try { await AddNativePageTabAsync(BrowserTabKind.History); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void ShowDownloads_Click(object sender, RoutedEventArgs e)
     {
         try { await AddNativePageTabAsync(BrowserTabKind.Downloads); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private void Privacy_Click(object sender, RoutedEventArgs e)
     {
         StatusBar.StatusText.Text = _isPrivate
             ? "Private mode uses an isolated temporary profile"
-            : $"Tracker blocking {(_dataStore.Settings.BlockTrackers ? "on" : "off")}; blocked {_blockedTrackerCount} requests";
+            : $"Ad & tracker blocking {(_dataStore.Settings.BlockTrackers || _dataStore.Settings.EnableAdBlock ? "on" : "off")}; blocked {_blockedTrackerCount} requests";
 
         if (_isPermissionsPopupOpen)
         {
@@ -1305,6 +1308,19 @@ public partial class MainWindow
         window.Show();
     }
 
+    private const string UblockFolderName = "cjpalhdlnbpafiamejdnhcphjbkeiagm";
+
+    private static bool IsUblockExtension(ExtensionInfo ext) =>
+        string.Equals(Path.GetFileName(ext.FolderPath.TrimEnd('\\', '/')), UblockFolderName, StringComparison.OrdinalIgnoreCase);
+
+    private string UblockFolderPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "TabloidBrowser",
+        "Extensions",
+        UblockFolderName);
+
+    private CoreWebView2BrowserExtension? _ublockExtension;
+
     private void Menu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement element || element.ContextMenu is null)
@@ -1313,8 +1329,7 @@ public partial class MainWindow
         }
 
         NavToolbar.ForceDarkMenuItem.IsChecked = _dataStore.Settings.ForceDarkPage;
-        var ublock = _dataStore.Settings.Extensions.FirstOrDefault(e => e.Id == "cjpalhdlnbpafiamejdnhcphjbkeiagm");
-        NavToolbar.UblockMenuItem.IsChecked = ublock?.Enabled ?? false;
+        NavToolbar.UblockMenuItem.IsChecked = _dataStore.Settings.UblockEnabled;
         element.ContextMenu.PlacementTarget = element;
         element.ContextMenu.Placement = PlacementMode.Bottom;
         element.ContextMenu.IsOpen = true;
@@ -1337,37 +1352,260 @@ public partial class MainWindow
     private async void ShowSettings_Click(object sender, RoutedEventArgs e)
     {
         try { await AddNativePageTabAsync(BrowserTabKind.Settings); }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void UblockToggle_Click(object sender, RoutedEventArgs e)
     {
-        const string ublockId = "cjpalhdlnbpafiamejdnhcphjbkeiagm";
-        var ext = _dataStore.Settings.Extensions.FirstOrDefault(e => e.Id == ublockId);
-        if (ext is null)
+        var newState = !_dataStore.Settings.UblockEnabled;
+        _dataStore.SaveSettings(_dataStore.Settings with { UblockEnabled = newState });
+
+        if (newState)
         {
-            StatusBar.StatusText.Text = "Downloading uBlock Origin...";
-            await DownloadAndInstallCrxAsync(ublockId);
-            if (_activeTab is not null) RenderNativeSurface(_activeTab, forceRebuild: true);
-            return;
+            await EnsureUblockReadyAsync();
         }
-
-        var newState = !ext.Enabled;
-
-        if (_loadedExtensions.TryGetValue(ublockId, out var webExt))
+        else if (_ublockExtension is not null)
         {
-            await webExt.EnableAsync(newState);
+            try { await _ublockExtension.EnableAsync(false); }
+            catch (Exception ex) { Log.Error(ex, "uBlock disable failed"); }
         }
-
-        var updated = _dataStore.Settings.Extensions
-            .Select(e => e.Id == ublockId ? e with { Enabled = newState } : e)
-            .ToList();
-        _dataStore.SaveSettings(_dataStore.Settings with { Extensions = updated });
 
         if (sender is MenuItem menuItem)
             menuItem.IsChecked = newState;
 
-        StatusBar.StatusText.Text = $"{ext.Name} {(newState ? "enabled" : "disabled")}";
+        StatusBar.StatusText.Text = newState ? "uBlock Origin enabled" : "uBlock Origin disabled";
+    }
+
+    private async Task EnsureUblockReadyAsync()
+    {
+        if (!_dataStore.Settings.UblockEnabled)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_privateUserDataFolder))
+        {
+            return;
+        }
+
+        var folder = UblockFolderPath;
+        if (!File.Exists(Path.Combine(folder, "manifest.json")))
+        {
+            SetStatusTextSafe("Installing uBlock Origin...");
+            if (!await DownloadUblockAsync(folder))
+            {
+                return;
+            }
+
+            var installedVersion = ReadManifestVersion(folder);
+            if (installedVersion is not null && !string.Equals(_dataStore.Settings.UblockVersion, installedVersion, StringComparison.Ordinal))
+            {
+                _dataStore.SaveSettings(_dataStore.Settings with { UblockVersion = installedVersion });
+            }
+        }
+
+        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(90);
+        while (_profile is null && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(500);
+        }
+
+        if (_profile is null)
+        {
+            return;
+        }
+
+        if (_ublockExtension is null)
+        {
+            _ublockExtension = await Dispatcher.InvokeAsync(async () =>
+            {
+                try { return await _profile!.AddBrowserExtensionAsync(folder); }
+                catch (Exception ex) { Log.Error(ex, "uBlock load failed"); return null; }
+            }).Task.Unwrap();
+        }
+
+        if (_ublockExtension is not null)
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                try { await _ublockExtension.EnableAsync(_dataStore.Settings.UblockEnabled); }
+                catch (Exception ex) { Log.Error(ex, "uBlock enable failed"); }
+            }).Task.Unwrap();
+        }
+
+        await CheckUblockUpdateAsync();
+    }
+
+    private async Task CheckUblockUpdateAsync()
+    {
+        try
+        {
+            if (!_dataStore.Settings.UblockEnabled)
+            {
+                return;
+            }
+
+            var lastCheck = _dataStore.Settings.UblockUpdateCheckUtc;
+            if (lastCheck is not null && DateTimeOffset.UtcNow - lastCheck < TimeSpan.FromDays(30))
+            {
+                return;
+            }
+
+            var installed = _dataStore.Settings.UblockVersion;
+            var latest = await QueryLatestUblockVersionAsync();
+
+            if (IsNewerVersion(latest, installed))
+            {
+                var folder = UblockFolderPath;
+                if (await DownloadUblockAsync(folder))
+                {
+                    var version = ReadManifestVersion(folder);
+                    if (version is not null)
+                    {
+                        if (_profile is not null)
+                        {
+                            _ublockExtension = await Dispatcher.InvokeAsync(async () =>
+                            {
+                                try
+                                {
+                                    var webExt = await _profile!.AddBrowserExtensionAsync(folder);
+                                    await webExt.EnableAsync(true);
+                                    return webExt;
+                                }
+                                catch (Exception ex) { Log.Error(ex, "uBlock reinstall failed"); return null; }
+                            }).Task.Unwrap();
+                        }
+
+                        _dataStore.SaveSettings(_dataStore.Settings with
+                        {
+                            UblockVersion = version,
+                            UblockUpdateCheckUtc = DateTimeOffset.UtcNow
+                        });
+                        SetStatusTextSafe($"uBlock Origin updated to v{version}");
+                        return;
+                    }
+                }
+            }
+
+            _dataStore.SaveSettings(_dataStore.Settings with { UblockUpdateCheckUtc = DateTimeOffset.UtcNow });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "uBlock update check failed");
+        }
+    }
+
+    private async Task<string?> QueryLatestUblockVersionAsync()
+    {
+        try
+        {
+            var url = $"https://clients2.google.com/service/update2/crx?response=redirect&prodversion=106.0.0.0&acceptformat=crx3&x=id%3D{UblockFolderName}%26installsource%3Dondemand%26uc";
+            using var request = new HttpRequestMessage(HttpMethod.Head, url);
+            using var response = await _crxHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+            var finalUri = response.RequestMessage?.RequestUri?.ToString();
+            return finalUri is null ? null : ParseVersionFromCrxUri(finalUri);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "uBlock version query failed");
+            return null;
+        }
+    }
+
+    private static string? ParseVersionFromCrxUri(string uri)
+    {
+        var match = Regex.Match(uri, @"_(\d+(?:_\d+)+)\.crx$", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value.Replace('_', '.') : null;
+    }
+
+    private static bool IsNewerVersion(string? latest, string? installed)
+    {
+        if (string.IsNullOrWhiteSpace(latest)) return false;
+        if (string.IsNullOrWhiteSpace(installed)) return true;
+        return Version.TryParse(latest, out var latestVersion)
+            && Version.TryParse(installed, out var installedVersion)
+            && latestVersion > installedVersion;
+    }
+
+    private async Task<bool> DownloadUblockAsync(string targetDir)
+    {
+        try
+        {
+            var url = $"https://clients2.google.com/service/update2/crx?response=redirect&prodversion=106.0.0.0&acceptformat=crx3&x=id%3D{UblockFolderName}%26installsource%3Dondemand%26uc";
+            var tempDir = Path.Combine(Path.GetTempPath(), "TabloidBrowser", "CrxDownloads");
+            Directory.CreateDirectory(tempDir);
+            var crxPath = Path.Combine(tempDir, $"{UblockFolderName}.crx");
+
+            using var response = await _crxHttpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            await using (var fileStream = new FileStream(crxPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await response.Content.CopyToAsync(fileStream);
+            }
+
+            var bytes = await File.ReadAllBytesAsync(crxPath);
+            try { File.Delete(crxPath); } catch (Exception ex) { Log.Debug(ex, "Failed to delete CRX temp file"); }
+
+            var zipStart = FindZipStart(bytes);
+            if (zipStart < 0)
+            {
+                return false;
+            }
+
+            if (Directory.Exists(targetDir))
+            {
+                Directory.Delete(targetDir, recursive: true);
+            }
+            Directory.CreateDirectory(targetDir);
+
+            using var zipStream = new MemoryStream(bytes, zipStart, bytes.Length - zipStart);
+            using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+            var normalizedTarget = Path.GetFullPath(targetDir) + Path.DirectorySeparatorChar;
+            foreach (var entry in archive.Entries)
+            {
+                var destPath = Path.GetFullPath(Path.Combine(targetDir, entry.FullName));
+                if (!destPath.StartsWith(normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(entry.Name))
+                {
+                    Directory.CreateDirectory(destPath);
+                }
+                else
+                {
+                    var parentDir = Path.GetDirectoryName(destPath);
+                    if (parentDir is not null) Directory.CreateDirectory(parentDir);
+                    entry.ExtractToFile(destPath, overwrite: true);
+                }
+            }
+
+            return File.Exists(Path.Combine(targetDir, "manifest.json"));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "uBlock download failed");
+            return false;
+        }
+    }
+
+    private static string? ReadManifestVersion(string folder)
+    {
+        try
+        {
+            var manifestPath = Path.Combine(folder, "manifest.json");
+            if (!File.Exists(manifestPath)) return null;
+            using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
+            return document.RootElement.TryGetProperty("version", out var version) ? version.GetString() : null;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to read uBlock manifest version");
+            return null;
+        }
     }
 
     private async void ShowExtensions_Click(object sender, RoutedEventArgs e)
@@ -1385,24 +1623,30 @@ public partial class MainWindow
             finally { _tabOperationLock.Release(); }
             await ActivateTabAsync(tab);
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private void CleanupOldBuiltinExtensions()
     {
-        var builtinIds = new HashSet<string>
+        var builtinFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "cjpalhdlnbpafiamejdnhcphjbkeiagm",
             "eppiocemhmnlbhjplcgkofciiegomcon"
         };
 
-        var filtered = _dataStore.Settings.Extensions
-            .Where(e => !(builtinIds.Contains(e.Id) && e.IsBuiltIn))
+        var extensions = _dataStore.Settings.Extensions;
+        var ublockExt = extensions.FirstOrDefault(IsUblockExtension);
+        var filtered = extensions
+            .Where(e => !builtinFolders.Contains(Path.GetFileName(e.FolderPath.TrimEnd('\\', '/'))))
             .ToList();
 
-        if (filtered.Count != _dataStore.Settings.Extensions.Count)
+        if (filtered.Count != extensions.Count || ublockExt is not null)
         {
-            _dataStore.SaveSettings(_dataStore.Settings with { Extensions = filtered });
+            _dataStore.SaveSettings(_dataStore.Settings with
+            {
+                Extensions = filtered,
+                UblockEnabled = ublockExt is null ? _dataStore.Settings.UblockEnabled : ublockExt.Enabled
+            });
         }
     }
 
@@ -1471,10 +1715,10 @@ private void MainWindow_Closing(object? sender, CancelEventArgs e)
 private async Task DeferredCloseAsync()
     {
         try { await SaveStateBeforeCloseAsync(); }
-        catch (Exception ex) { Debug.WriteLine($"Save state on close failed: {ex}"); }
+        catch (Exception ex) { Log.Error(ex, "Save state on close failed"); }
 
         try { await Dispatcher.InvokeAsync(Close); }
-        catch { Environment.Exit(0); }
+        catch (Exception ex) { Log.Error(ex, "Dispatcher.Close failed during shutdown"); Environment.Exit(1); }
     }
 
 private void DisposeWebViewsAndExit()
@@ -1496,7 +1740,7 @@ private void DisposeWebViewsAndExit()
                             tab.WebView = null;
                             tab.IsWebViewInitialized = false;
                         }
-                        catch (Exception ex) { Debug.WriteLine($"Tab WebView dispose on close: {ex}"); }
+                        catch (Exception ex) { Log.Error(ex, "Tab WebView dispose on close"); }
                     }
                 }
             }
@@ -1505,19 +1749,20 @@ private void DisposeWebViewsAndExit()
             if (_isPrivate && !string.IsNullOrWhiteSpace(_privateUserDataFolder) && Directory.Exists(_privateUserDataFolder))
             {
                 try { Directory.Delete(_privateUserDataFolder, recursive: true); }
-                catch (Exception ex) { Debug.WriteLine($"Private profile delete failed: {ex}"); }
+                catch (Exception ex) { Log.Error(ex, "Private profile delete failed"); }
             }
 
-            try { _carouselWebView?.Dispose(); } catch { }
-            try { _crxHttpClient.Dispose(); } catch { }
-            try { _tabOperationLock.Dispose(); } catch { }
-            try { _readabilityCacheLock.Dispose(); } catch { }
-            try { _aiService?.Dispose(); } catch { }
-            try { _dataStore.Dispose(); } catch { }
+            try { _carouselWebView?.Dispose(); } catch (Exception ex) { Log.Error(ex, "Failed to dispose carousel WebView"); }
+            try { _crxHttpClient.Dispose(); } catch (Exception ex) { Log.Error(ex, "Failed to dispose CRX HTTP client"); }
+            try { _tabOperationLock.Dispose(); } catch (Exception ex) { Log.Error(ex, "Failed to dispose tab operation lock"); }
+            try { _readabilityCacheLock.Dispose(); } catch (Exception ex) { Log.Error(ex, "Failed to dispose readability cache lock"); }
+            try { _aiService?.Dispose(); } catch (Exception ex) { Log.Error(ex, "Failed to dispose AI service"); }
+            try { _searchService?.Dispose(); } catch (Exception ex) { Log.Error(ex, "Failed to dispose search service"); }
+            try { _dataStore.Dispose(); } catch (Exception ex) { Log.Error(ex, "Failed to dispose data store"); }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"DisposeWebViewsAndExit failed: {ex}");
+            Log.Error(ex, "DisposeWebViewsAndExit failed");
         }
     }
 
@@ -1550,11 +1795,11 @@ private void DisposeWebViewsAndExit()
                     {
                         var clearTask = profile.ClearBrowsingDataAsync();
                         var timedOut = await Task.WhenAny(clearTask, Task.Delay(3000)) != clearTask;
-                        if (timedOut) Debug.WriteLine("ClearBrowsingDataAsync timed out after 3s");
+                        if (timedOut) Log.Debug("ClearBrowsingDataAsync timed out after 3s");
                     }
                     _dataStore.ClearBrowsingState();
                 }
-                catch (Exception ex) { Debug.WriteLine(ex); }
+                catch (Exception ex) { Log.Error(ex, "Error occurred"); }
             }
         }
     }
@@ -1676,7 +1921,7 @@ private void DisposeWebViewsAndExit()
                     if (tab is null) return;
                     await NavigateWebAsync(tab, bm.Url);
                 }
-                catch (Exception ex) { Debug.WriteLine(ex); }
+                catch (Exception ex) { Log.Error(ex, "Error occurred"); }
             };
             NavToolbar.BookmarkBarItems.Children.Add(btn);
         }
@@ -1718,7 +1963,7 @@ private void DisposeWebViewsAndExit()
                 Margin = new Thickness(0, 0, 0, 4)
             });
         }
-        catch (Exception ex) { Debug.WriteLine($"GetCookiesAsync failed: {ex}"); stack.Children.Add(new TextBlock
+        catch (Exception ex) { Log.Error(ex, "GetCookiesAsync failed"); stack.Children.Add(new TextBlock
         {
             Text = "Cookies: unavailable",
             Foreground = GetBrush("Muted"),
@@ -1742,7 +1987,7 @@ private void DisposeWebViewsAndExit()
                 popup.IsOpen = false;
                 StatusBar.StatusText.Text = "Site data cleared";
             }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Log.Error(ex, "Error occurred"); }
         };
         stack.Children.Add(clearBtn);
         var closeBtn = new Button
@@ -1767,7 +2012,7 @@ private void DisposeWebViewsAndExit()
         popup.Child = border;
         popup.IsOpen = true;
         }
-        catch (Exception ex) { Debug.WriteLine($"ShowSiteDataPopup failed: {ex}"); }
+        catch (Exception ex) { Log.Error(ex, "ShowSiteDataPopup failed"); }
     }
 }
 

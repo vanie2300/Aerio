@@ -99,7 +99,7 @@
           </EventTrigger>
         </StackPanel.Triggers>
         <TextBlock Text="Tabloid"
-                   FontFamily="./Assets/Fonts/#Font208, Segoe UI Emoji, Segoe UI"
+                   FontFamily="./Assets/Fonts/#Font208, Segoe UI"
                    Foreground="{DynamicResource Text}"
                    FontSize="55"
                    FontWeight="SemiBold"

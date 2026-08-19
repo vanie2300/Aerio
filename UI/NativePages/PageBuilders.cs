@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -27,36 +26,52 @@ public partial class MainWindow
         actions.Children.Add(MatteButton("Export", (_, _) => ExportBookmarks(), new Thickness(8, 0, 0, 0)));
         stack.Children.Add(actions);
 
-        if (_dataStore.Bookmarks.Count == 0)
+        var searchBox = Input("");
+        searchBox.Margin = new Thickness(0, 0, 0, 12);
+        stack.Children.Add(searchBox);
+
+        var entriesPanel = new StackPanel();
+        stack.Children.Add(entriesPanel);
+
+        void PopulateEntries(string query)
         {
-            stack.Children.Add(EmptyText("No bookmarks yet."));
-            return BuildPageShell(tab, "Bookmarks", stack);
+            entriesPanel.Children.Clear();
+            var bookmarks = string.IsNullOrWhiteSpace(query)
+                ? _dataStore.Bookmarks.ToList()
+                : _dataStore.Bookmarks
+                    .Where(b => b.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                                b.Url.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+            if (bookmarks.Count == 0)
+            {
+                entriesPanel.Children.Add(EmptyText(
+                    string.IsNullOrWhiteSpace(query) ? "No bookmarks yet." : "No matching bookmarks."));
+                return;
+            }
+
+            foreach (var item in bookmarks)
+            {
+                entriesPanel.Children.Add(BuildEntry(
+                    item.Title,
+                    TrimUrl(item.Url),
+                    "Open",
+                    async (_, _) =>
+                    {
+                        try { await NavigateWebAsync(tab, item.Url); }
+                        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
+                    },
+                    "Remove",
+                    (_, _) =>
+                    {
+                        _dataStore.RemoveBookmark(item.Url);
+                        PopulateEntries(searchBox.Text?.Trim() ?? "");
+                    }));
+            }
         }
 
-        foreach (var item in _dataStore.Bookmarks)
-        {
-            stack.Children.Add(BuildEntry(
-                item.Title,
-                TrimUrl(item.Url),
-                "Open",
-                async (_, _) =>
-                {
-                    try
-                    {
-                        await NavigateWebAsync(tab, item.Url);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine(ex);
-                    }
-                },
-                "Remove",
-                (_, _) =>
-                {
-                    _dataStore.RemoveBookmark(item.Url);
-                    RenderNativeSurface(tab, forceRebuild: true);
-                }));
-        }
+        PopulateEntries("");
+        searchBox.TextChanged += (_, _) => PopulateEntries(searchBox.Text?.Trim() ?? "");
 
         return BuildPageShell(tab, "Bookmarks", stack);
     }
@@ -73,30 +88,52 @@ public partial class MainWindow
         clear.Margin = new Thickness(0, 0, 0, 12);
         stack.Children.Add(clear);
 
-        if (_dataStore.History.Count == 0)
+        var searchBox = Input("");
+        searchBox.Margin = new Thickness(0, 0, 0, 12);
+        stack.Children.Add(searchBox);
+
+        var entriesPanel = new StackPanel();
+        stack.Children.Add(entriesPanel);
+
+        void PopulateEntries(string query)
         {
-            stack.Children.Add(EmptyText("Nothing visited yet."));
-            return BuildPageShell(tab, "History", stack);
+            entriesPanel.Children.Clear();
+            var history = string.IsNullOrWhiteSpace(query)
+                ? _dataStore.History.ToList()
+                : _dataStore.History
+                    .Where(h => h.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                                h.Url.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+            if (history.Count == 0)
+            {
+                entriesPanel.Children.Add(EmptyText(
+                    string.IsNullOrWhiteSpace(query) ? "Nothing visited yet." : "No matching history."));
+                return;
+            }
+
+            foreach (var item in history)
+            {
+                entriesPanel.Children.Add(BuildEntry(
+                    item.Title,
+                    $"{TrimUrl(item.Url)}  -  {item.VisitedAt:g}",
+                    "Open",
+                    async (_, _) =>
+                    {
+                        try { await NavigateWebAsync(tab, item.Url); }
+                        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
+                    },
+                    "Remove",
+                    (_, _) =>
+                    {
+                        _dataStore.RemoveHistory(item.Url, item.VisitedAt);
+                        PopulateEntries(searchBox.Text?.Trim() ?? "");
+                    }));
+            }
         }
 
-        foreach (var item in _dataStore.History)
-        {
-            stack.Children.Add(BuildEntry(
-                item.Title,
-                $"{TrimUrl(item.Url)}  -  {item.VisitedAt:g}",
-                "Open",
-                async (_, _) =>
-                {
-                    try { await NavigateWebAsync(tab, item.Url); }
-                    catch (Exception ex) { Debug.WriteLine(ex); }
-                },
-                "Remove",
-                (_, _) =>
-                {
-                    _dataStore.RemoveHistory(item.Url, item.VisitedAt);
-                    RenderNativeSurface(tab, forceRebuild: true);
-                }));
-        }
+        PopulateEntries("");
+        searchBox.TextChanged += (_, _) => PopulateEntries(searchBox.Text?.Trim() ?? "");
 
         return BuildPageShell(tab, "History", stack);
     }
@@ -205,7 +242,7 @@ public partial class MainWindow
                     Opacity = settings.BackgroundOpacity
                 };
             }
-            catch { }
+            catch (Exception ex) { Log.Debug(ex, "Failed to load background image preview"); }
         }
         var bgOpacity = SliderRow("Opacity",
             "Brightness of the background image from 0% (invisible) to 100% (fully opaque).",
@@ -247,7 +284,7 @@ public partial class MainWindow
                         Opacity = bgOpacity.Input.Value
                     };
                 }
-                catch { }
+                catch (Exception ex) { Log.Debug(ex, "Failed to load selected background image"); }
             }
         });
 
@@ -269,6 +306,10 @@ public partial class MainWindow
             "Block common tracker domains",
             "Return empty responses for domains in the tracker blocklist.",
             settings.BlockTrackers);
+        var adBlock = ToggleRow(
+            "Block ads",
+            "Filter ads and ad trackers using an EasyList-style filter list. Uses a built-in list offline and refreshes from EasyList.",
+            settings.EnableAdBlock);
         var clearOnExit = ToggleRow(
             "Clear browsing state on exit",
             "Remove local history, downloads, and session restore data when the window closes.",
@@ -347,8 +388,8 @@ public partial class MainWindow
                     StatusBar.StatusText.Text = "Could not reach endpoint — check URL or API key";
                 }
             }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { Debug.WriteLine($"Model discovery: {ex}"); }
+            catch (OperationCanceledException) { Log.Debug("Model discovery cancelled"); }
+            catch (Exception ex) { Log.Error(ex, "Model discovery"); }
         }
 
         async void DebounceFetchModels()
@@ -366,8 +407,8 @@ public partial class MainWindow
                         GetComboText(aiProviderCombo), ct));
                 await op.Task.Unwrap();
             }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { Debug.WriteLine($"DebounceFetchModels error: {ex}"); }
+            catch (OperationCanceledException) { Log.Debug("Model fetch debounce cancelled"); }
+            catch (Exception ex) { Log.Error(ex, "DebounceFetchModels error"); }
         }
 
         void RefreshEndpoint()
@@ -416,6 +457,7 @@ public partial class MainWindow
                         : "Default",
                 BackgroundOpacity: bgOpacity.GetValue(),
                 BlockTrackers: blockTrackers.IsChecked == true,
+                EnableAdBlock: adBlock.IsChecked == true,
                 TrackerBlocklist: ParseDomains(blocklist.Text, BrowserSettings.Default.TrackerBlocklist),
                 TrackerAllowlist: ParseDomains(allowlist.Text, []),
                 SitePermissions: _dataStore.Settings.SitePermissions,
@@ -475,7 +517,7 @@ public partial class MainWindow
                                 Opacity = bgOpacity.Input.Value
                             };
                         }
-                        catch { }
+                        catch (Exception ex) { Log.Debug(ex, "Failed to load background image"); }
                     }
                     Save();
                 };
@@ -498,6 +540,8 @@ public partial class MainWindow
         quickLinks.Unchecked += (_, _) => Save();
         blockTrackers.Checked += (_, _) => Save();
         blockTrackers.Unchecked += (_, _) => Save();
+        adBlock.Checked += (_, _) => Save();
+        adBlock.Unchecked += (_, _) => Save();
         clearOnExit.Checked += (_, _) => Save();
         clearOnExit.Unchecked += (_, _) => Save();
         enableAutofill.Checked += (_, _) => Save();
@@ -540,7 +584,7 @@ public partial class MainWindow
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex);
+                Log.Error(ex, "Error occurred");
             }
         });
 
@@ -584,6 +628,7 @@ public partial class MainWindow
                 "Privacy && Security",
                 "Tracker filtering, permissions, and saved data.",
                 blockTrackers,
+                adBlock,
                 listActions,
                 SettingRow("Tracker blocklist", "One domain per line. Use * for wildcards, e.g. *doubleclick.*", blocklist),
                 SettingRow("Per-site allowlist", "Domains listed here bypass tracker blocking.", allowlist),
@@ -929,8 +974,9 @@ public partial class MainWindow
         try
         {
             if (_isPermissionsPopupOpen) return;
+            if (_isChangelogOpen && _changelogPopup is not null) _changelogPopup.IsOpen = false;
 
-            try { await SyncProfilePermissionSettingsAsync(); } catch (Exception ex) { Debug.WriteLine(ex); }
+            try { await SyncProfilePermissionSettingsAsync(); } catch (Exception ex) { Log.Error(ex, "Error occurred"); }
 
             RemovePopupBlur();
 
@@ -984,7 +1030,7 @@ public partial class MainWindow
         catch (Exception ex)
         {
             _isPermissionsPopupOpen = false;
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
     }
 
@@ -1073,7 +1119,7 @@ public partial class MainWindow
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine(ex);
+                        Log.Error(ex, "Error occurred");
                     }
                 };
                 pills.Add(pill);
@@ -1196,7 +1242,7 @@ public partial class MainWindow
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex);
+                Log.Error(ex, "Error occurred");
             }
         }, new Thickness(0, 0, 8, 0));
         var closeBtn = MatteButton("Close", (_, _) => popup.IsOpen = false);
@@ -1380,6 +1426,27 @@ public partial class MainWindow
     {
         var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
 
+        var ublockToggle = ToggleRow("uBlock Origin",
+            "Built-in ad blocker. Installed and updated automatically from the Chrome Web Store.",
+            _dataStore.Settings.UblockEnabled);
+        ublockToggle.Checked += async (_, _) =>
+        {
+            _dataStore.SaveSettings(_dataStore.Settings with { UblockEnabled = true });
+            await EnsureUblockReadyAsync();
+            StatusBar.StatusText.Text = "uBlock Origin enabled";
+        };
+        ublockToggle.Unchecked += async (_, _) =>
+        {
+            _dataStore.SaveSettings(_dataStore.Settings with { UblockEnabled = false });
+            if (_ublockExtension is not null)
+            {
+                try { await _ublockExtension.EnableAsync(false); }
+                catch (Exception ex) { Log.Error(ex, "uBlock disable failed"); }
+            }
+            StatusBar.StatusText.Text = "uBlock Origin disabled";
+        };
+        stack.Children.Add(ublockToggle);
+
         var loadBtn = MatteButton("Load unpacked", async (_, _) =>
         {
             var dialog = new OpenFolderDialog
@@ -1444,7 +1511,7 @@ public partial class MainWindow
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex);
+                Log.Error(ex, "Error occurred");
             }
         }, new Thickness(8, 0, 0, 0));
 
@@ -1474,7 +1541,7 @@ public partial class MainWindow
                     await AddWebTabAsync("https://chromewebstore.google.com/category/extensions");
                 }
             }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Log.Error(ex, "Error occurred"); }
         };
         stack.Children.Add(storeLink);
 
@@ -1546,7 +1613,7 @@ public partial class MainWindow
                 await InstallCrxAsync(crxFile);
                 e.Handled = true;
             }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Log.Error(ex, "Error occurred"); }
         };
 
         stack.Children.Add(dropZone);
@@ -1609,7 +1676,7 @@ public partial class MainWindow
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex);
+                    Log.Error(ex, "Error occurred");
                 }
             };
             toggle.Unchecked += async (_, _) =>
@@ -1621,7 +1688,7 @@ public partial class MainWindow
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex);
+                    Log.Error(ex, "Error occurred");
                 }
             };
 
@@ -1663,7 +1730,7 @@ public partial class MainWindow
                         await AddWebTabAsync($"chrome-extension://{capturedExt.Id}/popup.html");
                     }
                 }
-                catch (Exception ex) { Debug.WriteLine(ex); }
+                catch (Exception ex) { Log.Error(ex, "Error occurred"); }
             });
             row.Children.Add(manageBtn);
 
@@ -1953,6 +2020,162 @@ public partial class MainWindow
         parts.Add(combo.Key.ToString());
         return string.Join("+", parts);
     }
+
+    private UIElement BuildAiManagementPage(BrowserTab tab)
+    {
+        var settings = _dataStore.Settings;
+        var toolsEnabled = settings.AiToolsEnabled ?? new Dictionary<string, bool>();
+
+        var stack = new StackPanel();
+
+        var header = new TextBlock
+        {
+            Text = "AI Agent Tools",
+            Foreground = GetBrush("Text"),
+            FontSize = 20,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        stack.Children.Add(header);
+
+        var subtitle = new TextBlock
+        {
+            Text = "Enable or disable individual tools that the AI agent can use.",
+            Foreground = GetBrush("Muted"),
+            FontSize = 13,
+            Margin = new Thickness(0, 0, 0, 16)
+        };
+        stack.Children.Add(subtitle);
+
+        var toolDefs = new (string Id, string Name, string Description)[]
+        {
+            ("web_search", "Web Search", "Search the web for information"),
+            ("search_and_read", "Search & Read", "Search, navigate to a result, and read its content"),
+            ("search_followup", "Search Follow-up", "Get related search suggestions"),
+            ("get_page_content", "Get Page Content", "Read the current page's text content"),
+            ("get_page_metadata", "Get Page Metadata", "Get title, description, and headings from a page"),
+            ("extract_page_links", "Extract Links", "Extract all hyperlinks from a page"),
+            ("navigate_to", "Navigate To", "Navigate the current tab to a URL"),
+            ("open_tab", "Open Tab", "Open a URL in a new background tab"),
+        };
+
+        var toolToggles = new Dictionary<string, CheckBox>();
+
+        foreach (var (id, name, description) in toolDefs)
+        {
+            var isEnabled = !toolsEnabled.TryGetValue(id, out var enabled) || enabled;
+            var toggle = new CheckBox
+            {
+                IsChecked = isEnabled,
+                Foreground = GetBrush("Text"),
+                FontSize = 14,
+                Content = name,
+                Margin = new Thickness(0, 0, 0, 2)
+            };
+            toolToggles[id] = toggle;
+
+            var desc = new TextBlock
+            {
+                Text = description,
+                Foreground = GetBrush("Muted"),
+                FontSize = 12,
+                Margin = new Thickness(24, 0, 0, 8)
+            };
+
+            stack.Children.Add(toggle);
+            stack.Children.Add(desc);
+        }
+
+        stack.Children.Add(new Separator
+        {
+            Background = GetBrush("Stroke"),
+            Margin = new Thickness(0, 16, 0, 16)
+        });
+
+        var settingsHeader = new TextBlock
+        {
+            Text = "Agent Settings",
+            Foreground = GetBrush("Text"),
+            FontSize = 20,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        stack.Children.Add(settingsHeader);
+
+        var maxIter = SliderRow("Max iterations",
+            "Maximum number of tool-calling iterations per request.",
+            settings.AiMaxIterations, 1, 20);
+
+        var searchBackend = Combo(
+            ["DuckDuckGo", "SearXNG", "Custom"],
+            settings.AiSearchBackend);
+
+        var searchEndpoint = TextRow("Search endpoint",
+            "Endpoint URL for SearXNG or custom search backend.",
+            settings.AiSearchEndpoint);
+
+        var confirmSensitive = ToggleRow(
+            "Confirm sensitive actions",
+            "Ask for confirmation before navigating or opening tabs when page context is active.",
+            settings.AiPageContextConfirmation);
+
+        stack.Children.Add(maxIter.Control);
+        stack.Children.Add(SettingRow("Search backend", "Backend used for web search tool.", searchBackend));
+        stack.Children.Add(searchEndpoint.Control);
+        stack.Children.Add(confirmSensitive);
+
+        stack.Children.Add(new Separator
+        {
+            Background = GetBrush("Stroke"),
+            Margin = new Thickness(0, 16, 0, 16)
+        });
+
+        var resetBtn = MatteButton("Reset to defaults", (_, _) =>
+        {
+            foreach (var (id, _, _) in toolDefs)
+                toolToggles[id].IsChecked = true;
+            maxIter.Input.Value = 10;
+            searchBackend.SelectedItem = "DuckDuckGo";
+            searchEndpoint.Input.Text = "";
+            confirmSensitive.IsChecked = true;
+            SaveAiSettings();
+        });
+        resetBtn.HorizontalAlignment = HorizontalAlignment.Left;
+        stack.Children.Add(resetBtn);
+
+        void SaveAiSettings()
+        {
+            var newToolsEnabled = new Dictionary<string, bool>();
+            foreach (var (id, _, _) in toolDefs)
+                newToolsEnabled[id] = toolToggles[id].IsChecked == true;
+
+            var saved = settings with
+            {
+                AiToolsEnabled = newToolsEnabled,
+                AiMaxIterations = ClampInt(((int)maxIter.Input.Value).ToString(), 1, 20, 10),
+                AiSearchBackend = GetComboText(searchBackend),
+                AiSearchEndpoint = searchEndpoint.Input.Text ?? "",
+                AiPageContextConfirmation = confirmSensitive.IsChecked == true
+            };
+            _dataStore.SaveSettings(saved);
+            ApplySettings();
+            NotifySettingsChanged();
+            StatusBar.StatusText.Text = "AI settings saved";
+        }
+
+        foreach (var toggle in toolToggles.Values)
+            toggle.Checked += (_, _) => SaveAiSettings();
+        foreach (var toggle in toolToggles.Values)
+            toggle.Unchecked += (_, _) => SaveAiSettings();
+        maxIter.Input.ValueChanged += (_, _) => SaveAiSettings();
+        searchBackend.SelectionChanged += (_, _) => SaveAiSettings();
+        searchEndpoint.Input.TextChanged += (_, _) => SaveAiSettings();
+        confirmSensitive.Checked += (_, _) => SaveAiSettings();
+        confirmSensitive.Unchecked += (_, _) => SaveAiSettings();
+
+        return BuildPageShell(tab, "AI Management", stack);
+    }
 }
+
 
 

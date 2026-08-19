@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -56,8 +55,10 @@ public partial class MainWindow
 
     private string? _lastSitePermissionsUrl;
     private Popup? _sitePermissionsPopup;
+    private Popup? _changelogPopup;
     private Grid? _popupOverlay;
     private bool _isPermissionsPopupOpen;
+    private bool _isChangelogOpen;
     private bool _isSyncingProfilePermissions;
 
     private async void PermissionRequested(BrowserTab tab, CoreWebView2PermissionRequestedEventArgs args)
@@ -69,7 +70,7 @@ public partial class MainWindow
                 _ = Dispatcher.BeginInvoke(() =>
                 {
                     try { PermissionRequested(tab, args); }
-                    catch (Exception ex) { Debug.WriteLine($"PermissionRequested dispatch failed: {ex}"); }
+                    catch (Exception ex) { Log.Error(ex, "PermissionRequested dispatch failed"); }
                 });
                 return;
             }
@@ -110,7 +111,7 @@ public partial class MainWindow
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"PermissionRequested failed: {ex}");
+                    Log.Error(ex, "PermissionRequested failed");
                     args.State = CoreWebView2PermissionState.Deny;
                     args.Handled = true;
                 }
@@ -125,7 +126,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"PermissionRequested fatal: {ex}");
+            Log.Error(ex, "PermissionRequested fatal");
             args.State = CoreWebView2PermissionState.Deny;
             args.Handled = true;
         }
@@ -649,7 +650,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
         finally
         {
@@ -684,15 +685,15 @@ public partial class MainWindow
                 }
                 catch (InvalidOperationException ex)
                 {
-                    Debug.WriteLine(ex);
+                    Log.Error(ex, "Error occurred");
                 }
                 catch (COMException ex)
                 {
-                    Debug.WriteLine(ex);
+                    Log.Error(ex, "Error occurred");
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex);
+                    Log.Error(ex, "Error occurred");
                 }
             }
         }

@@ -4,6 +4,43 @@
 
 Transform the existing AI chat sidebar into a full browser searching agent with tool calling, web search, and comprehensive management UI.
 
+## Implementation Status
+
+### ✅ Phase 1 — Tool Calling Infrastructure (COMPLETED)
+- [x] Extend `AiService` for tool/function calling
+- [x] New models in `AiTools.cs` (AiTool, AiToolCall, AiToolResult, AiResponse, SearchResult)
+- [x] Request body includes tools array
+- [x] Parse tool_calls from response
+
+### ✅ Phase 2 — Web Search Service (COMPLETED)
+- [x] New file: `WebSearchService.cs`
+- [x] DuckDuckGo Lite backend (default, no API key)
+- [x] SearXNG backend (configurable)
+- [x] Custom backend support
+- [x] Rate limiting (1 req/sec)
+- [x] Suggestions endpoint
+
+### ✅ Phase 3 — Tool Definitions (COMPLETED)
+- [x] web_search(query)
+- [x] search_and_read(query, result_index?)
+- [x] search_followup(query)
+- [x] get_page_content()
+- [x] get_page_metadata(url?)
+- [x] extract_page_links(source)
+- [x] navigate_to(url)
+- [x] open_tab(url, title)
+
+### ✅ Phase 4 — Agent Loop (COMPLETED)
+- [x] AgentLoopAsync method
+- [x] Tool execution dispatch
+- [x] Guardrails (max 10 iterations)
+- [x] Integration with AI sidebar
+
+### ❌ Phase 5 — AI Management UI (NOT STARTED)
+- [ ] New fields in BrowserSettings
+- [ ] IsTempPreview flag on BrowserTab
+- [ ] ai://manage native page
+
 ---
 
 ## Phase 1 — Tool Calling Infrastructure

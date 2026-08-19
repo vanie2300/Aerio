@@ -7,5 +7,6 @@ public enum BrowserTabKind
     Bookmarks,
     History,
     Downloads,
-    Settings
+    Settings,
+    AiManagement
 }

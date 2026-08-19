@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Features - Tabloid Browser</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="layout">
+        <nav>
+            <a class="brand" href="index.html"><span>Tabloid</span> Browser</a>
+            <ul>
+                <li><a href="index.html">Overview</a></li>
+                <li><a href="features.html">Features</a></li>
+                <li><a href="keyboard-shortcuts.html">Shortcuts</a></li>
+                <li><a href="settings.html">Settings</a></li>
+                <li><a href="ai-features.html" class="active">AI Features</a></li>
+                <li><a href="architecture.html">Architecture</a></li>
+                <li><a href="contributing.html">Contributing</a></li>
+                <li><a href="changelog.html">Changelog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <h1>AI Features</h1>
+            <p class="subtitle">Integrated AI chat sidebar with tool calling and web search.</p>
+
+            <div class="section">
+                <h2>Setup</h2>
+                <ol>
+                    <li>Open Settings (menu gear or <code>tabloid://settings</code>)</li>
+                    <li>Go to the <strong>AI</strong> tab</li>
+                    <li>Toggle <strong>Enable AI</strong></li>
+                    <li>Select a <strong>Provider</strong> (or use Custom for any OpenAI-compatible API)</li>
+                    <li>Enter your <strong>API key</strong> if required</li>
+                    <li>Select a <strong>Model</strong> (auto-discovered from the endpoint)</li>
+                </ol>
+                <p>Press <kbd>Ctrl+Shift+A</kbd> or click the AI icon in the toolbar to open the sidebar.</p>
+            </div>
+
+            <div class="section">
+                <h2>Providers</h2>
+                <table>
+                    <tr><th>Provider</th><th>Endpoint</th><th>API Key</th><th>Notes</th></tr>
+                    <tr><td>Ollama</td><td><code>http://localhost:11434/v1</code></td><td>Not required</td><td>Local, runs on your machine</td></tr>
+                    <tr><td>OpenAI</td><td><code>https://api.openai.com/v1</code></td><td>Required</td><td>GPT-4o, GPT-4o-mini, etc.</td></tr>
+                    <tr><td>Groq</td><td><code>https://api.groq.com/openai/v1</code></td><td>Required</td><td>Fast inference, Llama/Mixtral models</td></tr>
+                    <tr><td>OpenRouter</td><td><code>https://openrouter.ai/api/v1</code></td><td>Required</td><td>Access to many models</td></tr>
+                    <tr><td>Custom</td><td>(user-defined)</td><td>Varies</td><td>Any OpenAI-compatible API</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Agent Tools</h2>
+                <p>The AI can use tools to search the web, read pages, and navigate. The agent loop runs up to 10 iterations per message.</p>
+
+                <table>
+                    <tr><th>Tool</th><th>Parameters</th><th>Description</th></tr>
+                    <tr><td><code>web_search</code></td><td><code>query</code> (string)</td><td>Search the web via DuckDuckGo Lite or SearXNG</td></tr>
+                    <tr><td><code>search_and_read</code></td><td><code>query</code> (string), <code>result_index</code> (int, default 0)</td><td>Search, navigate to a result, and read its content</td></tr>
+                    <tr><td><code>search_followup</code></td><td><code>query</code> (string)</td><td>Get related search suggestions</td></tr>
+                    <tr><td><code>get_page_content</code></td><td>(none)</td><td>Read the current page's text content (max 8000 chars)</td></tr>
+                    <tr><td><code>get_page_metadata</code></td><td><code>url</code> (string, optional)</td><td>Get page title, description, headings</td></tr>
+                    <tr><td><code>extract_page_links</code></td><td><code>source</code> (string, optional)</td><td>Extract all hyperlinks from a page</td></tr>
+                    <tr><td><code>navigate_to</code></td><td><code>url</code> (string)</td><td>Navigate the current tab to a URL and read it</td></tr>
+                    <tr><td><code>open_tab</code></td><td><code>url</code> (string), <code>title</code> (string)</td><td>Open a URL in a new background tab</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Web Search Backends</h2>
+                <table>
+                    <tr><th>Backend</th><th>API Key</th><th>Description</th></tr>
+                    <tr><td>DuckDuckGo Lite</td><td>Not required</td><td>Default. Scrapes lite.duckduckgo.com</td></tr>
+                    <tr><td>SearXNG</td><td>Not required</td><td>Self-hosted or public instance. Set endpoint URL.</td></tr>
+                    <tr><td>Custom</td><td>Varies</td><td>Generic JSON API. Expects <code>results[].title/url/content</code>.</td></tr>
+                </table>
+                <p>Rate limited to 1 request per second.</p>
+            </div>
+
+            <div class="section">
+                <h2>Page Context</h2>
+                <p>When the <strong>Include page context</strong> toggle is enabled, the current page's text content is included in the AI prompt wrapped in <code>&lt;page_content&gt;</code> tags. This lets the AI answer questions about the page you're viewing.</p>
+            </div>
+
+            <div class="section">
+                <h2>Chat Features</h2>
+                <table>
+                    <tr><th>Feature</th><th>Description</th></tr>
+                    <tr><td>Markdown rendering</td><td>AI responses render bold, italic, code blocks, lists, and links</td></tr>
+                    <tr><td>Copy button</td><td>Copy any AI response to clipboard</td></tr>
+                    <tr><td>Per-tab history</td><td>Each tab has its own chat history</td></tr>
+                    <tr><td>Model discovery</td><td>Auto-fetches available models when endpoint changes</td></tr>
+                    <tr><td>Cancellation</td><td>Send a new message to cancel the current request</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>Security</h2>
+                <ul>
+                    <li>API keys are encrypted with <strong>Windows DPAPI</strong> on disk</li>
+                    <li>Keys are only readable by the same Windows user account</li>
+                    <li>Legacy plaintext keys are auto-migrated to encrypted format</li>
+                </ul>
+            </div>
+
+            <div class="footer">
+                <a href="index.html">Back to Overview</a>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

@@ -52,7 +52,7 @@ public class BrowserTab : INotifyPropertyChanged
         foreach (var action in CleanupActions.ToArray())
         {
             try { action(); }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Cleanup action failed: {ex}"); }
+            catch (Exception ex) { Log.Error(ex, "Cleanup action failed"); }
         }
         CleanupActions.Clear();
     }
@@ -233,6 +233,10 @@ public class BrowserTab : INotifyPropertyChanged
             DispatchOnPropertyChanged(nameof(AccentBrush));
         }
     }
+
+    public bool SuspendedForSleep { get; set; }
+
+    public DateTimeOffset? SuspendedAtUtc { get; set; }
 
     public bool IsSplitPaneTab { get; set; }
 

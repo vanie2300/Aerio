@@ -123,7 +123,7 @@ public partial class MainWindow
         task.ContinueWith(t =>
         {
             if (t.Exception is not null)
-                Debug.WriteLine($"Fire-and-forget failed{(string.IsNullOrEmpty(context) ? "" : $" ({context})")}: {t.Exception}");
+                Log.Error(t.Exception, $"Fire-and-forget failed{(string.IsNullOrEmpty(context) ? "" : $" ({context})")}");
         }, TaskContinuationOptions.OnlyOnFaulted);
     }
 
@@ -161,7 +161,7 @@ public partial class MainWindow
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Failed to open download page: {ex}");
+                Log.Error(ex, "Failed to open download page");
             }
         }
     }
@@ -295,11 +295,6 @@ public partial class MainWindow
         if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
         
         var settings = _dataStore.Settings;
-        if (!settings.BlockTrackers)
-        {
-            return;
-        }
-
         var host = GetHost(tab.Address);
         var reqHost = GetHost(e.Request.Uri);
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(reqHost))
@@ -312,14 +307,37 @@ public partial class MainWindow
             return;
         }
 
+        if (settings.EnableAdBlock && AdBlockEngine.Active.Current.ShouldBlock(e.Request.Uri))
+        {
+            BlockWebRequest(cwv, e);
+            return;
+        }
+
+        if (!settings.BlockTrackers)
+        {
+            return;
+        }
+
         var blocklist = settings.TrackerBlocklist;
         if (blocklist.Count == 0 || !blocklist.Any(domain => DomainMatches(reqHost, domain)))
         {
             return;
         }
 
+        BlockWebRequest(cwv, e);
+    }
+
+    private void BlockWebRequest(CoreWebView2 cwv, CoreWebView2WebResourceRequestedEventArgs e)
+    {
         Interlocked.Increment(ref _blockedTrackerCount);
-        Dispatcher.BeginInvoke(UpdatePrivacyIndicator);
+        if (Interlocked.Exchange(ref _privacyIndicatorPending, 1) == 0)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                _privacyIndicatorPending = 0;
+                UpdatePrivacyIndicator();
+            });
+        }
 
         e.Response = cwv.Environment.CreateWebResourceResponse(
             new MemoryStream(Array.Empty<byte>()),
@@ -489,7 +507,13 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"NavigationCompleted failed: {ex}");
+            Log.Error(ex, "NavigationCompleted handler failed for {Url}", tab.Address);
+            tab.IsLoading = false;
+            if (_activeTab == tab)
+            {
+                UpdateLoadingOverlay();
+                UpdateReloadStopButton();
+            }
         }
     }
 
@@ -503,7 +527,7 @@ public partial class MainWindow
                 var title = cwv.DocumentTitle;
                 if (!string.IsNullOrWhiteSpace(title)) tab.Title = title;
             }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Log.Error(ex, "Error occurred"); }
         }
         if (Dispatcher.CheckAccess()) handler();
         else Dispatcher.Invoke(handler);
@@ -514,7 +538,7 @@ public partial class MainWindow
         await Dispatcher.InvokeAsync(async () =>
         {
             try { await AddWebTabAsync(e.Uri); }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Log.Error(ex, "Failed to open new window for {Url}", e.Uri ?? "unknown"); StatusBar.StatusText.Text = $"Failed to open: {ex.Message}"; }
         }).Task.Unwrap();
     }
 
@@ -535,7 +559,7 @@ public partial class MainWindow
                 if (playing) tab.HasAudio = true;
                 tab.IsPlayingAudio = playing;
             }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Log.Error(ex, "Error occurred"); }
         }
         if (Dispatcher.CheckAccess()) handler();
         else Dispatcher.Invoke(handler);
@@ -546,7 +570,7 @@ public partial class MainWindow
         void handler()
         {
             try { tab.IsMuted = cwv.IsMuted; }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Log.Error(ex, "Error occurred"); }
         }
         if (Dispatcher.CheckAccess()) handler();
         else Dispatcher.Invoke(handler);
@@ -636,7 +660,7 @@ public partial class MainWindow
                     Dispatcher.InvokeAsync(async () =>
                     {
                         await InstallCrxAsync(crxPath);
-                        try { File.Delete(crxPath); } catch { }
+                        try { File.Delete(crxPath); } catch (Exception ex) { Log.Debug(ex, "Failed to delete CRX temp file"); }
                     });
                 }
             };
@@ -644,7 +668,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
     }
 
@@ -667,7 +691,7 @@ public partial class MainWindow
             }
 
             await InstallCrxAsync(crxPath);
-            try { File.Delete(crxPath); } catch { }
+            try { File.Delete(crxPath); } catch (Exception ex) { Log.Debug(ex, "Failed to delete CRX temp file"); }
         }
         catch (Exception ex)
         {
@@ -678,9 +702,9 @@ public partial class MainWindow
     private void UpdatePrivacyIndicator()
     {
         NavToolbar.PrivacyButton.Foreground = _dataStore.Settings.BlockTrackers ? GetBrush("Lime") : GetBrush("Muted");
-        NavToolbar.PrivacyButton.ToolTip = _dataStore.Settings.BlockTrackers
-            ? $"Tracker blocking on. Blocked {_blockedTrackerCount} requests."
-            : "Tracker blocking off";
+        NavToolbar.PrivacyButton.ToolTip = _dataStore.Settings.BlockTrackers || _dataStore.Settings.EnableAdBlock
+            ? $"Ad & tracker blocking on. Blocked {_blockedTrackerCount} requests."
+            : "Ad & tracker blocking off";
     }
 
     private void TrackDownload(CoreWebView2DownloadStartingEventArgs args)

@@ -1,0 +1,186 @@
+:root {
+    --bg: #0e0e12;
+    --surface: #16161d;
+    --border: #2a2a35;
+    --text: #e0e0e6;
+    --muted: #8888a0;
+    --accent: #724ddf;
+    --cyan: #00aacc;
+    --green: #44cc88;
+    --red: #dd4466;
+    --yellow: #ddaa44;
+    --code-bg: #1a1a24;
+    --nav-bg: #111118;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 15px;
+}
+
+a { color: var(--cyan); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+nav {
+    width: 220px;
+    background: var(--nav-bg);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    overflow-y: auto;
+}
+
+nav .brand {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 24px;
+    display: block;
+}
+
+nav .brand span { color: var(--accent); }
+
+nav ul { list-style: none; }
+
+nav li a {
+    display: block;
+    padding: 6px 12px;
+    color: var(--muted);
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.15s;
+}
+
+nav li a:hover,
+nav li a.active {
+    color: var(--text);
+    background: var(--surface);
+    text-decoration: none;
+}
+
+main {
+    margin-left: 220px;
+    padding: 40px 48px;
+    max-width: 860px;
+    width: 100%;
+}
+
+h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+h2 { font-size: 20px; font-weight: 600; margin: 32px 0 12px; color: var(--text); }
+h3 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; color: var(--muted); }
+
+p { margin-bottom: 12px; }
+
+.subtitle { color: var(--muted); margin-bottom: 24px; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 24px;
+    font-size: 14px;
+}
+
+th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+tr:hover td { background: var(--surface); }
+
+code {
+    font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--cyan);
+}
+
+pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 12px 0 24px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+pre code { background: none; padding: 0; color: var(--text); }
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge-type { background: var(--accent); color: white; }
+.badge-default { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+.badge-bool { background: #1a3a2a; color: var(--green); }
+.badge-string { background: #2a2a1a; color: var(--yellow); }
+.badge-number { background: #1a2a3a; color: var(--cyan); }
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 12px 0;
+}
+
+.card h3 { margin-top: 0; color: var(--text); }
+
+.section { margin-bottom: 40px; }
+
+ul, ol { padding-left: 20px; margin: 8px 0 16px; }
+li { margin: 4px 0; }
+
+.footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.kbd {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: "Cascadia Code", monospace;
+    font-size: 12px;
+    color: var(--text);
+    min-width: 24px;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    nav { display: none; }
+    main { margin-left: 0; padding: 24px 16px; }
+}

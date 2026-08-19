@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -90,12 +89,14 @@ public sealed class BrowserDataStore : IDisposable
             return JsonSerializer.Deserialize<BrowserSession>(File.ReadAllText(_sessionPath), JsonOptions)
                 ?? BrowserSession.Empty;
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            Log.Error(ex, "Corrupt session file, resetting to empty");
             return BrowserSession.Empty;
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            Log.Error(ex, "Failed to read session file, resetting to empty");
             return BrowserSession.Empty;
         }
     }
@@ -117,7 +118,7 @@ public sealed class BrowserDataStore : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"SaveSession failed: {ex.Message}");
+            Log.Error(ex, "Failed to save session");
             return false;
         }
         finally { _lock.ExitWriteLock(); }
@@ -132,7 +133,7 @@ public sealed class BrowserDataStore : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"ClearSession failed: {ex.Message}");
+            Log.Error(ex, "Failed to clear session");
         }
         finally { _lock.ExitWriteLock(); }
     }
@@ -297,7 +298,7 @@ public sealed class BrowserDataStore : IDisposable
             SaveBookmarks();
             SaveHistory();
             SaveDownloads();
-            try { WriteSession(BrowserSession.Empty); } catch (Exception ex) { Debug.WriteLine($"ClearSession failed: {ex.Message}"); }
+            try { WriteSession(BrowserSession.Empty); } catch (Exception ex) { Log.Error(ex, "Failed to write empty session during ClearAll"); }
         }
         finally { _lock.ExitWriteLock(); }
     }
@@ -311,7 +312,7 @@ public sealed class BrowserDataStore : IDisposable
             DownloadsInternal.Clear();
             SaveHistory();
             SaveDownloads();
-            try { WriteSession(BrowserSession.Empty); } catch (Exception ex) { Debug.WriteLine($"ClearSession failed: {ex.Message}"); }
+            try { WriteSession(BrowserSession.Empty); } catch (Exception ex) { Log.Error(ex, "Failed to write empty session during ClearBrowsingState"); }
         }
         finally { _lock.ExitWriteLock(); }
     }
@@ -358,7 +359,7 @@ public sealed class BrowserDataStore : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"SaveSettings failed: {ex}");
+            Log.Error(ex, "SaveSettings failed");
         }
         finally { _lock.ExitWriteLock(); }
     }
@@ -409,12 +410,14 @@ public sealed class BrowserDataStore : IDisposable
         {
             return JsonSerializer.Deserialize<List<T>>(File.ReadAllText(path), JsonOptions) ?? [];
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            Log.Error(ex, "Corrupt data file at {Path}, resetting to empty", path);
             return [];
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            Log.Error(ex, "Failed to read data file at {Path}", path);
             return [];
         }
     }
@@ -432,7 +435,7 @@ public sealed class BrowserDataStore : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Save failed for {path}: {ex.Message}");
+            Log.Error(ex, "Save failed for {Path}", path);
             return false;
         }
     }
@@ -470,12 +473,14 @@ public sealed class BrowserDataStore : IDisposable
                 AiTemperature = settings.AiTemperature < 0 || settings.AiTemperature > 2 ? BrowserSettings.Default.AiTemperature : settings.AiTemperature
             };
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            Log.Error(ex, "Corrupt settings file, reverting to defaults");
             return BrowserSettings.Default;
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            Log.Error(ex, "Failed to read settings file");
             return BrowserSettings.Default;
         }
     }
@@ -526,11 +531,10 @@ public sealed class BrowserDataStore : IDisposable
         if (string.IsNullOrWhiteSpace(bg))
             return BrowserSettings.Default.Background;
 
-        return bg switch
-        {
-            "Default" => bg,
-            _ => bg
-        };
+        if (bg == "Default")
+            return BrowserSettings.Default.Background;
+
+        return bg;
     }
 
     private static List<SitePermissionRule> NormalizeSitePermissions(List<SitePermissionRule>? rules)
@@ -619,7 +623,17 @@ public sealed record BrowserSettings(
     string AiApiKey = "",
     string AiSystemPrompt = "You are a helpful assistant. Answer concisely.",
     int AiMaxTokens = 2048,
-    double AiTemperature = 0.7)
+    double AiTemperature = 0.7,
+    bool EnableAdBlock = true,
+    bool UblockEnabled = true,
+    DateTimeOffset? UblockUpdateCheckUtc = null,
+    string UblockVersion = "",
+    string AiSearchBackend = "DuckDuckGo",
+    string AiSearchEndpoint = "",
+    int AiMaxIterations = 10,
+    bool AiPageContextConfirmation = true,
+    Dictionary<string, bool>? AiToolsEnabled = null,
+    string LastSeenVersion = "")
 {
     public static List<string> DefaultTrackerBlocklist { get; } =
     [
@@ -691,5 +705,15 @@ public sealed record BrowserSettings(
         AiApiKey: "",
         AiSystemPrompt: "You are a helpful assistant. Answer concisely.",
         AiMaxTokens: 2048,
-        AiTemperature: 0.7);
+        AiTemperature: 0.7,
+        EnableAdBlock: true,
+        UblockEnabled: true,
+        UblockUpdateCheckUtc: null,
+        UblockVersion: "",
+        AiSearchBackend: "DuckDuckGo",
+        AiSearchEndpoint: "",
+        AiMaxIterations: 10,
+        AiPageContextConfirmation: true,
+        AiToolsEnabled: null,
+        LastSeenVersion: "");
 }

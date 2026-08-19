@@ -17,12 +17,16 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        Log.CloseAndFlush();
         base.OnExit(e);
     }
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        Log.Init(LogDirectory);
+        Log.Info("Tabloid Browser starting");
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
@@ -32,6 +36,7 @@ public partial class App : Application
             }
 
             WriteCrashLog(args.ExceptionObject as Exception);
+            Log.Fatal("Unhandled AppDomain exception", args.ExceptionObject as Exception);
 
             try
             {
@@ -53,14 +58,14 @@ public partial class App : Application
             }
 
             WriteCrashLog(args.Exception);
-            Debug.WriteLine($"[DispatcherUnhandledException] {args.Exception}");
+            Log.Error(args.Exception, "Dispatcher unhandled exception");
             args.Handled = true;
         };
 
         TaskScheduler.UnobservedTaskException += (_, args) =>
         {
             WriteCrashLog(args.Exception);
-            Debug.WriteLine($"[UnobservedTaskException] {args.Exception}");
+            Log.Error(args.Exception, "Unobserved task exception");
             args.SetObserved();
         };
     }

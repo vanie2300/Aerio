@@ -154,7 +154,7 @@
                    Margin="8,0"
                    VerticalAlignment="Center" />
         <Button x:Name="MenuButton"
-                Content="&#xE712;"
+                Content="&#xE700;"
                 Click="Menu_Click"
                 Style="{StaticResource IconButton}"
                 Margin="0,0,0,0"

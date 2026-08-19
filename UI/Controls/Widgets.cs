@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -868,7 +867,7 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
                     Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.DenyCors);
                 wv.CoreWebView2.NavigateToString(CarouselHtml());
             }
-            catch (Exception ex) { Debug.WriteLine($"Carousel WebView2 init failed: {ex}"); _ = Dispatcher.BeginInvoke(() => { if (!Dispatcher.HasShutdownStarted) StatusBar.StatusText.Text = "Carousel failed to load"; }); }
+            catch (Exception ex) { Log.Error(ex, "Carousel WebView2 init failed"); _ = Dispatcher.BeginInvoke(() => { if (!Dispatcher.HasShutdownStarted) StatusBar.StatusText.Text = "Carousel failed to load"; }); }
         }
 
         void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -905,7 +904,7 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
                     onChange();
                 }
             }
-            catch (Exception ex) { Debug.WriteLine($"WebMessageReceived error: {ex}"); }
+            catch (Exception ex) { Log.Error(ex, "WebMessageReceived error"); }
         }
         wv.WebMessageReceived += OnWebMessageReceived;
 
@@ -1078,7 +1077,7 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex);
+                Log.Error(ex, "Error occurred");
             }
         };
 

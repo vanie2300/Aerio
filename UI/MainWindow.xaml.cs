@@ -1,10 +1,10 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
@@ -47,11 +47,18 @@ public partial class MainWindow : Window
 
             const send = () => {
                 scheduled = false;
+                const now = performance.now();
+                if (now - lastSent < 80) {
+                    return;
+                }
+                lastSent = now;
                 try {
                     chrome.webview.postMessage(readScroll());
                 } catch {
                 }
             };
+
+            let lastSent = -1000;
 
             const queue = () => {
                 if (scheduled) {
@@ -63,7 +70,10 @@ public partial class MainWindow : Window
             };
 
             window.addEventListener('scroll', queue, { passive: true });
-            window.addEventListener('pagehide', send);
+            window.addEventListener('pagehide', () => {
+                lastSent = -1000;
+                try { chrome.webview.postMessage(readScroll()); } catch { }
+            });
             setTimeout(send, 0);
         })();
         """;
@@ -128,6 +138,7 @@ public partial class MainWindow : Window
     private readonly BrowserTabKind? _startupNativeKind;
     private readonly bool _skipSessionPersistence;
     private int _blockedTrackerCount;
+    private int _privacyIndicatorPending;
 
     public MainWindow()
         : this(isPrivate: false)
@@ -164,7 +175,7 @@ public partial class MainWindow : Window
         source?.AddHook(WndProc);
         var snapLayoutEnabled = 1;
         var hr = DwmSetWindowAttribute(hwnd, DWMWA_SNAP_LAYOUT, ref snapLayoutEnabled, 4u);
-        if (hr != 0) Debug.WriteLine($"DwmSetWindowAttribute failed: 0x{hr:X8}");
+        if (hr != 0) Log.Debug($"DwmSetWindowAttribute failed: 0x{hr:X8}");
         TitleBar.TabStrip.ItemsSource = _tabs;
         TitleBar.NewTab += NewTab_Click;
         TitleBar.TabSplit += SplitTab_Click;
@@ -264,6 +275,17 @@ public partial class MainWindow : Window
 
             NotifySettingsChanged();
             await InitializeEnvironmentAsync();
+
+            var currentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "";
+            var lastSeen = _dataStore.Settings.LastSeenVersion;
+            if (!string.IsNullOrEmpty(currentVersion) && currentVersion != lastSeen)
+            {
+                ShowChangelogPopup(currentVersion);
+                _dataStore.SaveSettings(_dataStore.Settings with { LastSeenVersion = currentVersion });
+            }
+
+            FireAndForget(AdBlockEngine.RefreshOnceAsync(), "AdBlockEngine.RefreshOnceAsync");
+            FireAndForget(EnsureUblockReadyAsync(), "EnsureUblockReadyAsync");
             if (!string.IsNullOrWhiteSpace(_startupUrl))
             {
                 await AddWebTabAsync(_startupUrl);
@@ -279,7 +301,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Startup failed: {ex}");
+            Log.Error(ex, "Startup failed");
             ShowStartupError(ex);
         }
     }
@@ -330,12 +352,12 @@ public partial class MainWindow : Window
                 if (pending?.WebView?.CoreWebView2 is null) return;
                 if (pending != tab)
                 {
-                    Debug.WriteLine("Reader-content response from wrong tab, discarding");
+                    Log.Debug("Reader-content response from wrong tab, discarding");
                     return;
                 }
                 if (root.TryGetProperty("error", out var errProp))
                 {
-                    Debug.WriteLine($"Reader extraction failed: {errProp.GetString()}");
+                    Log.Debug("Reader extraction failed: {Error}", errProp.GetString() ?? "unknown");
                     return;
                 }
                 var title = root.TryGetProperty("title", out var tProp) ? tProp.GetString() ?? "" : "";
@@ -352,7 +374,7 @@ public partial class MainWindow : Window
                         _ = RenderReaderViewAsync(pending, article).ContinueWith(t =>
                         {
                             if (t.Exception is not null)
-                                Debug.WriteLine($"RenderReaderViewAsync failed: {t.Exception}");
+                                Log.Error(t.Exception, "RenderReaderViewAsync failed");
                         }, TaskContinuationOptions.OnlyOnFaulted);
                         UpdateReaderUi(true);
                     });
@@ -390,11 +412,22 @@ public partial class MainWindow : Window
 
         catch (Exception ex)
         {
-            Debug.WriteLine($"WebMessageReceived failed: {ex}");
+            Log.Error(ex, "WebMessageReceived failed");
         }
     }
 
-    private void StartBgTimer_Tick(object? sender, EventArgs e) => AnimateBgParticles();
+    private void StartBgTimer_Tick(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Minimized || !IsVisible) return;
+        if (_activeTab is null ||
+            _activeTab.Kind != BrowserTabKind.Start ||
+            BrowserPane.StartOverlay.Visibility != Visibility.Visible)
+        {
+            _startBgTimer?.Stop();
+            return;
+        }
+        AnimateBgParticles();
+    }
 
     private Color GetAccentColor()
     {
@@ -455,7 +488,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
     }
 
@@ -537,7 +570,7 @@ public partial class MainWindow : Window
                 window.Show();
             }
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private async void FocusSplitTab_Click(object sender, RoutedEventArgs e)
@@ -547,11 +580,225 @@ public partial class MainWindow : Window
             if (_splitSecondaryTab is not null)
                 await ActivateTabAsync(_splitSecondaryTab);
         }
-        catch (Exception ex) { Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
     private void CloseSplit_Click(object sender, RoutedEventArgs e)
     {
         ClearSplitView();
+    }
+
+    private static readonly List<(string Version, string[] Features)> Changelog =
+    [
+        ("1.4.0",
+        [
+            "AI streaming responses — tokens appear in real-time",
+            "Structured logging with daily file rotation",
+            "AI prompt injection protection",
+            "AI management settings page",
+            "Unit test suite (54 tests)",
+            "CI/CD pipeline"
+        ]),
+        ("1.3.0",
+        [
+            "uBlock Origin integration with EasyList",
+            "Custom search engine support",
+            "System media detection and playback controls",
+            "Tab hibernation with hover preview"
+        ]),
+        ("1.2.0",
+        [
+            "Settings JSON persistence",
+            "Session restore on startup",
+            "Bookmark drag-and-drop reorder",
+            "UI refinements and bug fixes"
+        ]),
+        ("1.1.0",
+        [
+            "AI assistant sidebar (Ctrl+Shift+A)",
+            "OpenAI-compatible API support (Ollama, OpenAI, Groq, OpenRouter)",
+            "Agent tool calling with 8 built-in tools",
+            "Web search integration",
+            "Page context for AI",
+            "Markdown rendering in chat",
+            "Per-tab chat history",
+            "DPAPI API key encryption",
+            "Start page particle animation"
+        ]),
+        ("1.0.0",
+        [
+            "Initial release"
+        ])
+    ];
+
+    private void ShowChangelogPopup(string currentVersion)
+    {
+        if (_isChangelogOpen) return;
+        RemovePopupBlur();
+
+        _isChangelogOpen = true;
+
+        if (Content is Grid rootGrid)
+        {
+            rootGrid.Effect = new BlurEffect
+            {
+                Radius = 14,
+                KernelType = KernelType.Gaussian
+            };
+
+            _popupOverlay = new Grid
+            {
+                Background = new SolidColorBrush(Color.FromArgb(80, 0, 0, 0)),
+                IsHitTestVisible = false,
+                Opacity = 0
+            };
+            Grid.SetRowSpan(_popupOverlay, rootGrid.RowDefinitions.Count);
+            rootGrid.Children.Add(_popupOverlay);
+
+            var overlayFade = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15));
+            _popupOverlay.BeginAnimation(Grid.OpacityProperty, overlayFade);
+        }
+
+        var popup = new Popup
+        {
+            PlacementTarget = this,
+            Placement = PlacementMode.Center,
+            StaysOpen = false,
+            AllowsTransparency = true,
+            PopupAnimation = PopupAnimation.Fade
+        };
+
+        popup.Closed += (_, _) =>
+        {
+            RemovePopupBlur();
+            _changelogPopup = null;
+            _isChangelogOpen = false;
+        };
+
+        _changelogPopup = popup;
+
+        var outerBorder = new Border
+        {
+            Width = 500,
+            MaxHeight = 520,
+            Background = GetBrush("ChromeBg"),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(24, 20, 24, 20),
+            Effect = new DropShadowEffect
+            {
+                BlurRadius = 24,
+                Opacity = 0.3
+            }
+        };
+
+        var mainStack = new StackPanel();
+
+        var header = new TextBlock
+        {
+            Text = "What's New in Tabloid Browser",
+            Foreground = GetBrush("Text"),
+            FontSize = 22,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        mainStack.Children.Add(header);
+
+        var sub = new TextBlock
+        {
+            Text = $"You're now on version {currentVersion}",
+            Foreground = GetBrush("Muted"),
+            FontSize = 13,
+            Margin = new Thickness(0, 0, 0, 16)
+        };
+        mainStack.Children.Add(sub);
+
+        var scrollContent = new StackPanel();
+
+        var isFirst = string.IsNullOrEmpty(/* lastSeen was empty on first launch */
+            _dataStore.Settings.LastSeenVersion);
+
+        foreach (var entry in Changelog)
+        {
+            if (!isFirst && string.Compare(entry.Version, _dataStore.Settings.LastSeenVersion, StringComparison.Ordinal) <= 0)
+                break;
+
+            var versionHeader = new TextBlock
+            {
+                Text = $"v{entry.Version}",
+                Foreground = GetBrush("Cyan"),
+                FontSize = 15,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            scrollContent.Children.Add(versionHeader);
+
+            foreach (var feature in entry.Features)
+            {
+                var featurePanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(8, 0, 0, 3)
+                };
+                var bullet = new TextBlock
+                {
+                    Text = "\u2022",
+                    Foreground = GetBrush("Muted"),
+                    FontSize = 13,
+                    Margin = new Thickness(0, 0, 6, 0)
+                };
+                featurePanel.Children.Add(bullet);
+                var featureText = new TextBlock
+                {
+                    Text = feature,
+                    Foreground = GetBrush("Text"),
+                    FontSize = 13,
+                    TextWrapping = TextWrapping.Wrap
+                };
+                featurePanel.Children.Add(featureText);
+                scrollContent.Children.Add(featurePanel);
+            }
+
+            var spacer = new System.Windows.Shapes.Rectangle
+            {
+                Height = 12,
+                Fill = Brushes.Transparent
+            };
+            scrollContent.Children.Add(spacer);
+        }
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = scrollContent,
+            MaxHeight = 360,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        mainStack.Children.Add(scrollViewer);
+
+        var buttonRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+
+        var gotItBtn = new Button
+        {
+            Content = "Got it",
+            MinWidth = 92,
+            Height = 30,
+            Padding = new Thickness(12, 0, 12, 0),
+            Style = FindResource("MicroButton") as Style,
+            IsDefault = true
+        };
+        gotItBtn.Click += (_, _) => popup.IsOpen = false;
+        buttonRow.Children.Add(gotItBtn);
+
+        mainStack.Children.Add(buttonRow);
+        outerBorder.Child = mainStack;
+        popup.Child = outerBorder;
+        popup.IsOpen = true;
     }
 }

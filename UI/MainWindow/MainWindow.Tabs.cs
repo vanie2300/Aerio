@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -248,9 +247,9 @@ public partial class MainWindow
         secondary.WebView.Visibility = Visibility.Visible;
 
         try { primary.WebView.CoreWebView2?.Resume(); }
-        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException) { Debug.WriteLine(ex); }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException) { Log.Error(ex, "Error occurred"); }
         try { secondary.WebView.CoreWebView2?.Resume(); }
-        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException) { Debug.WriteLine(ex); }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException) { Log.Error(ex, "Error occurred"); }
 
         BrowserPane.PrimaryPaneColumn.Width = new GridLength(1, GridUnitType.Star);
         BrowserPane.SplitPaneDividerColumn.Width = new GridLength(5);
@@ -282,7 +281,7 @@ public partial class MainWindow
             var prevTab = _activeTab;
             if (prevTab is not null && prevTab != tab)
             {
-                await CaptureScrollPositionAsync(prevTab);
+                FireAndForget(CaptureScrollPositionAsync(prevTab), "CaptureScrollPositionAsync");
                 prevTab.IsActive = false;
             }
 
@@ -344,9 +343,17 @@ public partial class MainWindow
             return;
         }
 
-        BrowserPane.WebViewHost.Children.Clear();
-        RemoveElementFromParent(webView);
-        BrowserPane.WebViewHost.Children.Add(webView);
+        var wasSuspended = tab.SuspendedForSleep;
+        tab.SuspendedForSleep = false;
+        tab.SuspendedAtUtc = null;
+
+        if (BrowserPane.WebViewHost.Children.Count != 1 ||
+            !ReferenceEquals(BrowserPane.WebViewHost.Children[0], webView))
+        {
+            BrowserPane.WebViewHost.Children.Clear();
+            RemoveElementFromParent(webView);
+            BrowserPane.WebViewHost.Children.Add(webView);
+        }
         webView.Visibility = Visibility.Visible;
 
         try
@@ -355,7 +362,7 @@ public partial class MainWindow
         }
         catch (ObjectDisposedException ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
             RemoveElementFromParent(webView);
             tab.WebView = null;
             tab.IsWebViewInitialized = false;
@@ -363,7 +370,7 @@ public partial class MainWindow
         }
         catch (InvalidOperationException ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
 
         BrowserPane.WebViewHost.Visibility = Visibility.Visible;
@@ -373,7 +380,7 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(() => webView.Focus(), DispatcherPriority.ApplicationIdle);
 
-        if (!tab.IsRestoredPlaceholder && !tab.IsLoading && HasScrollPosition(tab))
+        if (!wasSuspended && !tab.IsRestoredPlaceholder && !tab.IsLoading && HasScrollPosition(tab))
         {
             FireAndForget(RestoreScrollPositionAsync(tab, force: true), "RestoreScrollPositionAsync force");
         }
@@ -406,19 +413,19 @@ public partial class MainWindow
         }
         catch (ObjectDisposedException ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
         catch (InvalidOperationException ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
         catch (COMException ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
         catch (JsonException ex)
         {
-            Debug.WriteLine(ex);
+            Log.Error(ex, "Error occurred");
         }
     }
 
@@ -455,17 +462,17 @@ public partial class MainWindow
             }
             catch (ObjectDisposedException ex)
             {
-                Debug.WriteLine(ex);
+                Log.Error(ex, "Error occurred");
                 return;
             }
             catch (InvalidOperationException ex)
             {
-                Debug.WriteLine(ex);
+                Log.Error(ex, "Error occurred");
                 return;
             }
             catch (COMException ex)
             {
-                Debug.WriteLine(ex);
+                Log.Error(ex, "Error occurred");
                 return;
             }
         }
@@ -503,10 +510,31 @@ public partial class MainWindow
 
                     await HibernateTabAsync(tab);
                 }
-                catch (Exception ex) { Debug.WriteLine(ex); }
+                catch (Exception ex) { Log.Error(ex, "Error occurred"); }
+            }
+
+            List<BrowserTab> suspendedSnapshot;
+            await _tabOperationLock.WaitAsync();
+            try
+            {
+                suspendedSnapshot = _tabs.Where(tab => tab.IsSleeping && tab.SuspendedForSleep).ToList();
+            }
+            finally { _tabOperationLock.Release(); }
+
+            foreach (var tab in suspendedSnapshot)
+            {
+                try
+                {
+                    var suspendedAt = tab.SuspendedAtUtc;
+                    if (suspendedAt is null || DateTimeOffset.UtcNow - suspendedAt < DiscardSuspendedAfter)
+                        continue;
+
+                    await DiscardSuspendedTabAsync(tab);
+                }
+                catch (Exception ex) { Log.Error(ex, "Error occurred"); }
             }
         }
-        catch (Exception ex) { Debug.WriteLine($"SleepTimer_Tick fatal: {ex}"); }
+        catch (Exception ex) { Log.Error(ex, "SleepTimer_Tick fatal"); }
     }
 
     private async Task HibernateTabAsync(BrowserTab tab)
@@ -548,11 +576,11 @@ public partial class MainWindow
             }
             catch (InvalidOperationException ex)
             {
-                Debug.WriteLine(ex);
+                Log.Error(ex, "Error occurred");
             }
             catch (COMException ex)
             {
-                Debug.WriteLine(ex);
+                Log.Error(ex, "Error occurred");
             }
 
             if (tab == _activeTab || tab.Kind != BrowserTabKind.Web || tab.IsPlayingAudio)
@@ -560,24 +588,98 @@ public partial class MainWindow
                 return;
             }
 
-            BrowserPane.WebViewHost.Children.Remove(webView);
-            tab.WebView = null;
-            tab.IsWebViewInitialized = false;
-            tab.RestoredUrl = hibernateUrl;
-            tab.IsRestoredPlaceholder = true;
-            tab.IsSleeping = true;
-            tab.RunCleanup();
-            webView.Dispose();
-
-            if (!_tabs.Any(t => t.WebView?.CoreWebView2 is not null))
+            if (await TrySuspendTabAsync(tab, webView))
             {
-                lock (_initializationLock) _profile = null;
-                _extensionsLoaded = false;
+                return;
             }
 
-            UpdateMemoryStatus();
+            DisposeTabWebView(tab, webView, hibernateUrl);
         }
         finally { _tabOperationLock.Release(); }
+    }
+
+    private void DisposeTabWebView(BrowserTab tab, WebView2 webView, string hibernateUrl)
+    {
+        BrowserPane.WebViewHost.Children.Remove(webView);
+        tab.WebView = null;
+        tab.IsWebViewInitialized = false;
+        tab.RestoredUrl = hibernateUrl;
+        tab.IsRestoredPlaceholder = true;
+        tab.IsSleeping = true;
+        tab.SuspendedForSleep = false;
+        tab.SuspendedAtUtc = null;
+        tab.RunCleanup();
+        webView.Dispose();
+
+        if (!_tabs.Any(t => t.WebView?.CoreWebView2 is not null))
+        {
+            lock (_initializationLock) _profile = null;
+            _extensionsLoaded = false;
+        }
+
+        UpdateMemoryStatus();
+    }
+
+    private static readonly TimeSpan DiscardSuspendedAfter = TimeSpan.FromMinutes(30);
+
+    private async Task DiscardSuspendedTabAsync(BrowserTab tab)
+    {
+        await _tabOperationLock.WaitAsync();
+        try
+        {
+            if (tab == _activeTab || tab.Kind != BrowserTabKind.Web || !_tabs.Contains(tab) ||
+                !tab.IsSleeping || !tab.SuspendedForSleep)
+            {
+                return;
+            }
+
+            var webView = tab.WebView;
+            if (webView is null || webView.CoreWebView2 is null)
+            {
+                return;
+            }
+
+            var hibernateUrl = tab.RestoredUrl ?? tab.Address;
+            if (!BrowserDataStore.IsHttpUrl(hibernateUrl))
+            {
+                return;
+            }
+
+            DisposeTabWebView(tab, webView, hibernateUrl);
+        }
+        finally { _tabOperationLock.Release(); }
+    }
+
+    private async Task<bool> TrySuspendTabAsync(BrowserTab tab, WebView2 webView)
+    {
+        try
+        {
+            var coreWebView = webView.CoreWebView2;
+            if (coreWebView is null || coreWebView.IsSuspended)
+            {
+                return false;
+            }
+
+            BrowserPane.WebViewHost.Children.Remove(webView);
+
+            if (await coreWebView.TrySuspendAsync())
+            {
+                tab.IsSleeping = true;
+                tab.SuspendedForSleep = true;
+                tab.SuspendedAtUtc = DateTimeOffset.UtcNow;
+                tab.RestoredUrl = null;
+                tab.IsRestoredPlaceholder = false;
+                UpdateMemoryStatus();
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("Tab suspend failed: {Message}", ex.Message);
+            return false;
+        }
     }
 
     private bool _memoryUpdatePending;
@@ -684,7 +786,7 @@ public partial class MainWindow
             }
 
             if (!_dataStore.SaveSession(new BrowserSession(sessionTabs, activeIndex)))
-                Debug.WriteLine("Failed to save session");
+                Log.Debug("Failed to save session");
         }
         finally { _tabOperationLock.Release(); }
     }
@@ -722,7 +824,7 @@ public partial class MainWindow
                 }
                 catch (Exception ex)
                 {
-                    if (retry == 4) Debug.WriteLine($"Failed to delete private profile after 5 retries: {ex}");
+                    if (retry == 4) Log.Error(ex, "Failed to delete private profile after 5 retries");
                 }
             }
         }
