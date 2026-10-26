@@ -15,7 +15,7 @@
                     CornerRadius="8"
                     Padding="{TemplateBinding Padding}"
                     Margin="0,4,12,12"
-                    Effect="{StaticResource PopupShadow}"
+                    Effect="{DynamicResource PopupShadow}"
                     SnapsToDevicePixels="True">
               <ItemsPresenter />
             </Border>

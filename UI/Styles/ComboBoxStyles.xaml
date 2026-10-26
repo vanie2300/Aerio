@@ -131,7 +131,7 @@
                         BorderBrush="{DynamicResource Stroke}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Effect="{StaticResource PopupShadow}">
+                        Effect="{DynamicResource PopupShadow}">
                   <ScrollViewer CanContentScroll="True" Margin="2">
                     <ItemsPresenter />
                   </ScrollViewer>
