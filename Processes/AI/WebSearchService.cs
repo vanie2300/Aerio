@@ -35,6 +35,10 @@ public sealed class WebSearchService : IDisposable
                 return ("duckduckgo", null);
             case "SearXNG":
                 return ("searxng", "https://searx.be");
+            // Google has no scrapeable HTML endpoint for automated clients —
+            // the AI's search tool routes it through DuckDuckGo (with Bing fallback).
+            case "Google":
+                return ("duckduckgo", null);
             default:
                 var custom = customEngines?.FirstOrDefault(e => e.Name == searchEngine);
                 if (custom is not null &&

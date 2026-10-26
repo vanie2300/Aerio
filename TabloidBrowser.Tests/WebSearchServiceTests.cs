@@ -21,6 +21,14 @@ public class WebSearchServiceTests
     }
 
     [Fact]
+    public void ResolveBackend_Google_FallsBackToDuckDuckGo()
+    {
+        var (backend, endpoint) = WebSearchService.ResolveBackend("Google");
+        Assert.Equal("duckduckgo", backend);
+        Assert.Null(endpoint);
+    }
+
+    [Fact]
     public void ResolveBackend_UnknownEngine_FallsBackToDuckDuckGo()
     {
         var (backend, endpoint) = WebSearchService.ResolveBackend("Startpage");

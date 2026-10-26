@@ -307,6 +307,7 @@ public partial class MainWindow
             "Startpage" => "https://www.startpage.com/sp/search?query=",
             "Brave" => "https://search.brave.com/search?q=",
             "SearXNG" => "https://searx.be/search?q=",
+            "Google" => "https://www.google.com/search?q=",
             _ when customEngines?.FirstOrDefault(e => e.Name == searchEngine) is { } engine
                 => engine.UrlTemplate,
             _ => "https://duckduckgo.com/?q="

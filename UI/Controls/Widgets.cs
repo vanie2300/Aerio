@@ -800,22 +800,24 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
     private (FrameworkElement Control, Func<string> GetEngine, Func<List<SearchEngineDef>> GetCustomEngines)
         SearchEngineCarousel(string selected, List<SearchEngineDef> customEngines, Action onChange)
     {
-        var builtInNames = new[] { "DuckDuckGo", "Startpage", "Brave", "SearXNG" };
-        var builtInLetters = new[] { "D", "S", "B", "X" };
-        var builtInIcons = new[] { "ddg.png", "startpage.png", "brave.png", "searxng.png" };
+        var builtInNames = new[] { "DuckDuckGo", "Startpage", "Brave", "SearXNG", "Google" };
+        var builtInLetters = new[] { "D", "S", "B", "X", "G" };
+        var builtInIcons = new[] { "ddg.png", "startpage.png", "brave.png", "searxng.png", null };
         var builtInColors = new Color[]
         {
             Color.FromRgb(222, 88, 51),
             Color.FromRgb(74, 144, 217),
             Color.FromRgb(251, 84, 43),
-            Color.FromRgb(107, 107, 107)
+            Color.FromRgb(107, 107, 107),
+            Color.FromRgb(66, 133, 244)
         };
         var builtInDescs = new[]
         {
             "Private search engine that doesn't track your searches.",
             "Google search results delivered with complete privacy.",
             "Independent search engine built on its own index.",
-            "Self-hostable metasearch engine aggregator."
+            "Self-hostable metasearch engine aggregator.",
+            "Search the web with Google."
         };
 
         var customBrush = new SolidColorBrush(Color.FromRgb(114, 77, 223));
