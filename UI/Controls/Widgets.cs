@@ -411,7 +411,7 @@ public partial class MainWindow
             Background = GetBrush("InputBg"),
             Foreground = GetBrush("Text"),
             BorderBrush = GetBrush("Stroke"),
-            Padding = new Thickness(8, 5, 8, 0)
+            Padding = new Thickness(10, 0, 10, 0)
         };
     }
 
@@ -451,7 +451,7 @@ public partial class MainWindow
             Background = GetBrush("InputBg"),
             Foreground = GetBrush("Text"),
             BorderBrush = GetBrush("Stroke"),
-            Padding = new Thickness(8, 5, 8, 0)
+            Padding = new Thickness(10, 0, 10, 0)
         };
         return (SettingRow(label, detail, box), box, () => box.Text?.Trim() ?? "");
     }
@@ -464,7 +464,7 @@ public partial class MainWindow
             Background = GetBrush("InputBg"),
             Foreground = GetBrush("Text"),
             BorderBrush = GetBrush("Stroke"),
-            Padding = new Thickness(8, 5, 8, 0)
+            Padding = new Thickness(10, 0, 10, 0)
         };
         box.Password = value;
         return (SettingRow(label, detail, box), box, () => box.Password);

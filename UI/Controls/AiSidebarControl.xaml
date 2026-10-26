@@ -147,7 +147,7 @@
           <TextBlock x:Name="AiActivityLabel"
                      Text=""
                      Foreground="{DynamicResource Muted}"
-                     FontSize="10.5"
+                     FontSize="11"
                      VerticalAlignment="Center"
                      TextWrapping="Wrap" />
         </StackPanel>

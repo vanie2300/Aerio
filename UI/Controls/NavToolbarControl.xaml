@@ -77,8 +77,9 @@
                    BorderThickness="0"
                    Foreground="{DynamicResource Text}"
                    CaretBrush="{DynamicResource Accent}"
-                   FontSize="12.5"
-                   Padding="2,5,8,0"
+                   FontSize="13"
+                   Padding="2,0,8,0"
+                   VerticalContentAlignment="Center"
                    PreviewKeyDown="AddressBox_PreviewKeyDown" />
           <Button x:Name="GoBtn"
                   Grid.Column="2"

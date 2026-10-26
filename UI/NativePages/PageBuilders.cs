@@ -1009,7 +1009,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
         var contentScroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = new StackPanel { MaxWidth = 780, HorizontalAlignment = HorizontalAlignment.Stretch }
+            Content = new StackPanel { MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Stretch }
         };
         backToTop.Click += (_, _) => contentScroll.ScrollToTop();
         contentScroll.ScrollChanged += (_, _) =>
@@ -1152,7 +1152,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             stack.Children.Add(new TextBlock
             {
                 Text = catName,
-                FontSize = 12.5,
+                FontSize = 13,
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
             });
@@ -1436,7 +1436,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
                 Text = label,
                 Foreground = GetBrush("Text"),
                 VerticalAlignment = VerticalAlignment.Center,
-                FontSize = 12.5
+                FontSize = 13
             };
             var pills = BuildPills(key);
 
@@ -1453,7 +1453,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             {
                 Text = groupName.ToUpperInvariant(),
                 Foreground = GetBrush("Muted"),
-                FontSize = 10.5,
+                FontSize = 11,
                 FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 0, 0, 6)
             });
