@@ -12,12 +12,22 @@
   <SolidColorBrush x:Key="SubtleStroke" Color="#1F1F1F" />
   <SolidColorBrush x:Key="Text" Color="#EFEFEF" />
   <SolidColorBrush x:Key="Muted" Color="#8E8E8E" />
-  <SolidColorBrush x:Key="Accent" Color="#724DDF" />
+  <SolidColorBrush x:Key="Accent" Color="#9877E8" />
   <SolidColorBrush x:Key="Lime" Color="#6A9955" />
   <SolidColorBrush x:Key="Pink" Color="#C586C0" />
   <SolidColorBrush x:Key="ScrollThumb" Color="#5A5A5A" />
   <SolidColorBrush x:Key="ScrollThumbHover" Color="#7A7A7A" />
   <SolidColorBrush x:Key="ScrollThumbPressed" Color="#999999" />
+
+  <!-- Settings reference palette -->
+  <SolidColorBrush x:Key="SidebarBg" Color="#141519" />
+  <SolidColorBrush x:Key="SurfaceBg" Color="#191A20" />
+  <SolidColorBrush x:Key="SurfaceRaised" Color="#202127" />
+  <SolidColorBrush x:Key="FieldBg" Color="#17181E" />
+  <SolidColorBrush x:Key="InkSecondary" Color="#B8B8C3" />
+  <SolidColorBrush x:Key="StrokeStrong" Color="#3D3E49" />
+  <SolidColorBrush x:Key="Danger" Color="#ED9399" />
+  <SolidColorBrush x:Key="Positive" Color="#62C4A2" />
 
   <DropShadowEffect x:Key="PopupShadow" ShadowDepth="0" BlurRadius="24" Opacity="0.35" Color="#000000" />
 </ResourceDictionary>

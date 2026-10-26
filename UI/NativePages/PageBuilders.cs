@@ -437,34 +437,26 @@ public partial class MainWindow
     private UIElement BuildSettingsPage(BrowserTab tab)
     {
         var settings = _dataStore.Settings;
-        var root = new Grid
-        {
-            Background = GetBrush("AppBg"),
-            Margin = new Thickness(48, 0, 48, 0)
-        };
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         Action onChange = () => { };
         var searchCtrl = SearchEngineCarousel(settings.SearchEngine, settings.CustomEngines, () => onChange());
-        var accent = ChoiceGroup(["Blue", "Purple", "Gray", "Green", "White"], settings.Accent, AccentSwatch);
-        var theme = ChoiceGroup(["Dark", "Light"], settings.Theme);
+        var accent = AccentCircleGroup(["Blue", "Purple", "Gray", "Green", "White"], settings.Accent);
+        var theme = Segmented(["Dark", "Light"], settings.Theme);
         var customBgPath = settings.Background is not "Default" && File.Exists(settings.Background)
             ? settings.Background
             : null;
         var savedCustomBgPath = customBgPath;
-        var background = ChoiceGroup(["Default", "Custom"], customBgPath is not null ? "Custom" : "Default");
+        var background = Segmented(["Default", "Custom"], customBgPath is not null ? "Custom" : "Default");
 
         var customBgName = new TextBlock
         {
-            Text = customBgPath is not null ? Path.GetFileName(customBgPath) : "",
-            Foreground = GetBrush("Muted"),
-            FontSize = 12,
+            Text = customBgPath is not null ? Path.GetFileName(customBgPath) : "No image selected",
+            Foreground = GetBrush("InkSecondary"),
+            FontSize = 11.5,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0)
+            Margin = new Thickness(10, 0, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 230
         };
 
         var customBgBadge = new Border
@@ -473,24 +465,26 @@ public partial class MainWindow
             CornerRadius = new CornerRadius(3),
             Padding = new Thickness(5, 1, 5, 1),
             VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
             Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed,
             Child = new TextBlock
             {
                 Text = "Custom",
                 Foreground = Brushes.White,
-                FontSize = 11,
+                FontSize = 10,
                 FontWeight = FontWeights.SemiBold
             }
         };
 
         var bgPreview = new Border
         {
-            Width = 200,
             Height = 120,
             CornerRadius = new CornerRadius(8),
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 10)
+            Margin = new Thickness(0, 12, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Width = 200
         };
         if (customBgPath is not null)
         {
@@ -505,9 +499,9 @@ public partial class MainWindow
             }
             catch (Exception ex) { Log.Debug(ex, "Failed to load background image preview"); }
         }
-        var bgOpacity = SliderRow("Opacity",
+        var bgOpacity = SettingsSliderRow("Background opacity",
             "Brightness of the background image from 0% (invisible) to 100% (fully opaque).",
-            settings.BackgroundOpacity, 0.0, 1.0);
+            settings.BackgroundOpacity, 0.0, 1.0, v => $"{(int)Math.Round(v * 100)}%", controlWidth: 170);
         bgOpacity.Input.AutoToolTipPlacement = AutoToolTipPlacement.TopLeft;
         bgOpacity.Input.ValueChanged += (_, _) =>
         {
@@ -520,7 +514,8 @@ public partial class MainWindow
         bgPreview.Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed;
         bgOpacity.Control.Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed;
 
-        var browseBg = MatteButton("Browse...", (_, _) =>
+        var browseBg = SettingsButton("Choose image");
+        browseBg.Click += (_, _) =>
         {
             var dialog = new OpenFileDialog
             {
@@ -547,95 +542,168 @@ public partial class MainWindow
                 }
                 catch (Exception ex) { Log.Debug(ex, "Failed to load selected background image"); }
             }
-        });
+        };
 
-        var customBgPicker = new StackPanel
+        var uploadLine = new StackPanel
         {
             Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 12, 0, 0),
             Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed
         };
-        customBgPicker.Children.Add(browseBg);
-        customBgPicker.Children.Add(customBgName);
-        customBgPicker.Children.Add(customBgBadge);
+        uploadLine.Children.Add(browseBg);
+        uploadLine.Children.Add(customBgName);
+        uploadLine.Children.Add(customBgBadge);
 
         var sleep = NumericStepper(settings.TabSleepMinutes, 1, 60);
-        var quickLinks = ToggleRow(
-            "Show quick links",
-            "Display the shortcut buttons below the start page search box.",
+        var quickLinks = SettingsToggleRow("Quick links",
+            "Show shortcuts below the search box.",
             settings.ShowQuickLinks);
-        var blockTrackers = ToggleRow(
-            "Block common tracker domains",
-            "Return empty responses for domains in the tracker blocklist.",
+        var blockTrackers = SettingsToggleRow("Block common trackers",
+            "Use a domain blocklist to prevent requests to known tracker domains.",
             settings.BlockTrackers);
-        var adBlock = ToggleRow(
-            "Block ads",
-            "Filter ads and ad trackers using an EasyList-style filter list. Uses a built-in list offline and refreshes from EasyList.",
+        var adBlock = SettingsToggleRow("Block ads",
+            "Filter advertising requests using a built-in EasyList-style list. Uses a bundled list offline and refreshes from EasyList.",
             settings.EnableAdBlock);
-        var clearOnExit = ToggleRow(
-            "Clear browsing state on exit",
-            "Remove local history, downloads, and session restore data when the window closes.",
+        var clearOnExit = SettingsToggleRow("Clear browsing state on exit",
+            "Remove browsing history, download history, and session recovery data when Tabloid closes.",
             settings.ClearDataOnExit);
-        var enableAutofill = ToggleRow(
-            "Form autofill",
-            "Allow the browser to fill in form fields automatically.",
+        var enableAutofill = SettingsToggleRow("Form autofill",
+            "Offer to fill saved details in forms.",
             settings.EnableAutofill);
-        var enablePasswordSave = ToggleRow(
-            "Save passwords",
-            "Offer to save website passwords.",
+        var enablePasswordSave = SettingsToggleRow("Save passwords",
+            "Offer to remember website passwords.",
             settings.EnablePasswordSave);
-        var enableDevTools = ToggleRow(
-            "Developer tools",
-            "Enable F12 developer tools for debugging web pages.",
+        var enableDevTools = SettingsToggleRow("Developer tools",
+            "Enable F12 developer tools to inspect web pages.",
             settings.EnableDevTools);
-        var forceDark = ToggleRow(
-            "Force dark pages",
-            "Override page colors with a dark theme. Uses an invert filter — may not work perfectly on all sites.",
+        var forceDark = SettingsToggleRow("Force dark pages",
+            "Apply a dark filter to websites. Some pages may not render correctly.",
             settings.ForceDarkPage);
         var shortcutOverrides = settings.Shortcuts is not null
             ? new Dictionary<string, string>(settings.Shortcuts)
             : new Dictionary<string, string>();
-        var blocklist = Multiline(string.Join(Environment.NewLine, settings.TrackerBlocklist));
-        var allowlist = Multiline(string.Join(Environment.NewLine, settings.TrackerAllowlist));
-        blocklist.MinHeight = 150;
 
-        var aiEnabled = ToggleRow(
-            "AI assistant",
-            "Enable the AI chat sidebar powered by Ollama Cloud or NVIDIA NIM.",
+        var blocklist = Multiline(string.Join(Environment.NewLine, settings.TrackerBlocklist));
+        blocklist.MinHeight = 140;
+        blocklist.Background = GetBrush("FieldBg");
+        blocklist.BorderBrush = GetBrush("StrokeStrong");
+
+        var allowlist = Multiline(string.Join(Environment.NewLine, settings.TrackerAllowlist));
+        allowlist.MinHeight = 110;
+        allowlist.Background = GetBrush("FieldBg");
+        allowlist.BorderBrush = GetBrush("StrokeStrong");
+
+        var blocklistPanel = new Border
+        {
+            Background = GetBrush("SurfaceBg"),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(15, 13, 15, 13),
+            Margin = new Thickness(0, 14, 0, 0)
+        };
+        var blocklistStack = new StackPanel();
+        blocklistStack.Children.Add(new TextBlock
+        {
+            Text = "Blocked domains",
+            Foreground = GetBrush("InkSecondary"),
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+        blocklistStack.Children.Add(blocklist);
+        blocklistStack.Children.Add(new TextBlock
+        {
+            Text = "One domain per line. Use * for wildcards, e.g. *doubleclick.*",
+            Foreground = GetBrush("Muted"),
+            FontSize = 11.5,
+            Margin = new Thickness(0, 7, 0, 10)
+        });
+        var listActions = new StackPanel { Orientation = Orientation.Horizontal };
+        var resetBlocklist = SettingsButton("Reset blocklist");
+        var clearAllowlist = SettingsButton("Clear allowlist", ghost: true);
+        clearAllowlist.Margin = new Thickness(8, 0, 0, 0);
+        listActions.Children.Add(resetBlocklist);
+        listActions.Children.Add(clearAllowlist);
+        blocklistStack.Children.Add(listActions);
+        blocklistPanel.Child = blocklistStack;
+
+        var allowlistPanel = new Border
+        {
+            Background = GetBrush("SurfaceBg"),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(15, 13, 15, 13),
+            Margin = new Thickness(0, 14, 0, 0)
+        };
+        var allowlistStack = new StackPanel();
+        allowlistStack.Children.Add(new TextBlock
+        {
+            Text = "Allowed sites",
+            Foreground = GetBrush("InkSecondary"),
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+        allowlistStack.Children.Add(allowlist);
+        allowlistStack.Children.Add(new TextBlock
+        {
+            Text = "Domains listed here bypass the built-in tracker blocking.",
+            Foreground = GetBrush("Muted"),
+            FontSize = 11.5,
+            Margin = new Thickness(0, 7, 0, 0)
+        });
+        allowlistPanel.Child = allowlistStack;
+
+        var aiEnabled = SettingsToggleRow("Enable AI assistant",
+            "Show the AI chat sidebar powered by Ollama Cloud or NVIDIA NIM.",
             settings.AiEnabled);
 
         var aiProviderCombo = new ComboBox
         {
-            Height = 32,
-            Background = GetBrush("InputBg"),
-            Foreground = GetBrush("Text"),
-            BorderBrush = GetBrush("Stroke")
+            Height = 35,
+            MinWidth = 400,
+            HorizontalAlignment = HorizontalAlignment.Left
         };
         aiProviderCombo.ItemsSource = BrowserSettings.AiProviderPresets.Keys.ToList();
         aiProviderCombo.SelectedItem = BrowserSettings.AiProviderPresets.Keys.Contains(settings.AiProvider)
             ? settings.AiProvider : "Ollama Cloud";
-        var aiProviderControl = SettingRow("Provider",
-            "AI provider to use (Ollama Cloud or NVIDIA NIM).", aiProviderCombo);
 
         var aiModelCombo = new ComboBox
         {
             IsEditable = true,
             Text = settings.AiModel,
-            Height = 32,
-            Background = GetBrush("InputBg"),
-            Foreground = GetBrush("Text"),
-            BorderBrush = GetBrush("Stroke")
+            Height = 35,
+            MinWidth = 565,
+            HorizontalAlignment = HorizontalAlignment.Left
         };
         aiModelCombo.SelectionChanged += (_, _) =>
         {
             if (aiModelCombo.SelectedItem is string s)
                 aiModelCombo.Text = s;
         };
-        var aiModelControl = SettingRow("Model", "Model to use (e.g. gemma4:31b).", aiModelCombo);
-        var aiApiKey = PasswordRow("API key",
-            "Each provider keeps its own key — switch providers and your saved key returns automatically.",
-            BrowserSettings.GetApiKey(settings, settings.AiProvider));
 
-        var aiApiKeyBorder = new Border { Child = aiApiKey.Control };
+        var aiApiKeyBox = new PasswordBox
+        {
+            Height = 35,
+            Width = 565,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Background = GetBrush("FieldBg"),
+            Foreground = GetBrush("Text"),
+            BorderBrush = GetBrush("StrokeStrong"),
+            Padding = new Thickness(10, 6, 10, 0)
+        };
+        aiApiKeyBox.Password = BrowserSettings.GetApiKey(settings, settings.AiProvider);
+
+        var aiApiKeyHint = new TextBlock
+        {
+            Text = "Each provider keeps its own key — switch providers and your saved key returns automatically.",
+            Foreground = GetBrush("Muted"),
+            FontSize = 11.5,
+            Margin = new Thickness(0, 7, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        };
 
         CancellationTokenSource? _modelFetchToken = null;
 
@@ -676,49 +744,40 @@ public partial class MainWindow
                 ct.ThrowIfCancellationRequested();
                 var ep = BrowserSettings.GetProviderEndpoint(aiProviderCombo.Text);
                 var op = Dispatcher.InvokeAsync(() =>
-                    FetchModelsAsync(ep, aiApiKey.Input.Password, ct));
+                    FetchModelsAsync(ep, aiApiKeyBox.Password, ct));
                 await op.Task.Unwrap();
             }
             catch (OperationCanceledException) { Log.Debug("Model fetch debounce cancelled"); }
             catch (Exception ex) { Log.Error(ex, "DebounceFetchModels error"); }
         }
-        aiApiKey.Input.LostFocus += (_, _) => DebounceFetchModels();
-        aiProviderCombo.SelectionChanged += (_, _) =>
+        var testConnectionBtn = SettingsButton("Test connection");
+        testConnectionBtn.Click += (_, _) =>
         {
-            if (aiProviderCombo.SelectedItem is string s)
-            {
-                var storedKey = BrowserSettings.GetApiKey(settings, s);
-                if (!string.IsNullOrEmpty(storedKey))
-                    aiApiKey.Input.Password = storedKey;
-            }
-            DebounceFetchModels();
+            var ep = BrowserSettings.GetProviderEndpoint(aiProviderCombo.Text);
+            _modelFetchToken?.Cancel();
+            _modelFetchToken?.Dispose();
+            _modelFetchToken = new CancellationTokenSource();
+            var op = Dispatcher.InvokeAsync(() =>
+                FetchModelsAsync(ep, aiApiKeyBox.Password, _modelFetchToken.Token));
+            FireAndForget(op.Task.Unwrap(), "TestConnection");
         };
         DebounceFetchModels();
+
         var aiSystemPrompt = Multiline(settings.AiSystemPrompt);
-        var aiMaxTokens = SliderRow("Max tokens",
-            "Maximum number of tokens per response.",
-            settings.AiMaxTokens, 256, 16384);
-        var aiTemperature = SliderRow("Temperature",
-            "Controls randomness: lower is more deterministic, higher is more creative.",
-            settings.AiTemperature, 0.0, 2.0);
-
-        var aiMaxOpenTabs = SliderRow("Max open tabs",
-            "Maximum AI-owned tabs the agent can keep open per task (oldest is closed when exceeded).",
-            settings.AiPolicy?.MaxOpenTabs ?? AiBrowserPolicy.Default.MaxOpenTabs, 1, 50);
-
-
-        var resetBlocklist = MatteButton("Reset blocklist", (_, _) =>
-        {
-            blocklist.Text = string.Join(Environment.NewLine, BrowserSettings.Default.TrackerBlocklist);
-            Save();
-            StatusBar.StatusText.Text = "Tracker blocklist reset";
-        });
-        var clearAllowlist = MatteButton("Clear allowlist", (_, _) =>
-        {
-            allowlist.Clear();
-            Save();
-            StatusBar.StatusText.Text = "Allowlist cleared";
-        }, new Thickness(8, 0, 0, 0));
+        aiSystemPrompt.MinHeight = 114;
+        aiSystemPrompt.MaxWidth = 630;
+        aiSystemPrompt.HorizontalAlignment = HorizontalAlignment.Left;
+        aiSystemPrompt.Background = GetBrush("FieldBg");
+        aiSystemPrompt.BorderBrush = GetBrush("StrokeStrong");
+        var aiMaxTokens = SettingsSliderRow("Max tokens",
+            "Maximum number of output tokens per response.",
+            settings.AiMaxTokens, 256, 16384, v => ((int)v).ToString("N0"), controlWidth: 235);
+        var aiTemperature = SettingsSliderRow("Temperature",
+            "Controls response variability, depending on model support.",
+            settings.AiTemperature, 0.0, 2.0, v => v.ToString("0.0"), controlWidth: 235);
+        var aiMaxOpenTabs = SettingsSliderRow("Maximum open tabs",
+            "The maximum number of AI-owned tabs open per task (oldest is closed when exceeded).",
+            settings.AiPolicy?.MaxOpenTabs ?? AiBrowserPolicy.Default.MaxOpenTabs, 1, 50, v => ((int)v).ToString(), controlWidth: 235);
 
         void Save()
         {
@@ -749,16 +808,16 @@ public partial class MainWindow
                 Shortcuts: shortcutOverrides is { Count: > 0 } ? new Dictionary<string, string>(shortcutOverrides) : null,
                 AiEnabled: aiEnabled.IsChecked == true,
                 AiSidebarOpen: _dataStore.Settings.AiSidebarOpen,
-AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
+                AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
                 AiEndpoint: BrowserSettings.GetProviderEndpoint(aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud"),
                 AiModel: GetComboText(aiModelCombo),
-                AiApiKey: aiApiKey.GetValue(),
+                AiApiKey: aiApiKeyBox.Password,
                 AiApiKeys: BrowserSettings.StoreProviderApiKey(
                     _dataStore.Settings.AiApiKeys,
                     aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
-                    aiApiKey.GetValue()),
+                    aiApiKeyBox.Password),
                 AiSystemPrompt: aiSystemPrompt.Text?.Trim() ?? "",
-                AiMaxTokens: aiMaxTokens.GetValue(),
+                AiMaxTokens: (int)aiMaxTokens.GetValue(),
                 AiTemperature: aiTemperature.GetValue(),
                 AiPolicy: new AiBrowserPolicy(
                     MaxOpenTabs: ClampInt(((int)aiMaxOpenTabs.Input.Value).ToString(), 1, 50, AiBrowserPolicy.Default.MaxOpenTabs),
@@ -779,45 +838,42 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
         }
         onChange = Save;
 
-        if (accent.Control is UniformGrid accentGrid)
+        foreach (var btn in accent.Buttons)
         {
-            accentGrid.AddHandler(Button.ClickEvent, new RoutedEventHandler((_, _) => Save()));
+            btn.Click += (_, _) => Save();
         }
 
-        if (theme.Control is UniformGrid themeGrid)
+        foreach (var btn in theme.Buttons)
         {
-            themeGrid.AddHandler(Button.ClickEvent, new RoutedEventHandler((_, _) => Save()));
+            btn.Click += (_, _) => Save();
         }
 
-        if (background.Control is UniformGrid bgGrid)
+        foreach (var btn in background.Buttons)
         {
-            foreach (var child in bgGrid.Children)
+            btn.Click += (_, _) =>
             {
-                if (child is Button btn) btn.Click += (_, _) =>
+                var isCustom = string.Equals(btn.Tag?.ToString(), "Custom", StringComparison.Ordinal);
+                uploadLine.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+                bgPreview.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+                bgOpacity.Control.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+                if (isCustom && customBgPath is null && savedCustomBgPath is not null)
                 {
-                    var isCustom = string.Equals(btn.Tag?.ToString(), "Custom", StringComparison.Ordinal);
-                    customBgPicker.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
-                    bgPreview.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
-                    bgOpacity.Control.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
-                    if (isCustom && customBgPath is null && savedCustomBgPath is not null)
+                    customBgPath = savedCustomBgPath;
+                    customBgName.Text = Path.GetFileName(savedCustomBgPath);
+                    customBgBadge.Visibility = Visibility.Visible;
+                    try
                     {
-                        customBgPath = savedCustomBgPath;
-                        customBgName.Text = Path.GetFileName(savedCustomBgPath);
-                        customBgBadge.Visibility = Visibility.Visible;
-                        try
+                        var img = new BitmapImage(new Uri(savedCustomBgPath));
+                        bgPreview.Background = new ImageBrush(img)
                         {
-                            var img = new BitmapImage(new Uri(savedCustomBgPath));
-                            bgPreview.Background = new ImageBrush(img)
-                            {
-                                Stretch = Stretch.UniformToFill,
-                                Opacity = bgOpacity.Input.Value
-                            };
-                        }
-                        catch (Exception ex) { Log.Debug(ex, "Failed to load background image"); }
+                            Stretch = Stretch.UniformToFill,
+                            Opacity = bgOpacity.Input.Value
+                        };
                     }
-                    Save();
-                };
-            }
+                    catch (Exception ex) { Log.Debug(ex, "Failed to load background image"); }
+                }
+                Save();
+            };
         }
 
         if (sleep.Control is Grid sleepGrid)
@@ -851,26 +907,41 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
 
         blocklist.LostFocus += (_, _) => Save();
         allowlist.LostFocus += (_, _) => Save();
+        resetBlocklist.Click += (_, _) =>
+        {
+            blocklist.Text = string.Join(Environment.NewLine, BrowserSettings.Default.TrackerBlocklist);
+            Save();
+            StatusBar.StatusText.Text = "Tracker blocklist reset";
+        };
+        clearAllowlist.Click += (_, _) =>
+        {
+            allowlist.Clear();
+            Save();
+            StatusBar.StatusText.Text = "Allowlist cleared";
+        };
 
         aiEnabled.Checked += (_, _) => Save();
         aiEnabled.Unchecked += (_, _) => Save();
+        aiApiKeyBox.LostFocus += (_, _) => { Save(); DebounceFetchModels(); };
+        aiProviderCombo.SelectionChanged += (_, _) =>
+        {
+            if (aiProviderCombo.SelectedItem is string s)
+            {
+                var storedKey = BrowserSettings.GetApiKey(settings, s);
+                if (!string.IsNullOrEmpty(storedKey))
+                    aiApiKeyBox.Password = storedKey;
+            }
+            Save();
+            DebounceFetchModels();
+        };
         aiSystemPrompt.LostFocus += (_, _) => Save();
         aiModelCombo.LostFocus += (_, _) => Save();
-        aiApiKey.Input.LostFocus += (_, _) => Save();
         aiMaxTokens.Input.LostFocus += (_, _) => Save();
         aiTemperature.Input.LostFocus += (_, _) => Save();
         aiMaxOpenTabs.Input.LostFocus += (_, _) => Save();
 
-        var listActions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 0, 0, 10)
-        };
-        listActions.Children.Add(resetBlocklist);
-        listActions.Children.Add(clearAllowlist);
-
-        var clearData = MatteButton("Clear local browsing data", async (_, _) =>
+        var clearData = SettingsButton("Clear local browsing data");
+        clearData.Click += async (_, _) =>
         {
             try
             {
@@ -881,136 +952,345 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             {
                 Log.Error(ex, "Error occurred");
             }
-        });
+        };
 
-        var resetAll = MatteButton("Reset all settings", (_, _) =>
+        var resetAll = SettingsButton("Reset all settings…", destructive: true);
+        resetAll.Click += (_, _) =>
         {
             _dataStore.SaveSettings(BrowserSettings.Default);
             ApplySettings();
             RenderNativeSurface(tab, forceRebuild: true);
-        }, new Thickness(8, 0, 0, 0));
-
-        var dataActions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 0)
-        };
-        dataActions.Children.Add(clearData);
-        dataActions.Children.Add(resetAll);
-
-        var sections = new Dictionary<string, UIElement>
-        {
-            ["Appearance"] = SettingsSection(
-                "Appearance",
-                "Customize the look of the browser chrome.",
-                SettingRow("Theme", "Switch the browser chrome between dark and light.", theme.Control),
-                SettingRow("Accent color", "Applied to active tabs, focused controls, and hover states.", accent.Control),
-                SettingRow("Background", "Choose the start page background style.", background.Control),
-                SettingRow("Custom image", "Select your own image file for the start page background.",
-                    customBgPicker),
-                bgPreview,
-                bgOpacity.Control,
-                quickLinks),
-            ["Engine"] = SettingsSection(
-                "Search engine",
-                "Choose the default search engine used for address bar searches.",
-                searchCtrl.Control),
-            ["Tabs"] = SettingsSection(
-                "Tabs",
-                "Memory and tab management.",
-                SettingRow("Hibernate inactive tabs", "Unload background tabs after this many minutes to free RAM.", sleep.Control)),
-            ["Privacy && Security"] = SettingsSection(
-                "Privacy && Security",
-                "Tracker filtering, permissions, and saved data.",
-                blockTrackers,
-                adBlock,
-                listActions,
-                SettingRow("Tracker blocklist", "One domain per line. Use * for wildcards, e.g. *doubleclick.*", blocklist),
-                SettingRow("Per-site allowlist", "Domains listed here bypass tracker blocking.", allowlist),
-                enableAutofill,
-                enablePasswordSave),
-            ["Data"] = SettingsSection(
-                "Data",
-                "Manage your local browsing data and session state.",
-                clearOnExit,
-                dataActions),
-            ["Extensions"] = SettingsSection("Extensions", "Manage installed browser extensions.",
-                BuildExtensionsContent(settings)),
-            ["Advanced"] = SettingsSection(
-                "Advanced",
-                "Developer-oriented settings.",
-                enableDevTools,
-                forceDark,
-                BuildShortcutRows(shortcutOverrides, () => onChange())),
-            ["AI"] = SettingsSection(
-                "AI",
-                "AI assistant powered by Ollama Cloud or NVIDIA NIM.",
-                SettingRow("Enable AI", "Show the AI chat sidebar for the current tab.", aiEnabled),
-                aiProviderControl,
-                SettingRow("API key", "Your AI provider's API key.", aiApiKeyBorder),
-                aiModelControl,
-                SettingRow("System prompt", "Instructions for the AI assistant. Applied to every conversation.",
-                    aiSystemPrompt),
-                aiMaxTokens.Control,
-                aiTemperature.Control,
-                aiMaxOpenTabs.Control)
         };
 
-        var categories = new (string Name, string Icon)[]
+        // ── Pages: each category is a list of reference-style pref-sections ──
+        var pages = new Dictionary<string, (string Title, string Subtitle, FrameworkElement[] Sections)>
         {
-            ("Appearance", "\xE771"),
-            ("Engine", "\xE721"),
-            ("Tabs", "\xE90D"),
-            ("Privacy && Security", "\xE77B"),
-            ("Data", "\xE752"),
-            ("Extensions", "\xE7B9"),
-            ("Advanced", "\xE71A"),
-            ("AI", "\xE710")
+            ["Appearance"] = ("Appearance", "Choose how Tabloid looks and feels.",
+            [
+                PrefSection("Browser theme", "Applies to the browser interface and settings.",
+                    SettingsRow2("Color mode", null, theme.Control)),
+                PrefSection("Accent color", "Used for selected tabs, active controls, and focus states.",
+                    SettingsRow2("Highlight color", null, accent.Control)),
+                PrefSection("New tab page", "Customize what you see when you open a tab.",
+                    SettingsRow2("Background", "Use a simple background or your own image.", background.Control),
+                    uploadLine,
+                    bgPreview,
+                    bgOpacity.Control,
+                    quickLinks)
+            ]),
+            ["Engine"] = ("Search engine", "Select the search provider used in the address bar.",
+            [
+                PrefSection("Default search engine", "Browse available providers.", Centered(searchCtrl.Control, 660))
+            ]),
+            ["Tabs"] = ("Tabs & memory", "Manage tabs and reduce resource use.",
+            [
+                PrefSection("Memory saver", "Free up memory when tabs are not being used.",
+                    SettingsRow2("Hibernate after",
+                        "Minutes of inactivity before Tabloid unloads a background tab. Opening a hibernated tab reloads its contents.",
+                        sleep.Control),
+                    SettingsNote("About hibernation",
+                        "Some pages may need to reload before you can resume working. Hibernated tabs restore their last URL and scroll position."))
+            ]),
+            ["Privacy && Security"] = ("Privacy & security", "Control tracking protection and browsing permissions.",
+            [
+                PrefSection("Tracking protection", "Built-in controls for ads and common tracking domains.",
+                    blockTrackers,
+                    adBlock),
+                PrefSection("Exceptions", "Manage domains blocked or allowed by the built-in filter.",
+                    blocklistPanel,
+                    allowlistPanel),
+                PrefSection("Passwords & forms", null,
+                    enableAutofill,
+                    enablePasswordSave)
+            ]),
+            ["Data"] = ("Browsing data", "Manage history, local files, and session information.",
+            [
+                PrefSection("Data retention", null, clearOnExit),
+                PrefSection("Clear data", "Choose which data types to remove.",
+                    SettingsRow2("Clear local browsing data",
+                        "Review data categories before clearing them.",
+                        clearData)),
+                PrefSection("Reset", null,
+                    SettingsRow2("Reset all settings",
+                        "Restore Tabloid settings to their defaults. This is separate from clearing browsing data.",
+                        resetAll),
+                    "dangerTitle")
+            ]),
+            ["Extensions"] = ("Extensions", "Manage optional tools that extend your browser.",
+            [
+                PrefSection("Installed extensions", "Built-in content blocking and extensions you have added manually.",
+                    BuildExtensionsContent(settings))
+            ]),
+            ["Advanced"] = ("Advanced", "Developer settings and keyboard shortcuts.",
+            [
+                PrefSection("Developer settings", null,
+                    enableDevTools,
+                    forceDark),
+                PrefSection("Keyboard shortcuts", "Common browser commands.",
+                    BuildShortcutRows(shortcutOverrides, () => onChange()))
+            ]),
+            ["AI"] = ("AI assistant", "Configure the assistant available in the browser sidebar.",
+            [
+                PrefSection("Assistant", null, aiEnabled),
+                PrefSection("Connection", "Select a service and enter its credentials.",
+                    FieldLabelRow("Provider", aiProviderCombo),
+                    FieldLabelRow("Model", aiModelCombo),
+                    FieldLabelRow("API key", StackOf(aiApiKeyBox, aiApiKeyHint)),
+                    testConnectionBtn),
+                PrefSection("Assistant instructions", null,
+                    FieldLabelRow("System prompt", aiSystemPrompt)),
+                PrefSection("Generation", "Advanced response settings.",
+                    aiMaxTokens.Control,
+                    aiTemperature.Control,
+                    aiMaxOpenTabs.Control)
+            ])
         };
 
-        var tabBar = new StackPanel
+        // ── Sidebar navigation (reference layout) ──
+        var navItems = new (string Key, string Label, string Icon, string? Caption)[]
         {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 0)
+            ("Appearance", "Appearance", "\xE790", "General"),
+            ("Engine", "Search engine", "\xE774", null),
+            ("Tabs", "Tabs & memory", "\xE90D", null),
+            ("Privacy && Security", "Privacy & security", "\xE72E", "Privacy"),
+            ("Data", "Browsing data", "\xE752", null),
+            ("Extensions", "Extensions", "\xE7B9", "Tools"),
+            ("AI", "AI assistant", "\xE745", null),
+            ("Advanced", "Advanced", "\xE71A", null)
         };
 
-        var sepColor = ((SolidColorBrush)GetBrush("SubtleStroke")).Color;
-        var separator = new Border
+        var initialCategory = navItems[0].Key;
+        if (tab.Address is { } addr && addr.Contains('#'))
         {
-            Height = 1,
-            Background = new LinearGradientBrush
+            var fragment = addr.Split('#')[^1];
+            if (pages.ContainsKey(fragment))
             {
-                StartPoint = new Point(0, 0.5),
-                EndPoint = new Point(1, 0.5),
-                GradientStops = new GradientStopCollection
-                {
-                    new GradientStop(Colors.Transparent, 0),
-                    new GradientStop(sepColor, 0.5),
-                    new GradientStop(Colors.Transparent, 1)
-                }
-            },
-            Margin = new Thickness(0, 0, 0, 20)
-        };
+                initialCategory = fragment;
+            }
+        }
+        string selectedCategory = initialCategory;
 
-        var backToTop = new Button
+        var headingTitle = new TextBlock
         {
-            Content = new TextBlock { Text = "\u2191", FontSize = 18, Foreground = GetBrush("Text") },
-            Width = 36, Height = 36,
-            Cursor = Cursors.Hand,
-            Visibility = Visibility.Collapsed,
-            Opacity = 0,
-            Padding = new Thickness(0),
-            Background = GetBrush("ButtonBg"),
-            BorderBrush = GetBrush("Stroke"),
-            BorderThickness = new Thickness(1)
+            FontSize = 27,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = GetBrush("Text"),
+            LayoutTransform = new ScaleTransform(1, 1)
         };
-        Panel.SetZIndex(backToTop, 10);
+        var headingSubtitle = new TextBlock
+        {
+            FontSize = 12.5,
+            Foreground = GetBrush("Muted"),
+            Margin = new Thickness(0, 7, 0, 0)
+        };
+        var headingPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 25) };
+        headingPanel.Children.Add(headingTitle);
+        headingPanel.Children.Add(headingSubtitle);
+        var headingBorder = new Border
+        {
+            Child = headingPanel,
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Margin = new Thickness(0, 0, 0, 5),
+            Padding = new Thickness(0, 0, 0, 25)
+        };
 
+        var contentHost = new StackPanel();
         var contentScroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = new StackPanel { MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Stretch }
+            Content = contentHost
         };
+
+        var navButtons = new List<Button>();
+        var navIndicators = new List<Border>();
+        var navLabels = new List<FrameworkElement>();
+
+        var navStack = new StackPanel();
+        navStack.Children.Add(new TextBlock
+        {
+            Text = "Settings",
+            FontSize = 18,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = GetBrush("Text"),
+            Margin = new Thickness(12, 0, 12, 21)
+        });
+
+        string? lastCaption = null;
+        for (int i = 0; i < navItems.Length; i++)
+        {
+            var (key, label, icon, caption) = navItems[i];
+            var captured = key;
+
+            if (caption is not null && caption != lastCaption)
+            {
+                navStack.Children.Add(new TextBlock
+                {
+                    Text = caption.ToUpperInvariant(),
+                    FontSize = 10,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = GetBrush("Muted"),
+                    Margin = new Thickness(12, 23, 12, 7)
+                });
+            }
+            lastCaption = caption;
+
+            var indicator = new Border
+            {
+                Width = 2,
+                Height = 17,
+                CornerRadius = new CornerRadius(2),
+                Background = GetBrush("Accent"),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0,
+                Margin = new Thickness(-11, 0, 9, 0)
+            };
+
+            var iconText = new TextBlock
+            {
+                Text = icon,
+                FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                FontSize = 15,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var labelText = new TextBlock
+            {
+                Text = label,
+                FontSize = 12.5,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(11, 0, 0, 0)
+            };
+
+            var linkContent = new StackPanel { Orientation = Orientation.Horizontal };
+            linkContent.Children.Add(indicator);
+            linkContent.Children.Add(iconText);
+            linkContent.Children.Add(labelText);
+
+            var link = new Button
+            {
+                Content = linkContent,
+                Height = 36,
+                Padding = new Thickness(11, 0, 11, 0),
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Cursor = Cursors.Hand,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0)
+            };
+            link.Click += (_, _) => SelectCategory(captured);
+            navButtons.Add(link);
+            navIndicators.Add(indicator);
+            navLabels.Add(labelText);
+            navStack.Children.Add(link);
+        }
+
+        navStack.Children.Add(new Border
+        {
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Margin = new Thickness(10, 42, 10, 0),
+            Padding = new Thickness(2, 18, 2, 0),
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock { Text = "Tabloid browser", FontSize = 11, Foreground = GetBrush("InkSecondary") },
+                    new TextBlock { Text = "Preferences", FontSize = 11, Foreground = GetBrush("Muted"), Margin = new Thickness(0, 2, 0, 0) }
+                }
+            }
+        });
+
+        var sidebarBorder = new Border
+        {
+            Background = GetBrush("SidebarBg"),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(0, 0, 1, 0),
+            Child = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = navStack,
+                Padding = new Thickness(17, 30, 13, 25)
+            }
+        };
+
+        void SelectCategory(string category)
+        {
+            selectedCategory = category;
+            var (title, subtitle, sections) = pages[category];
+            headingTitle.Text = title;
+            headingSubtitle.Text = subtitle;
+
+            contentHost.Children.Clear();
+            foreach (var section in sections)
+            {
+                contentHost.Children.Add(section);
+            }
+
+            var fadeIn = new DoubleAnimation(0, 1, Motion.Fast)
+            {
+                EasingFunction = Motion.Out
+            };
+            contentHost.BeginAnimation(OpacityProperty, fadeIn);
+            contentScroll.ScrollToTop();
+
+            for (int i = 0; i < navItems.Length; i++)
+            {
+                var isSelected = navItems[i].Key == category;
+                navButtons[i].Background = isSelected ? GetAccentTintBrush() : Brushes.Transparent;
+                navIndicators[i].BeginAnimation(OpacityProperty,
+                    new DoubleAnimation(isSelected ? 1.0 : 0.0, TimeSpan.FromSeconds(0.12)));
+                navButtons[i].Foreground = isSelected ? GetBrush("Text") : GetBrush("InkSecondary");
+            }
+        }
+
+        navStack.PreviewKeyDown += (_, e) =>
+        {
+            int idx = Array.FindIndex(navItems, c => c.Key == selectedCategory);
+            int next = e.Key == Key.Down ? idx + 1 : e.Key == Key.Up ? idx - 1 : -1;
+            if (next >= 0 && next < navItems.Length)
+            {
+                SelectCategory(navItems[next].Key);
+                navButtons[next].Focus();
+                e.Handled = true;
+            }
+        };
+
+        SelectCategory(selectedCategory);
+
+        // ── Root layout: sidebar | content ──
+        var root = new Grid { Background = GetBrush("AppBg") };
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(224) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        Grid.SetColumn(sidebarBorder, 0);
+        root.Children.Add(sidebarBorder);
+
+        var contentFrame = new Grid { Margin = new Thickness(0) };
+        contentFrame.Children.Add(contentScroll);
+        contentScroll.Padding = new Thickness(42, 40, 48, 72);
+        contentScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+
+        var contentHostWrapper = new Grid { MaxWidth = 940, HorizontalAlignment = HorizontalAlignment.Left };
+        var contentStack = new StackPanel();
+        contentStack.Children.Add(headingBorder);
+        contentStack.Children.Add(contentHost);
+        contentHostWrapper.Children.Add(contentStack);
+        contentScroll.Content = contentHostWrapper;
+
+        Grid.SetColumn(contentFrame, 1);
+        root.Children.Add(contentFrame);
+
+        var backToTop = new Button
+        {
+            Content = new TextBlock { Text = "\u2191", FontSize = 16, Foreground = GetBrush("Text") },
+            Width = 34, Height = 34,
+            Cursor = Cursors.Hand,
+            Visibility = Visibility.Collapsed,
+            Opacity = 0,
+            Padding = new Thickness(0)
+        };
+        Panel.SetZIndex(backToTop, 10);
         backToTop.Click += (_, _) => contentScroll.ScrollToTop();
         contentScroll.ScrollChanged += (_, _) =>
         {
@@ -1035,220 +1315,419 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             Dispatcher.BeginInvoke(
                 () => contentScroll.ScrollToVerticalOffset(Math.Max(0, tab.NativeScrollY)),
                 DispatcherPriority.Loaded);
-        if (FindResource("DarkScrollBar") is Style darkScrollStyle)
-        {
-            contentScroll.Resources.Add(typeof(ScrollBar), darkScrollStyle);
-        }
 
-        var contentStack = (StackPanel)contentScroll.Content;
-        var tabButtons = new List<Button>();
-        var tabIndicators = new List<Border>();
-        var initialCategory = categories[0].Name;
-        if (tab.Address is { } addr && addr.Contains('#'))
-        {
-            var fragment = addr.Split('#')[^1];
-            if (sections.ContainsKey(fragment))
-            {
-                initialCategory = fragment;
-            }
-        }
-        string selectedCategory = initialCategory;
-        bool _firstCategory = true;
-
-        void SelectCategory(string category)
-        {
-            selectedCategory = category;
-            contentStack.Children.Clear();
-            var section = sections[category];
-            contentStack.Children.Add(section);
-            if (!_firstCategory)
-            {
-                section.Opacity = 0;
-                var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.1))
-                {
-                    EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
-                };
-                section.BeginAnimation(OpacityProperty, fadeIn);
-            }
-            _firstCategory = false;
-            AnimateStaggered(section);
-            for (int i = 0; i < categories.Length; i++)
-            {
-                var isSelected = categories[i].Name == category;
-                tabButtons[i].Background = isSelected ? GetBrush("ButtonPressed") : GetBrush("ButtonBg");
-                tabButtons[i].BorderBrush = isSelected ? GetBrush("Accent") : Brushes.Transparent;
-                tabButtons[i].Opacity = isSelected ? 1 : 0.7;
-                var anim = new DoubleAnimation(isSelected ? 1.0 : 0.0, TimeSpan.FromSeconds(0.12))
-                {
-                    EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
-                };
-                tabIndicators[i].BeginAnimation(OpacityProperty, anim);
-            }
-        }
-
-        void AnimateStaggered(UIElement section)
-        {
-            if (section is Border b && b.Child is StackPanel sp)
-            {
-                for (int i = 0; i < sp.Children.Count; i++)
-                {
-                    if (sp.Children[i] is FrameworkElement fe)
-                    {
-                        double offset = -6 * (sp.Children.Count - i);
-                        fe.Opacity = 0;
-                        if (fe is not Button and not ToggleButton)
-                            fe.RenderTransform = new TranslateTransform(0, offset);
-                    }
-                }
-            }
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (section is Border b2 && b2.Child is StackPanel sp2)
-                {
-                    for (int i = 0; i < sp2.Children.Count; i++)
-                    {
-                        if (sp2.Children[i] is FrameworkElement fe)
-                        {
-                            double offset = -6 * (sp2.Children.Count - i);
-                            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.2))
-                            {
-                                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-                                BeginTime = TimeSpan.FromSeconds(i * 0.04)
-                            };
-                            fe.BeginAnimation(OpacityProperty, fadeIn);
-                            if (fe is not Button and not ToggleButton)
-                            {
-                                var slideIn = new DoubleAnimation(offset, 0, TimeSpan.FromSeconds(0.25))
-                                {
-                                    EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut },
-                                    BeginTime = TimeSpan.FromSeconds(i * 0.04)
-                                };
-                                (fe.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.YProperty, slideIn);
-                            }
-                        }
-                    }
-                }
-            }, DispatcherPriority.Loaded);
-        }
-
-        for (int i = 0; i < categories.Length; i++)
-        {
-            var (catName, icon) = categories[i];
-            var captured = catName;
-
-            var stack = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            stack.Children.Add(new TextBlock
-            {
-                Text = icon,
-                FontFamily = new FontFamily("Segoe MDL2 Assets"),
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 6, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            stack.Children.Add(new TextBlock
-            {
-                Text = catName,
-                FontSize = 13,
-                FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            var indicator = new Border
-            {
-                Height = 2,
-                Background = GetBrush("Accent"),
-                CornerRadius = new CornerRadius(1),
-                Opacity = 0,
-                Margin = new Thickness(0, 4, 0, 0)
-            };
-
-            var contentGrid = new Grid();
-            contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            Grid.SetRow(stack, 0);
-            Grid.SetRow(indicator, 1);
-            contentGrid.Children.Add(stack);
-            contentGrid.Children.Add(indicator);
-
-            var btn = new Button
-            {
-                Content = contentGrid,
-                Height = 42,
-                MinWidth = 0,
-                Padding = new Thickness(14, 6, 14, 0),
-                Margin = new Thickness(0, 0, 6, 0),
-                Cursor = Cursors.Hand,
-                BorderThickness = new Thickness(1)
-            };
-            btn.MouseEnter += (_, _) =>
-            {
-                if (selectedCategory != captured)
-                    btn.Background = GetBrush("ButtonHover");
-            };
-            btn.MouseLeave += (_, _) =>
-            {
-                if (selectedCategory != captured) btn.Background = GetBrush("ButtonBg");
-            };
-
-            btn.Click += (_, _) => SelectCategory(captured);
-            tabButtons.Add(btn);
-            tabIndicators.Add(indicator);
-            tabBar.Children.Add(btn);
-        }
-        tabBar.PreviewKeyDown += (_, e) =>
-        {
-            int idx = Array.FindIndex(categories, c => c.Name == selectedCategory);
-            int next = e.Key == Key.Right ? idx + 1 : e.Key == Key.Left ? idx - 1 : -1;
-            if (next >= 0 && next < categories.Length)
-            {
-                SelectCategory(categories[next].Name);
-                tabButtons[next].Focus();
-                e.Handled = true;
-            }
-        };
-
-        SelectCategory(selectedCategory);
-
-        var titleBlock = new TextBlock
-        {
-            Text = "Settings",
-            Foreground = GetBrush("Text"),
-            FontSize = 30,
-            FontWeight = FontWeights.SemiBold
-        };
-        var subtitleBlock = new TextBlock
-        {
-            Text = "Customize how Tabloid looks and behaves.",
-            Foreground = GetBrush("Muted"),
-            FontSize = 13,
-            Margin = new Thickness(0, 4, 0, 0)
-        };
-        var header = new StackPanel { Margin = new Thickness(0, 34, 0, 20) };
-        header.Children.Add(titleBlock);
-        header.Children.Add(subtitleBlock);
-        root.Children.Add(header);
-
-        Grid.SetRow(tabBar, 1);
-        root.Children.Add(tabBar);
-
-        Grid.SetRow(separator, 2);
-        root.Children.Add(separator);
-
-        Grid.SetRow(contentScroll, 3);
-        root.Children.Add(contentScroll);
-
-        Grid.SetRow(backToTop, 3);
+        Grid.SetColumn(backToTop, 1);
         backToTop.HorizontalAlignment = HorizontalAlignment.Right;
         backToTop.VerticalAlignment = VerticalAlignment.Bottom;
-        backToTop.Margin = new Thickness(0, 0, 4, 4);
+        backToTop.Margin = new Thickness(0, 0, 16, 16);
         root.Children.Add(backToTop);
+
+        // ── Responsive: collapse the sidebar to icons on narrow windows ──
+        void ApplyResponsiveWidth(double width)
+        {
+            var compact = width < 860;
+            root.ColumnDefinitions[0].Width = new GridLength(compact ? 62 : 224);
+            foreach (var label in navLabels)
+                label.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            foreach (var indicator in navIndicators)
+            {
+                indicator.Margin = compact ? new Thickness(-7, 0, 7, 0) : new Thickness(-11, 0, 9, 0);
+                indicator.Height = compact ? 14 : 17;
+            }
+            foreach (var child in navStack.Children)
+            {
+                if (child is TextBlock { FontSize: <= 10 } caption) caption.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            }
+            var bottomPanel = (navStack.Children[^1] as Border)?.Child as StackPanel;
+            if (bottomPanel is not null)
+                bottomPanel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        }
+        root.SizeChanged += (_, e) => ApplyResponsiveWidth(e.NewSize.Width);
+        ApplyResponsiveWidth(root.ActualWidth > 0 ? root.ActualWidth : 940);
 
         return root;
     }
+
+    private static FrameworkElement StackOf(params FrameworkElement[] elements)
+    {
+        var stack = new StackPanel();
+        foreach (var e in elements) stack.Children.Add(e);
+        return stack;
+    }
+
+    private FrameworkElement FieldLabelRow(string label, FrameworkElement control)
+    {
+        var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 15) };
+        stack.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = GetBrush("InkSecondary"),
+            Margin = new Thickness(0, 0, 0, 7)
+        });
+        stack.Children.Add(control);
+        return stack;
+    }
+
+    private FrameworkElement Centered(FrameworkElement content, double maxWidth)
+    {
+        var host = new Grid { MaxWidth = maxWidth, HorizontalAlignment = HorizontalAlignment.Center };
+        host.Children.Add(content);
+        return host;
+    }
+
+    private Brush GetAccentTintBrush()
+    {
+        if (GetBrush("Accent") is SolidColorBrush solid)
+            return new SolidColorBrush(Color.FromArgb(33, solid.Color.R, solid.Color.G, solid.Color.B));
+        return GetBrush("SurfaceRaised");
+    }
+
+    // ───────────────────────── Reference-style settings components ─────────────────────────
+
+    /// <summary>Reference .pref-section: 190px label column + rows column, hairline top border.</summary>
+    private FrameworkElement PrefSection(string title, string? description, params object[] children)
+    {
+        bool dangerTitle = children.Contains("dangerTitle");
+        var items = children.Where(c => c is UIElement).Cast<UIElement>().ToArray();
+
+        var head = new StackPanel();
+        head.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = dangerTitle ? GetBrush("Danger") : GetBrush("Text"),
+            TextWrapping = TextWrapping.Wrap
+        });
+        if (!string.IsNullOrEmpty(description))
+        {
+            head.Children.Add(new TextBlock
+            {
+                Text = description,
+                FontSize = 12,
+                Foreground = GetBrush("Muted"),
+                Margin = new Thickness(0, 7, 0, 0),
+                MaxWidth = 183,
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        var rows = new StackPanel();
+        bool first = true;
+        foreach (var child in items)
+        {
+            if (!first)
+            {
+                rows.Children.Add(new Border
+                {
+                    Height = 1,
+                    Background = GetBrush("SubtleStroke"),
+                    Margin = new Thickness(0, 2, 0, 2)
+                });
+            }
+            first = false;
+            rows.Children.Add(child);
+        }
+
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(head, 0);
+        grid.Children.Add(head);
+        Grid.SetColumn(rows, 1);
+        grid.Children.Add(rows);
+
+        var border = new Border
+        {
+            Child = grid,
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(0, 26, 0, 30),
+            Margin = new Thickness(0, 0, 0, 2)
+        };
+        return border;
+    }
+
+    /// <summary>Reference .setting: name+desc left, control right, vertically centered.</summary>
+    private FrameworkElement SettingsRow2(string name, string? desc, FrameworkElement control)
+    {
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(new TextBlock
+        {
+            Text = name,
+            FontSize = 13,
+            FontWeight = FontWeights.Medium,
+            Foreground = GetBrush("Text"),
+            TextWrapping = TextWrapping.Wrap
+        });
+        if (!string.IsNullOrEmpty(desc))
+        {
+            text.Children.Add(new TextBlock
+            {
+                Text = desc,
+                FontSize = 11.5,
+                Foreground = GetBrush("Muted"),
+                Margin = new Thickness(0, 4, 0, 0),
+                MaxWidth = 500,
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        var grid = new Grid { MinHeight = 44 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(text, 0);
+        grid.Children.Add(text);
+        control.VerticalAlignment = VerticalAlignment.Center;
+        control.Margin = new Thickness(22, 6, 0, 6);
+        Grid.SetColumn(control, 1);
+        grid.Children.Add(control);
+        return grid;
+    }
+
+    /// <summary>Compact reference .switch bound to a ToggleButton for event wiring.</summary>
+    private ToggleButton SettingsSwitch(bool isChecked)
+    {
+        var toggle = new ToggleButton
+        {
+            IsChecked = isChecked,
+            Style = FindResource("SwitchToggleButton") as Style,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        return toggle;
+    }
+
+    /// <summary>.setting row whose control is a reference switch.</summary>
+    private ToggleButton SettingsToggleRow(string name, string? desc, bool isChecked)
+    {
+        var toggle = SettingsSwitch(isChecked);
+        var row = SettingsRow2(name, desc, toggle);
+        toggle.Tag = row;
+        return toggle;
+    }
+
+    /// <summary>Reference .segmented control.</summary>
+    private (FrameworkElement Control, Func<string> GetValue, List<Button> Buttons) Segmented(string[] values, string selected)
+    {
+        var selectedValue = values.Contains(selected) ? selected : values[0];
+        var buttons = new List<Button>();
+        var panel = new Border
+        {
+            Background = GetBrush("FieldBg"),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(7),
+            Padding = new Thickness(3),
+            Child = new StackPanel { Orientation = Orientation.Horizontal }
+        };
+        var host = (StackPanel)panel.Child;
+
+        void Refresh()
+        {
+            foreach (var button in buttons)
+            {
+                var isSelected = string.Equals(button.Tag?.ToString(), selectedValue, StringComparison.Ordinal);
+                button.Background = isSelected ? GetBrush("SurfaceRaised") : Brushes.Transparent;
+                button.Foreground = isSelected ? GetBrush("Text") : GetBrush("InkSecondary");
+                button.FontWeight = isSelected ? FontWeights.SemiBold : FontWeights.Normal;
+            }
+        }
+
+        foreach (var value in values)
+        {
+            var button = new Button
+            {
+                Content = value,
+                Tag = value,
+                Style = FindResource("SegmentButton") as Style
+            };
+            button.Click += (_, _) =>
+            {
+                selectedValue = value;
+                Refresh();
+            };
+            buttons.Add(button);
+            host.Children.Add(button);
+        }
+        Refresh();
+
+        return (panel, () => selectedValue, buttons);
+    }
+
+    /// <summary>Reference .color-options: round accent swatches with a check on the selected one.</summary>
+    private (FrameworkElement Control, Func<string> GetValue, List<Button> Buttons) AccentCircleGroup(string[] names, string selected)
+    {
+        var selectedValue = names.Contains(selected) ? selected : names[0];
+        var buttons = new List<Button>();
+        var panel = new StackPanel { Orientation = Orientation.Horizontal };
+
+        void Refresh()
+        {
+            foreach (var button in buttons)
+            {
+                var isSelected = string.Equals(button.Tag?.ToString(), selectedValue, StringComparison.Ordinal);
+                button.Opacity = isSelected ? 1 : 0.75;
+            }
+        }
+
+        foreach (var name in names)
+        {
+            var swatch = new Border
+            {
+                Width = 22,
+                Height = 22,
+                CornerRadius = new CornerRadius(11),
+                Background = AccentSwatch(name),
+                Child = new TextBlock
+                {
+                    Text = "\uE73E",
+                    FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                    FontSize = 10,
+                    Foreground = Brushes.White,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Visibility = string.Equals(name, selectedValue, StringComparison.Ordinal)
+                        ? Visibility.Visible : Visibility.Collapsed
+                }
+            };
+            var button = new Button
+            {
+                Content = swatch,
+                Tag = name,
+                Width = 33,
+                Height = 33,
+                Padding = new Thickness(4),
+                BorderThickness = new Thickness(1),
+                BorderBrush = string.Equals(name, selectedValue, StringComparison.Ordinal)
+                    ? GetBrush("StrokeStrong") : Brushes.Transparent,
+                Background = Brushes.Transparent,
+                Cursor = Cursors.Hand
+            };
+            button.Click += (_, _) =>
+            {
+                selectedValue = name;
+                Refresh();
+                // Re-render check marks
+                int idx = 0;
+                foreach (var b in buttons)
+                {
+                    var inner = (b.Content as Border)?.Child as TextBlock;
+                    if (inner is not null)
+                        inner.Visibility = string.Equals(b.Tag?.ToString(), selectedValue, StringComparison.Ordinal)
+                            ? Visibility.Visible : Visibility.Collapsed;
+                    b.BorderBrush = string.Equals(b.Tag?.ToString(), selectedValue, StringComparison.Ordinal)
+                        ? GetBrush("StrokeStrong") : Brushes.Transparent;
+                    idx++;
+                }
+            };
+            buttons.Add(button);
+            panel.Children.Add(button);
+        }
+        Refresh();
+
+        return (panel, () => selectedValue, buttons);
+    }
+
+    /// <summary>Reference .button with optional ghost/destructive variants.</summary>
+    private Button SettingsButton(string text, bool ghost = false, bool destructive = false)
+    {
+        var button = new Button
+        {
+            Content = text,
+            MinHeight = 32,
+            Padding = new Thickness(12, 6, 12, 6),
+            FontSize = 12,
+            FontWeight = FontWeights.Medium,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Cursor = Cursors.Hand
+        };
+        if (destructive)
+        {
+            button.Background = Brushes.Transparent;
+            button.Foreground = GetBrush("Danger");
+            button.BorderBrush = GetBrush("Danger");
+            button.Opacity = 0.9;
+        }
+        else if (ghost)
+        {
+            button.Background = Brushes.Transparent;
+            button.Foreground = GetBrush("InkSecondary");
+            button.BorderBrush = GetBrush("Stroke");
+        }
+        return button;
+    }
+
+    /// <summary>Reference .slider-line row: slider + tabular value, control column width configurable.</summary>
+    private (FrameworkElement Control, Slider Input, Func<double> GetValue) SettingsSliderRow(
+        string name, string? desc, double value, double min, double max,
+        Func<double, string> format, double controlWidth = 240)
+    {
+        var valueLabel = new TextBlock
+        {
+            Text = format(value),
+            FontSize = 12,
+            Foreground = GetBrush("InkSecondary"),
+            MinWidth = 46,
+            TextAlignment = TextAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            MinWidth = 100,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var line = new StackPanel { Orientation = Orientation.Horizontal };
+        line.Children.Add(slider);
+        line.Children.Add(valueLabel);
+
+        void Update() => valueLabel.Text = format(slider.Value);
+        slider.ValueChanged += (_, _) => Update();
+        Update();
+
+        var host = new Grid { Width = controlWidth, HorizontalAlignment = HorizontalAlignment.Right };
+        host.Children.Add(line);
+
+        var control = SettingsRow2(name, desc, host);
+        return (control, slider, () => slider.Value);
+    }
+
+    /// <summary>Reference .muted-panel inline note.</summary>
+    private FrameworkElement SettingsNote(string title, string desc)
+    {
+        var stack = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
+        stack.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = GetBrush("InkSecondary")
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = desc,
+            FontSize = 11.5,
+            Foreground = GetBrush("Muted"),
+            Margin = new Thickness(0, 5, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        });
+        return new Border
+        {
+            Background = GetBrush("FieldBg"),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(7),
+            Padding = new Thickness(14, 12, 16, 14),
+            Child = stack
+        };
+    }
+
 
     private void RemovePopupBlur()
     {

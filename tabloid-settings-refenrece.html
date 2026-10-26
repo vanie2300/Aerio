@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+
+<html data-theme="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="#15161a" name="theme-color"/>
+<title>Tabloid — Settings (professional layout)</title>
+<style>
+    /* Tabloid settings concept — intentionally small, predictable design system. */
+    :root {
+      color-scheme: dark;
+      --accent: #9877e8;
+      --accent-rgb: 152,119,232;
+      --app: #101114;
+      --chrome: #17181d;
+      --chrome-active: #24252c;
+      --sidebar: #141519;
+      --surface: #191a20;
+      --surface-raised: #202127;
+      --field: #17181e;
+      --ink: #f0f0f3;
+      --ink-secondary: #b8b8c3;
+      --ink-muted: #858691;
+      --stroke: #2b2d35;
+      --stroke-strong: #3d3e49;
+      --hover: #23242c;
+      --positive: #62c4a2;
+      --danger: #ed9399;
+      --radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+      font-synthesis: none;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+      --app: #fafafa;
+      --chrome: #ececf0;
+      --chrome-active: #fff;
+      --sidebar: #f5f5f7;
+      --surface: #fff;
+      --surface-raised: #f3f3f6;
+      --field: #fff;
+      --ink: #1d1e25;
+      --ink-secondary: #51525c;
+      --ink-muted: #747580;
+      --stroke: #e2e3e8;
+      --stroke-strong: #cbd0d9;
+      --hover: #e9e9ee;
+      --positive: #14845c;
+      --danger: #c43e49;
+    }
+    html[data-theme="light"] .preview-browser { background:#f4f4f7; color:#24252b; }
+    html[data-theme="light"] .preview-top { background:#ededf2; border-bottom-color:#d7d8df; }
+    html[data-theme="light"] .preview-top i { background:#a4a6b2; }
+    html[data-theme="light"] .new-tab { background:#f7f7fa; }
+    html[data-theme="light"] .preview-search { background:#fff; border-color:#d9dae2; color:#747682; }
+    html[data-theme="light"] .quick-links i { background:#dedfe5; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin:0; min-height:100%; background:var(--app); color:var(--ink); }
+    body { min-width: 320px; }
+    button, input, select, textarea { font: inherit; color:inherit; }
+    button { cursor:pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent); outline-offset:3px;
+    }
+    button:disabled { opacity:.44; cursor:not-allowed; }
+    .ico { width:17px; height:17px; display:inline-block; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:0 0 auto; }
+    .ico.sm { width:15px; height:15px; }
+    .ico.lg { width:20px; height:20px; }
+    .browser { position:sticky; top:0; z-index:10; background:var(--chrome); border-bottom:1px solid var(--stroke); }
+    .tabbar { display:flex; align-items:flex-end; height:39px; padding:4px 13px 0; gap:7px; border-bottom:1px solid var(--stroke); user-select:none; }
+    .app-letter { font-weight:800; font-size:22px; font-style:italic; letter-spacing:-2px; margin:0 13px 6px 3px; line-height:22px; }
+    .browser-tab { width:195px; max-width:25vw; height:32px; display:flex; gap:9px; align-items:center; border:1px solid var(--stroke); border-bottom:0; border-radius:7px 7px 0 0; background:var(--chrome); padding:0 11px; font-size:12px; color:var(--ink-muted); }
+    .browser-tab.current { background:var(--chrome-active); color:var(--ink); border-color:var(--stroke-strong); box-shadow:inset 0 2px 0 var(--accent); }
+    .tab-circle { height:7px; width:7px; border-radius:50%; background:#696a75; }
+    .browser-tab.current .tab-circle { background:var(--accent); }
+    .tab-x { margin-left:auto; font-size:16px; opacity:.65; }
+    .tab-plus { width:25px; height:25px; margin-bottom:3px; border:1px solid var(--stroke); border-radius:5px; background:transparent; display:grid;place-items:center;color:var(--ink-muted); }
+    .window-buttons { display:flex; gap:19px; align-items:center; margin:0 7px 10px auto; font-size:13px; color:var(--ink-secondary); }
+    .toolbar { height:43px; display:flex; gap:6px; align-items:center; padding:0 16px; }
+    .icon-button { width:30px; height:30px; display:grid; place-items:center; color:var(--ink-muted); background:transparent; border:0; border-radius:6px; }
+    .icon-button:hover, .tab-plus:hover { background:var(--hover); color:var(--ink); }
+    .address { height:29px; flex:1; display:flex; align-items:center; gap:9px; margin:0 4px; padding:0 10px; border-radius:6px; border:1px solid var(--stroke); background:var(--app); font-size:12px; color:var(--ink-secondary); }
+    .address .secure { color:#6fc8a2; }
+    .browser-chip { border:1px solid var(--stroke); border-radius:5px; height:26px; min-width:32px; padding:0 8px; display:grid;place-items:center; background:transparent; color:var(--ink-secondary); font-size:11px; font-weight:700; }
+    .workspace { display:grid; grid-template-columns:244px minmax(0,1fr); min-height:calc(100vh - 82px); }
+    .sidebar { position:sticky; top:82px; height:calc(100vh - 82px); overflow:auto; padding:30px 13px 25px 17px; background:var(--sidebar); border-right:1px solid var(--stroke); }
+    .sidebar-title { font-weight:650; font-size:18px; letter-spacing:-.35px; margin:0 12px 21px; }
+    .nav-search { margin:0 8px 25px; height:35px; display:flex; align-items:center; gap:7px; padding:0 10px; background:var(--field); border:1px solid var(--stroke); border-radius:6px; color:var(--ink-muted); }
+    .nav-search:focus-within { border-color:var(--accent); }
+    .nav-search input { background:transparent; border:0; outline:none; font-size:12px; flex:1; width:50px; color:var(--ink); }
+    .nav-search input::placeholder { color:var(--ink-muted); }
+    .keycap { font-size:10px; color:var(--ink-muted); border:1px solid var(--stroke); border-radius:4px; padding:1px 4px; }
+    .nav-caption { margin:23px 12px 7px; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.9px; font-size:10px; font-weight:650; }
+    .nav-caption:first-of-type { margin-top:0; }
+    .nav-link { display:flex; align-items:center; gap:11px; min-height:36px; width:100%; padding:8px 11px; border:0; border-radius:6px; background:none; color:var(--ink-secondary); font-size:12.5px; text-align:left; }
+    .nav-link .ico { color:var(--ink-muted); }
+    .nav-link:hover { background:var(--hover); color:var(--ink); }
+    .nav-link[aria-current="page"] { background:rgba(var(--accent-rgb),.13); color:var(--ink); font-weight:650; }
+    .nav-link[aria-current="page"]::before { content:""; position:absolute; left:17px; width:2px; height:17px; border-radius:2px; background:var(--accent); }
+    .nav-link[aria-current="page"] .ico { color:var(--accent); }
+    .sidebar-bottom { margin:42px 10px 0; padding-top:18px; border-top:1px solid var(--stroke); color:var(--ink-muted); font-size:11px; line-height:1.8; }
+    .sidebar-bottom b { font-weight:600; color:var(--ink-secondary); }
+    .content-frame { min-width:0; padding:45px clamp(28px,5.4vw,94px) 72px; }
+    .content { max-width:940px; margin:0 auto; }
+    .page { display:none; }
+    .page.is-active { display:block; }
+    .heading { margin-bottom:40px; }
+    .heading h1 { margin:0; font-size:29px; font-weight:650; letter-spacing:-.9px; line-height:1.2; }
+    .heading p { color:var(--ink-muted); margin:10px 0 0; font-size:13px; line-height:1.6; }
+    .section { border-top:1px solid var(--stroke); padding:24px 0 26px; }
+    .section:first-of-type { border-top:0; padding-top:0; }
+    .section-head { display:flex; justify-content:space-between; align-items:baseline; gap:18px; margin:0 0 19px; }
+    .section-head h2 { margin:0; font-size:14px; font-weight:660; letter-spacing:-.15px; }
+    .section-head p { margin:6px 0 0; font-size:12px; line-height:1.5; color:var(--ink-muted); }
+    .setting { min-height:58px; display:flex; justify-content:space-between; align-items:center; gap:28px; padding:10px 0; }
+    .setting + .setting { border-top:1px solid var(--stroke); }
+    .setting.top { align-items:flex-start; }
+    .setting-text { min-width:0; flex:1; }
+    .setting-name { font-size:13px; font-weight:580; line-height:1.5; }
+    .setting-desc { color:var(--ink-muted); font-size:12px; line-height:1.5; max-width:480px; margin-top:4px; }
+    .setting-control { flex-shrink:0; }
+    .segmented { display:flex; border:1px solid var(--stroke); border-radius:7px; background:var(--field); padding:3px; gap:2px; }
+    .segment { border:0; background:transparent; border-radius:4px; min-width:79px; padding:8px 11px; color:var(--ink-secondary); font-size:12px; }
+    .segment:hover { color:var(--ink); }
+    .segment[aria-pressed="true"] { color:var(--ink); background:var(--surface-raised); box-shadow:0 1px 2px #00000015; font-weight:600; }
+    .color-options { display:flex; align-items:center; gap:8px; }
+    .color-button { border:1px solid transparent; background:transparent; padding:4px; width:33px;height:33px; border-radius:50%; display:grid; place-items:center; }
+    .color-button[aria-pressed="true"] { border-color:var(--stroke-strong); }
+    .color-button span { width:22px;height:22px;border-radius:50%; background:var(--option); display:grid;place-items:center;color:#fff; }
+    .color-button[aria-pressed="true"] span::after { content:"✓"; color:#fff; font-weight:750; font-size:13px; }
+    .color-button[data-color="#e3e5ed"] span::after { color:#202127; }
+    .switch { display:inline-flex; align-items:center; position:relative; width:36px; height:21px; cursor:pointer; }
+    .switch input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+    .switch .track { width:36px;height:21px;border:1px solid var(--stroke-strong);border-radius:20px;background:var(--surface-raised);position:relative;transition:background .15s; }
+    .switch .track::after { content:""; width:15px;height:15px;border-radius:50%;background:#c8c8cf;position:absolute;top:2px;left:2px;transition:transform .15s,background .15s; }
+    .switch input:checked + .track { background:var(--accent); border-color:var(--accent); }
+    .switch input:checked + .track::after { transform:translateX(15px); background:#fff; }
+    .switch input:focus-visible + .track { outline:2px solid var(--accent); outline-offset:3px; }
+    .button { min-height:32px; padding:7px 12px; border:1px solid var(--stroke-strong); border-radius:6px; color:var(--ink); background:var(--surface-raised); font-size:12px; font-weight:550; display:inline-flex; align-items:center; justify-content:center; gap:7px; white-space:nowrap; }
+    .button:hover { background:var(--hover); border-color:var(--ink-muted); }
+    .button.primary { background:var(--accent); border-color:var(--accent); color:#101015; font-weight:650; }
+    .button.primary:hover { filter:brightness(1.09); }
+    .button.ghost { border-color:transparent; background:transparent; color:var(--ink-secondary); }
+    .button.ghost:hover { background:var(--hover); }
+    .button.destructive { border-color:rgba(237,147,153,.4); color:var(--danger); background:transparent; }
+    .field { width:100%; height:35px; padding:0 11px; border:1px solid var(--stroke-strong); background:var(--field);border-radius:6px;color:var(--ink);font-size:12.5px; outline:0; }
+    .field:focus, .area:focus { border-color:var(--accent); outline:1px solid var(--accent); }
+    .field::placeholder,.area::placeholder { color:var(--ink-muted); }
+    .field-label { display:block; font-size:12px; color:var(--ink-secondary); font-weight:560; margin-bottom:8px; }
+    .area { width:100%; border:1px solid var(--stroke-strong); background:var(--field); color:var(--ink); border-radius:6px; padding:11px 12px; font-size:12px; line-height:1.55; min-height:94px; resize:vertical; outline:0; }
+    .hint { color:var(--ink-muted);font-size:11.5px;line-height:1.5;margin-top:7px; }
+    .appearance { display:grid; grid-template-columns:minmax(0,1fr) 265px; gap:42px; align-items:start; }
+    .appearance .setting { gap:16px; }
+    .appearance .setting.theme-setting { display:block; }
+    .appearance .theme-setting .segmented { margin-top:15px; width:max-content; max-width:100%; }
+    .appearance .setting.accent-setting { display:block; }
+    .appearance .setting.accent-setting .color-options { margin-top:14px; }
+    .choice-inline { display:flex; gap:18px; align-items:center; flex-wrap:wrap; padding:8px 0; }
+    .radio-inline { display:inline-flex; align-items:center; gap:7px; color:var(--ink-secondary); font-size:12px; cursor:pointer; }
+    input[type=radio],input[type=checkbox] { accent-color:var(--accent); }
+    .radio-inline input { margin:0; width:15px; height:15px; }
+    .upload-line { display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap; }
+    .filename { color:var(--ink-muted); font-size:11.5px; max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    .slider-line { display:flex;align-items:center; gap:13px; min-width:0; }
+    .slider-line input { min-width:100px;flex:1;accent-color:var(--accent); }
+    .small-value { font-size:12px; color:var(--ink-secondary); min-width:46px; text-align:right; font-variant-numeric:tabular-nums; }
+    .preview-rail { position:sticky; top:120px; }
+    .preview-title { font-size:12px; font-weight:650; margin-bottom:12px; }
+    .preview-shell { border:1px solid var(--stroke-strong); border-radius:9px; padding:7px; background:var(--surface); }
+    .preview-browser { aspect-ratio:1.02; border-radius:5px; background:#121319; overflow:hidden; display:flex; flex-direction:column; color:#f4f4f7; }
+    .preview-top { height:22px;background:#1b1b22;border-bottom:1px solid #35353f; padding:7px; display:flex;gap:4px; }
+    .preview-top i {height:5px;width:5px;background:#676772;border-radius:50%;}
+    .new-tab { background:var(--preview-background,#16161e); flex:1; display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;position:relative; isolation:isolate; overflow:hidden; }
+    .wallpaper-layer { background-size:cover; background-position:center; position:absolute;inset:0;z-index:-1;opacity:.5; }
+    .preview-wordmark { font-size:21px; font-weight:730; letter-spacing:-.8px; }
+    .preview-search { height:27px;width:78%;border-radius:5px;background:#25252c;border:1px solid #393943;display:flex;align-items:center;gap:7px;padding:0 9px;color:#9e9eac;font-size:8px; }
+    .quick-links {display:flex;gap:15px;}
+    .quick-links i {height:18px;width:18px;border-radius:5px;background:#303039; display:block;}
+    .preview-note {margin:10px 0 0;color:var(--ink-muted);font-size:11px;line-height:1.5;}
+    .engine-list { border:1px solid var(--stroke);border-radius:8px;overflow:hidden; }
+    .engine-option { display:flex;width:100%;min-height:65px;align-items:center;gap:14px;padding:11px 16px;border:0;background:transparent;color:var(--ink);text-align:left; }
+    .engine-option + .engine-option { border-top:1px solid var(--stroke); }
+    .engine-option:hover { background:var(--hover); }
+    .engine-option[aria-checked="true"] { background:rgba(var(--accent-rgb),.07); }
+    .engine-logo {width:30px;height:30px;border:1px solid var(--stroke);border-radius:7px;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--surface-raised); }
+    .engine-info {flex:1;min-width:0;}
+    .engine-info b {font-size:12.5px;font-weight:620;}
+    .engine-info small {display:block;font-size:11.5px;color:var(--ink-muted);margin-top:4px;}
+    .engine-option .selection {width:16px;height:16px;border:1.5px solid var(--stroke-strong);border-radius:50%;display:grid;place-items:center; }
+    .engine-option[aria-checked="true"] .selection {border-color:var(--accent);}
+    .engine-option[aria-checked="true"] .selection::after {content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);}
+    .inline-action {margin-top:16px;}
+    .number-picker {display:flex;gap:5px;align-items:center;}
+    .number-picker input {width:68px;text-align:center;}
+    .number-picker button { width:31px;height:34px;border-radius:5px;border:1px solid var(--stroke-strong);background:var(--surface-raised);color:var(--ink-secondary); }
+    .field-row {display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+    .editor-wrap {padding:16px 0 0;}
+    .tag {padding:4px 8px;border:1px solid var(--stroke);border-radius:5px;color:var(--ink-muted);font-size:11px;}
+    .status-dot {width:7px;height:7px;border-radius:50%;background:var(--positive);display:inline-block;}
+    .extension-icon {width:35px;height:35px;border-radius:8px;display:grid;place-items:center;background:var(--surface-raised);border:1px solid var(--stroke); color:var(--accent); }
+    .kbd-row {display:flex;justify-content:space-between;align-items:center;min-height:38px;gap:16px;border-bottom:1px solid var(--stroke);font-size:12px;color:var(--ink-secondary);}
+    .kbd-row kbd {font:11px/1.3 inherit; font-family:inherit;border:1px solid var(--stroke-strong);border-radius:4px;background:var(--surface-raised);padding:4px 7px;color:var(--ink);}
+    .muted-panel {background:var(--surface);border:1px solid var(--stroke);border-radius:8px;padding:15px 17px;}
+    .advanced-grid {display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+    .api-input {display:flex;gap:8px;align-items:center;}
+    .api-input .field {flex:1;min-width:0;}
+    .control-group {padding:11px 0 15px;}
+    .control-group + .control-group {border-top:1px solid var(--stroke);}
+    .control-group .slider-line {margin-top:10px;}
+    .prototype-footer {font-size:11px;color:var(--ink-muted);padding-top:22px;border-top:1px solid var(--stroke);margin-top:32px;line-height:1.5;}
+    .empty-state {border:1px dashed var(--stroke-strong);border-radius:8px;text-align:center;padding:25px 16px;color:var(--ink-muted);font-size:12px;line-height:1.6;}
+    .empty-state .ico {display:block;margin:0 auto 8px;opacity:.7;}
+    .toast { position:fixed; bottom:22px;right:24px;z-index:30;border-radius:7px;border:1px solid var(--stroke-strong);background:var(--surface-raised);box-shadow:0 9px 30px #0004;padding:12px 15px;max-width:min(360px,calc(100vw - 32px));color:var(--ink);font-size:12px;line-height:1.5;display:none; }
+    .toast.show {display:block;}
+    .modal-backdrop {position:fixed;inset:0;background:#0009;z-index:40;display:none;align-items:center;justify-content:center;padding:20px;}
+    .modal-backdrop.open {display:flex;}
+    .modal {width:100%;max-width:450px;border-radius:10px;background:var(--surface);border:1px solid var(--stroke-strong);padding:24px;box-shadow:0 24px 70px #0006;}
+    .modal h2 {margin:0 0 8px;font-size:17px;letter-spacing:-.3px;}
+    .modal p {margin:0 0 20px;font-size:12.5px;line-height:1.6;color:var(--ink-muted);}
+    .modal-actions {display:flex;justify-content:flex-end;gap:8px;margin-top:23px;}
+    .checkrow {display:flex;gap:9px;align-items:center;margin:10px 0;color:var(--ink-secondary);font-size:12.5px;}
+    [hidden] { display:none !important; }
+    @media (max-width:1140px) { .content-frame {padding:38px 34px 65px;} .appearance {grid-template-columns:minmax(0,1fr) 230px;gap:28px;} .segment{min-width:67px;} }
+    @media (max-width:890px) { .workspace {grid-template-columns:204px minmax(0,1fr);} .sidebar {padding-left:9px;padding-right:9px;} .nav-link[aria-current="page"]::before{left:9px;} .content-frame {padding:32px 26px;} .appearance{grid-template-columns:1fr;gap:20px;} .preview-rail{position:static;max-width:290px;} .preview-browser{aspect-ratio:1.45;} }
+    @media (max-width:640px) { .workspace{display:block;} .browser-tab{width:135px;} .browser-tab:first-of-type{display:none;} .toolbar{padding:0 8px;} .browser-chip{display:none;} .sidebar{position:static;height:auto;display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;padding:9px 12px;border-right:0;border-bottom:1px solid var(--stroke);align-items:center;scrollbar-width:thin;} .sidebar-title,.nav-caption,.sidebar-bottom,.nav-search{display:none;} .nav-link{white-space:nowrap;width:auto;flex:none;padding:8px 11px;} .nav-link[aria-current="page"]::before{display:none;} .content-frame{padding:28px 19px 50px;} .heading{margin-bottom:28px;} .heading h1{font-size:25px;} .setting{align-items:flex-start;flex-direction:column;gap:12px;padding:14px 0;} .setting-control{align-self:flex-start;} .section{padding:20px 0;} .segmented{width:100%;} .segment{flex:1;min-width:0;} .advanced-grid,.field-row{grid-template-columns:1fr;} .window-buttons{gap:10px;} }
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important;}}
+  
+/* Content composition pass: preserve navigation, improve settings hierarchy. */
+.content { max-width: 1020px; }
+.content-frame { padding-top: 42px; }
+.heading { margin-bottom: 32px; }
+.heading h1 { font-size: 27px; letter-spacing: -.8px; }
+.heading p { margin-top: 7px; }
+.section-head { margin-bottom: 17px; }
+.setting-desc { max-width: 500px; }
+.appearance-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(325px,420px); gap:52px; align-items:start; border-bottom:1px solid var(--stroke); padding-bottom:32px; }
+.appearance-primary .section { padding:0 0 26px; border-top:0; }
+.appearance-primary .section + .section { padding:23px 0 0; border-top:1px solid var(--stroke); }
+.appearance-primary .setting { display:block; min-height:0; padding:0; }
+.appearance-primary .theme-setting .segmented { margin-top:12px; width:100%; max-width:345px; }
+.appearance-primary .theme-setting .segment { flex:1; }
+.appearance-primary .accent-setting .color-options { margin-top:12px; }
+.appearance-layout .preview-rail { position:static; }
+.appearance-layout .preview-browser { aspect-ratio:1.64; }
+.appearance-layout .preview-wordmark { font-size:26px; }
+.appearance-layout .preview-search { height:34px;font-size:10px;max-width:286px; }
+.appearance-layout .quick-links i { width:24px;height:24px; }
+.appearance-layout .preview-note {font-size:11px; margin-top:9px; }
+.newtab-block { padding-top:29px; }
+.newtab-block .section { border:0; padding:0; }
+.newtab-body { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:55px; }
+.newtab-body .setting { padding-top:9px; }
+.newtab-body .newtab-background .setting {border:0; }
+.newtab-body .newtab-options .setting:first-child {border:0; }
+.newtab-background .setting { display:block; }
+.newtab-background .setting-desc { max-width:360px; }
+.newtab-options .setting { min-height:64px; }
+.search-layout { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(240px,.75fr); gap:45px; align-items:start; }
+.search-layout .section { border:0; padding:0; }
+.search-custom {border-top:1px solid var(--stroke); padding-top:20px; }
+.search-custom .section-head {margin-bottom:16px;}
+.search-custom .inline-action {margin-top:2px;}
+.search-custom .editor-wrap {padding:14px; margin-top:16px !important;}
+.search-custom .field-row {grid-template-columns:1fr;gap:12px;}
+.search-custom #customEngine .button {margin-top:16px;}
+.memory-layout {display:grid; grid-template-columns:1.1fr .9fr; gap:30px;}
+.memory-layout .setting { display:block; border:0!important; padding:5px 0; }
+.memory-layout .setting-control {margin-top:16px;}
+.memory-layout .setting:first-child .setting-control {margin-top:20px;}
+#tabs .muted-panel { margin-top:20px; background:transparent; border-radius:6px; }
+.privacy-layout,.data-layout,.extension-layout,.ai-layout,.advanced-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:43px; align-items:start; }
+.privacy-layout .section,.data-layout .section,.extension-layout .section,.ai-layout .section,.advanced-layout .section {padding:0 0 24px; border:0; min-width:0;}
+.privacy-layout .section-head,.data-layout .section-head,.extension-layout .section-head,.ai-layout .section-head,.advanced-layout .section-head { min-height:44px; }
+#privacy > .section {margin-top:6px;}
+#privacy > .section .setting-desc {max-width:520px;}
+#data > .section.reset-section {margin-top:30px; border-color:rgba(237,147,153,.24); padding-top:20px;}
+#data > .section.reset-section .section-head {margin-bottom:6px;}
+#extensions .empty-state { min-height:123px; display:flex;align-items:center;justify-content:center;gap:12px; padding:18px; text-align:left; }
+#extensions .empty-state .ico {margin:0;}
+#ai > .section:first-of-type {border-top:0; padding-top:0; padding-bottom:10px;}
+#ai .ai-layout .section-head {min-height:53px;}
+#ai .ai-layout .control-group {padding:10px 0 13px;}
+#ai .ai-layout .area {min-height:124px;}
+#ai .ai-layout .field {max-width:none!important;}
+#ai .ai-layout .api-input {max-width:none!important;}
+#ai .ai-layout .area {max-width:none!important;}
+#ai > .section:last-of-type {margin-top:16px;}
+.generation-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:30px; }
+.generation-grid .setting { display:block;border:0!important; padding-top:5px; }
+.generation-grid .setting-control {width:100%!important; margin-top:16px;}
+.generation-grid .slider-line input {min-width:40px;}
+.advanced-layout {grid-template-columns:.85fr 1.15fr;}
+.advanced-layout .advanced-grid {grid-template-columns:1fr; gap:0;}
+.advanced-layout .advanced-grid .kbd-row:first-child {border-top:0;}
+.advanced-layout .advanced-grid .kbd-row {min-height:36px;}
+@media (max-width:1170px) {
+  .appearance-layout {grid-template-columns:minmax(0,1fr) minmax(270px,350px);gap:30px;}
+  .search-layout,.privacy-layout,.data-layout,.extension-layout,.ai-layout,.advanced-layout {gap:26px;}
+  .newtab-body {gap:30px;}
+}
+@media (max-width:920px) {
+  .appearance-layout{grid-template-columns:minmax(0,1fr) minmax(220px,285px);gap:24px;}
+  .appearance-layout .preview-browser{aspect-ratio:1.3;}
+  .content-frame{padding:32px 26px 55px;}
+  .generation-grid {gap:14px;}
+  .generation-grid .small-value{min-width:37px;}
+  .privacy-layout,.ai-layout,.extension-layout{grid-template-columns:1fr;gap:10px;}
+  .privacy-layout .section,.ai-layout .section,.extension-layout .section {border-top:1px solid var(--stroke);padding:20px 0 10px;}
+  .privacy-layout .section-head,.ai-layout .section-head,.extension-layout .section-head{min-height:0;}
+}
+@media (max-width:680px) {
+  .heading {margin-bottom:24px;}
+  .appearance-layout,.newtab-body,.search-layout,.memory-layout,.privacy-layout,.data-layout,.extension-layout,.ai-layout,.advanced-layout,.generation-grid {grid-template-columns:1fr;gap:14px;}
+  .appearance-layout {padding-bottom:20px;}
+  .appearance-layout .preview-rail {max-width:100%;}
+  .appearance-layout .preview-browser {aspect-ratio:1.6;}
+  .appearance-primary .section + .section{padding-top:20px;}
+  .newtab-block{padding-top:20px;}
+  .newtab-body .setting {flex-direction:row;align-items:center;}
+  .newtab-background .setting {display:block;}
+  .newtab-options .setting-control {align-self:center;}
+  .newtab-options .setting {gap:8px;}
+  .search-custom,.data-layout .section,.advanced-layout .section {border-top:1px solid var(--stroke);padding-top:18px;}
+  .generation-grid{gap:0;}
+  .generation-grid .setting{padding:14px 0;border-bottom:1px solid var(--stroke)!important;}
+  .generation-grid .setting-control{max-width:280px;}
+}
+
+/* Search carousel: retain Tabloid's original card-browsing interaction. */
+.search-provider { min-width:0; }
+.search-layout {grid-template-columns:minmax(0,1.65fr) minmax(230px,.7fr); gap:45px;}
+.engine-carousel { width:100%; max-width:670px; }
+.engine-stage { position:relative; height:256px; overflow:hidden; border-radius:9px; background:radial-gradient(ellipse at 50% 70%, rgba(var(--accent-rgb),.055),transparent 68%); }
+.engine-list {position:relative; width:100%;height:100%; border:0; overflow:visible; }
+.engine-option { position:absolute; left:50%;top:19px; width:258px; min-height:202px; border:1px solid var(--stroke); border-radius:11px; padding:18px 15px 16px; background:var(--surface); display:flex; flex-direction:column; align-items:center;justify-content:center; gap:12px; text-align:center; box-shadow:0 2px 10px #00000010; opacity:0;visibility:hidden; pointer-events:none; transform:translateX(-50%) scale(.76);transition:transform .23s ease,opacity .23s ease,border-color .23s ease,background .23s ease; }
+.engine-option + .engine-option {border-top:1px solid var(--stroke);}
+.engine-option.is-current,.engine-option.is-neighbor {visibility:visible;opacity:1;pointer-events:auto;}
+.engine-option.is-prev {transform:translateX(calc(-50% - 188px)) scale(.79); z-index:1; opacity:.63;}
+.engine-option.is-next {transform:translateX(calc(-50% + 188px)) scale(.79); z-index:1; opacity:.63;}
+.engine-option.is-current {transform:translateX(-50%) scale(1);z-index:3;border-color:var(--stroke-strong); background:var(--surface-raised); box-shadow:0 12px 34px #00000026;}
+.engine-option.is-current:hover {border-color:var(--accent);}
+.engine-option.is-neighbor:hover {opacity:.85; background:var(--hover);}
+.engine-option[aria-checked="true"] .engine-status {visibility:visible;}
+.engine-option .engine-status {position:absolute; top:12px;left:13px; border:1px solid rgba(var(--accent-rgb),.4);background:rgba(var(--accent-rgb),.12);color:var(--accent);font-weight:650;font-size:10px;letter-spacing:.03em;border-radius:5px;padding:4px 7px;visibility:hidden;}
+.engine-option[aria-checked="true"].is-current {border-color:var(--accent);}
+.engine-logo {flex:0 0 auto;width:56px;height:56px;border-radius:50%;border:1px solid var(--stroke-strong); background:var(--field);font-size:25px;font-weight:750; }
+.engine-info {flex:0 0 auto; min-width:0; }
+.engine-info b {font-size:16px;font-weight:660;letter-spacing:-.3px;}
+.engine-info small {font-size:12px;margin-top:5px;}
+.engine-controls {display:flex;justify-content:center;align-items:center;gap:17px; margin:0 0 18px; }
+.carousel-arrow { width:32px;height:32px; border:1px solid var(--stroke-strong); background:var(--field);color:var(--ink-secondary);border-radius:7px;font-size:24px;line-height:1;display:grid;place-items:center;padding:0 0 3px; }
+.carousel-arrow:hover {background:var(--hover);color:var(--ink);}
+.engine-dots {display:flex;align-items:center;justify-content:center;gap:7px;min-width:84px;}
+.engine-dot {height:7px;width:7px; background:var(--stroke-strong); border:0;border-radius:99px;padding:0; }
+.engine-dot.is-current {width:19px;background:var(--accent);}
+.engine-dot:hover {background:var(--ink-muted);}
+.engine-action {display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;min-height:33px;}
+.engine-action .button {min-width:124px;margin:0;}
+.engine-action-status {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+.engine-active-indicator {display:inline-flex;align-items:center;gap:7px;border:1px solid var(--stroke-strong);color:var(--ink-secondary);font-size:11px;font-weight:620;border-radius:99px;padding:6px 12px;}
+.engine-active-dot {display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--positive);}
+.search-custom {padding-top:21px;}
+@media (max-width:900px) { .search-layout{grid-template-columns:minmax(0,1fr) minmax(200px,.75fr);gap:22px;} .engine-stage{height:238px;} .engine-option{width:223px;min-height:185px;} .engine-option.is-prev{transform:translateX(calc(-50% - 166px)) scale(.78);} .engine-option.is-next{transform:translateX(calc(-50% + 166px)) scale(.78);} }
+@media (max-width:680px) { .search-layout{grid-template-columns:1fr;} .search-custom {margin-top:11px;} .engine-stage{height:238px;} .engine-option {width:min(245px,78%);} .engine-option.is-prev{transform:translateX(calc(-50% - 172px)) scale(.78);} .engine-option.is-next{transform:translateX(calc(-50% + 172px)) scale(.78);} }
+@media (prefers-reduced-motion:reduce) { .engine-option {transition:none;} }
+
+/* Tabloid professional preferences layout — calmer, repeatable hierarchy. */
+html,body {overflow-x:clip;}
+.content-frame { padding:40px clamp(28px,5vw,78px) 78px; }
+.content { max-width:1040px; margin:0 auto; }
+.heading { margin-bottom:27px; padding-bottom:25px; border-bottom:1px solid var(--stroke); }
+.heading h1 { font-size:27px; font-weight:650; letter-spacing:-.7px; }
+.heading p {margin:7px 0 0;font-size:12.5px;}
+.section-head h2 {font-size:13px;letter-spacing:0;font-weight:650;}
+.section-head p {font-size:12px;line-height:1.5;margin-top:7px;max-width:183px;}
+.setting-name {font-size:13px;}
+.setting-desc {font-size:11.5px; line-height:1.5;}
+.pref-section { display:grid; grid-template-columns:190px minmax(0,1fr); column-gap:32px; align-items:start; padding:28px 0 32px !important; border-top:1px solid var(--stroke) !important; min-width:0; }
+.page > .pref-section:first-of-type, .page > :first-child + .pref-section { border-top:0 !important; padding-top:5px !important; }
+.pref-section > .section-head { margin:0 !important;display:block; min-height:0!important; }
+.pref-section > .pref-content { min-width:0; }
+.pref-content .setting { padding:14px 0; min-height:57px; align-items:center;gap:22px; }
+.pref-content .setting:first-child {padding-top:0;}
+.pref-content .setting + .setting {border-top:1px solid var(--stroke);}
+.pref-content .setting:last-child {padding-bottom:0;}
+.pref-content .setting-text {min-width:0;}
+.pref-content .setting-control {margin-left:auto;}
+.pref-content .field {height:38px;}
+.pref-content .control-group + .control-group {margin-top:10px;}
+/* Appearance: one preferences column and a stable, calm preview column. */
+#appearance .heading {margin-bottom:25px;}
+.appearance-layout {display:grid;grid-template-columns:minmax(370px,1fr) minmax(310px,400px); gap:54px;align-items:start;border:0;padding:0;}
+.appearance-primary {min-width:0;}
+.appearance-primary > .section {border-top:0;padding:0 0 25px;}
+.appearance-primary > .section + .section {padding:22px 0 23px;border-top:1px solid var(--stroke);}
+.appearance-primary .section-head {margin-bottom:13px;}
+.appearance-primary .section-head h2 {font-size:13px;}
+.appearance-primary .section-head p {max-width:none;margin-top:6px;}
+.appearance-primary .theme-setting .segmented {margin-top:11px;max-width:365px;}
+.appearance-primary .accent-setting .color-options {margin-top:12px;}
+.appearance-primary .newtab-block {padding:21px 0 0;border-top:1px solid var(--stroke);}
+.appearance-primary .newtab-block .section {padding:0;border:0;}
+.appearance-primary .newtab-body {display:block;}
+.appearance-primary .newtab-background {margin:6px 0 18px;}
+.appearance-primary .newtab-background .setting {padding:0;}
+.appearance-primary .newtab-body .setting-desc {max-width:none;}
+.appearance-primary .newtab-options .setting {min-height:62px;display:flex;justify-content:space-between;gap:15px;padding:12px 0;}
+.appearance-primary .newtab-options .setting .setting-control {align-self:center;}
+.appearance-primary .newtab-options .slider-line {width:160px!important;}
+.appearance-layout .preview-rail {position:sticky;top:115px;padding:16px;background:var(--surface);border:1px solid var(--stroke);border-radius:9px;}
+.appearance-layout .preview-title {font-size:11.5px;color:var(--ink-secondary);margin-bottom:12px;}
+.appearance-layout .preview-note {font-size:11px;line-height:1.5;margin:11px 2px 0;}
+.appearance-layout .preview-shell {background:transparent;box-shadow:none;padding:0;border:1px solid var(--stroke-strong);overflow:hidden;}
+.appearance-layout .preview-browser {aspect-ratio:1.45;}
+/* Search: carousel spans content width with editing in the next, clearly separate row. */
+#search .search-layout {display:block;}
+#search .search-layout > .search-provider {width:100%;}
+#search .search-layout > .search-provider .section {margin:0; border-top:0!important; padding-top:5px!important;}
+#search .search-layout > .search-custom {margin:0;border-top:1px solid var(--stroke);padding:27px 0 32px;}
+#search .search-provider .pref-content {display:flex;justify-content:center;min-width:0;}
+#search .engine-carousel {max-width:650px;}
+#search .engine-stage {height:247px;border:1px solid var(--stroke);background:var(--field);border-radius:8px;}
+#search .engine-option {top:18px; min-height:207px;}
+#search .engine-option.is-current {box-shadow:0 8px 25px #00000019;}
+#search .engine-controls {margin:15px 0 16px;}
+#search .engine-action {margin-bottom:0;}
+#search .search-custom .pref-content {display:flex;align-items:flex-start;flex-direction:column;gap:15px;}
+#search .search-custom .editor-wrap {width:min(100%,540px);margin:0!important;}
+#search #addEngine {margin:0;}
+/* Other settings: same visual structure, independent of content density. */
+.memory-layout,.privacy-layout,.data-layout,.extension-layout,.ai-layout,.advanced-layout {display:block;}
+.memory-layout {width:100%;}
+.memory-layout .setting {display:flex!important;min-height:75px;padding:13px 0!important;}
+.memory-layout .setting-control {margin:0 0 0 auto!important;}
+#tabs .inline-note {margin-top:25px;border:1px solid var(--stroke);border-radius:7px;background:var(--field);padding:14px 16px;}
+#tabs .inline-note .setting-name {font-weight:600;}
+#tabs .inline-note .setting-desc {margin-top:5px;max-width:none;}
+.privacy-layout .pref-section,.data-layout .pref-section,.extension-layout .pref-section,.ai-layout .pref-section,.advanced-layout .pref-section {padding:27px 0 29px!important;border-top:1px solid var(--stroke)!important;}
+.privacy-layout .pref-section:first-child,.data-layout .pref-section:first-child,.extension-layout .pref-section:first-child,.ai-layout .pref-section:first-child,.advanced-layout .pref-section:first-child {padding-top:5px!important;border-top:0!important;}
+#privacy > .pref-section,#data > .pref-section,#ai > .pref-section {margin:0;}
+#privacy .pref-content .setting,#data .pref-content .setting,#extensions .pref-content .setting,#advanced .pref-content .setting {min-height:67px;}
+#privacy .pref-content .setting-desc {max-width:450px;}
+#privacy .pref-content .setting-control,#data .pref-content .setting-control {flex:0 0 auto;}
+#privacy .pref-content #listEditor {max-width:600px;margin-top:20px!important;}
+#privacy .pref-content #listText {min-height:140px;}
+#data .reset-section {margin-top:7px!important;padding-top:27px!important;}
+#extensions .empty-state {min-height:90px;border:1px solid var(--stroke);border-radius:7px;background:var(--field);margin-bottom:17px;justify-content:flex-start;}
+#extensions .inline-action {margin-top:9px;}
+#ai > .pref-section:first-of-type {border-top:0!important;padding-top:5px!important;padding-bottom:25px!important;}
+#ai .ai-layout .pref-section {padding:27px 0 30px!important;border-top:1px solid var(--stroke)!important;}
+#ai .ai-layout .pref-section:first-child {border-top:1px solid var(--stroke)!important;padding-top:27px!important;}
+#ai .ai-layout .control-group {padding:0 0 19px;}
+#ai .ai-layout .control-group + .control-group {margin-top:0;}
+#ai .pref-content .control-group .field-label {display:block;margin-bottom:7px;}
+#ai .ai-layout .field,#ai .ai-layout .area,#ai .ai-layout .api-input {max-width:630px!important;}
+#ai .ai-layout .area {min-height:114px;}
+#ai .ai-layout .hint {max-width:610px;}
+#ai .ai-layout .button#testConnection {margin-top:0;}
+#ai > .pref-section:last-of-type {margin-top:0;padding-top:27px!important;}
+.generation-grid {display:block;max-width:740px;}
+.generation-grid .setting {display:flex!important;align-items:center;min-height:80px;padding:14px 0!important;}
+.generation-grid .setting-control {width:235px!important;max-width:46%;margin:0 0 0 auto!important;}
+.generation-grid .setting .setting-text {flex:1;}
+.generation-grid .setting .setting-desc {max-width:350px;}
+#advanced .advanced-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;}
+#advanced .kbd-row {min-height:38px;}
+/* Keep the content usable at ordinary laptop widths. */
+@media (max-width:1120px) {
+  .content-frame {padding:32px 30px 64px;}
+  .content {max-width:950px;}
+  .pref-section {grid-template-columns:165px minmax(0,1fr);column-gap:24px;}
+  .appearance-layout {grid-template-columns:minmax(0,1fr) minmax(270px,330px);gap:28px;}
+  .generation-grid .setting-control {width:190px!important;}
+}
+@media (max-width:850px) {
+  .pref-section {grid-template-columns:135px minmax(0,1fr);column-gap:22px;}
+  .appearance-layout {grid-template-columns:minmax(0,1fr);}
+  .appearance-layout .preview-rail {position:static;max-width:480px;grid-row:1;}
+  .appearance-layout .preview-browser {aspect-ratio:1.65;}
+  .search-provider .engine-stage {height:236px;}
+  #search .engine-option {width:220px;min-height:195px;}
+  .generation-grid .setting-control {width:175px!important;}
+}
+@media (max-width:680px) {
+  .content-frame {padding:24px 19px 48px;}
+  .heading {margin-bottom:16px;padding-bottom:20px;}
+  .heading h1 {font-size:25px;}
+  .pref-section,.privacy-layout .pref-section,.data-layout .pref-section,.extension-layout .pref-section,.ai-layout .pref-section,.advanced-layout .pref-section {display:block;padding:20px 0 24px!important;}
+  .pref-section > .section-head {margin:0 0 17px!important;}
+  .pref-section > .section-head p {max-width:none;}
+  .pref-content .setting {align-items:center;flex-direction:row;gap:12px;}
+  .pref-content .setting-control {align-self:center;}
+  .pref-content .setting-text {flex:1;}
+  .appearance-layout {gap:23px;}
+  .appearance-layout .preview-rail {max-width:none;}
+  .appearance-primary .newtab-options .setting {flex-direction:row;align-items:center;}
+  .appearance-primary .newtab-options .slider-line {width:130px!important;}
+  #search .search-provider .pref-content {display:block;}
+  #search .engine-stage {height:230px;}
+  #search .engine-option {width:min(220px,72%);min-height:185px;}
+  #search .engine-option.is-prev {transform:translateX(calc(-50% - 155px)) scale(.78);}
+  #search .engine-option.is-next {transform:translateX(calc(-50% + 155px)) scale(.78);}
+  .generation-grid .setting {display:flex!important;flex-direction:column;align-items:stretch;gap:11px;}
+  .generation-grid .setting-control {align-self:stretch;margin:0!important;width:100%!important;max-width:none;}
+  #advanced .advanced-grid {grid-template-columns:1fr;gap:0;}
+  .memory-layout .setting {flex-direction:row!important;align-items:center;}
+}
+</style>
+</head>
+<body>
+<!-- Reusable stroke icons, bundled inline to keep this file fully offline. -->
+<svg aria-hidden="true" height="0" style="position:absolute;overflow:hidden" width="0">
+<symbol id="i-back" viewbox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+<symbol id="i-forward" viewbox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+<symbol id="i-reload" viewbox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2 6"></path><path d="M20 4v7h-7"></path></symbol>
+<symbol id="i-house" viewbox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3z"></path><path d="M9 20v-7h6v7"></path></symbol>
+<symbol id="i-lock" viewbox="0 0 24 24"><rect height="11" rx="2" width="14" x="5" y="10"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="i-search" viewbox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 5 5"></path></symbol>
+<symbol id="i-palette" viewbox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18h1a2 2 0 0 0 1.4-3.4 1.9 1.9 0 0 1 1.4-3.2H17a4 4 0 0 0 4-4A9 9 0 0 0 12 3Z"></path><path d="M7.5 11h.01M10 7h.01M15 7h.01M17 11h.01"></path></symbol>
+<symbol id="i-globe" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c5 5 5 13 0 18M12 3c-5 5-5 13 0 18"></path></symbol>
+<symbol id="i-layers" viewbox="0 0 24 24"><rect height="12" rx="2" width="16" x="4" y="4"></rect><path d="M8 20h12M8 16v4"></path></symbol>
+<symbol id="i-shield" viewbox="0 0 24 24"><path d="m12 2 9 4v5c0 6-4 9-9 11-5-2-9-5-9-11V6z"></path><path d="m9 12 2 2 4-4"></path></symbol>
+<symbol id="i-data" viewbox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"></ellipse><path d="M4 5v14c0 2 4 3 8 3s8-1 8-3V5M4 12c0 2 4 3 8 3s8-1 8-3"></path></symbol>
+<symbol id="i-puzzle" viewbox="0 0 24 24"><path d="M9 3h4v3a2 2 0 1 0 4 0V3h4v7h-3a2 2 0 1 0 0 4h3v7h-7v-3a2 2 0 1 0-4 0v3H3v-7h3a2 2 0 1 0 0-4H3V3h6z"></path></symbol>
+<symbol id="i-sliders" viewbox="0 0 24 24"><path d="M4 7h16M4 17h16"></path><circle cx="8" cy="7" r="2"></circle><circle cx="16" cy="17" r="2"></circle></symbol>
+<symbol id="i-spark" viewbox="0 0 24 24"><path d="m12 2 2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"></path></symbol>
+<symbol id="i-image" viewbox="0 0 24 24"><rect height="18" rx="2" width="18" x="3" y="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 16-5-5-10 10"></path></symbol>
+<symbol id="i-check" viewbox="0 0 24 24"><path d="m5 12 5 5L20 7"></path></symbol>
+<symbol id="i-eye" viewbox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+<symbol id="i-clock" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l4 2"></path></symbol>
+<symbol id="i-trash" viewbox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6"></path></symbol>
+<symbol id="i-upload" viewbox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"></path></symbol>
+</svg>
+<header aria-label="Browser interface preview" class="browser">
+<div class="tabbar">
+<div aria-label="Tabloid" class="app-letter">t</div>
+<div class="browser-tab"><span class="tab-circle"></span><span>New tab</span><span class="tab-x">×</span></div>
+<div class="browser-tab current"><span class="tab-circle"></span><span>Settings</span><span class="tab-x">×</span></div>
+<button aria-label="New tab" class="tab-plus" title="Browser chrome visual only">+</button>
+<div aria-hidden="true" class="window-buttons"><span>−</span><span>▢</span><span>×</span></div>
+</div>
+<div class="toolbar">
+<button aria-label="Back" class="icon-button" title="Preview chrome"><svg class="ico"><use href="#i-back"></use></svg></button>
+<button aria-label="Forward" class="icon-button" title="Preview chrome"><svg class="ico"><use href="#i-forward"></use></svg></button>
+<button aria-label="Refresh" class="icon-button" title="Preview chrome"><svg class="ico"><use href="#i-reload"></use></svg></button>
+<button aria-label="Home" class="icon-button" title="Preview chrome"><svg class="ico"><use href="#i-house"></use></svg></button>
+<div class="address"><svg class="ico sm secure"><use href="#i-shield"></use></svg> tabloid://settings</div>
+<button class="browser-chip" title="Preview chrome">RAM</button>
+<button class="browser-chip" id="aiShortcut">AI</button>
+<button aria-label="Menu" class="icon-button" title="Preview chrome"><span style="font-size:19px;line-height:1">≡</span></button>
+</div>
+</header>
+<div class="workspace">
+<aside aria-label="Settings navigation" class="sidebar">
+<h2 class="sidebar-title">Settings</h2>
+<label class="nav-search"><svg class="ico sm"><use href="#i-search"></use></svg><input aria-label="Search settings" autocomplete="off" id="settingsSearch" placeholder="Find a setting"/><span class="keycap">Ctrl K</span></label>
+<div class="nav-caption">General</div>
+<button aria-current="page" class="nav-link" data-page="appearance"><svg class="ico"><use href="#i-palette"></use></svg>Appearance</button>
+<button class="nav-link" data-page="search"><svg class="ico"><use href="#i-globe"></use></svg>Search engine</button>
+<button class="nav-link" data-page="tabs"><svg class="ico"><use href="#i-layers"></use></svg>Tabs &amp; memory</button>
+<div class="nav-caption">Privacy</div>
+<button class="nav-link" data-page="privacy"><svg class="ico"><use href="#i-shield"></use></svg>Privacy &amp; security</button>
+<button class="nav-link" data-page="data"><svg class="ico"><use href="#i-data"></use></svg>Browsing data</button>
+<div class="nav-caption">Tools</div>
+<button class="nav-link" data-page="extensions"><svg class="ico"><use href="#i-puzzle"></use></svg>Extensions</button>
+<button class="nav-link" data-page="ai"><svg class="ico"><use href="#i-spark"></use></svg>AI assistant</button>
+<button class="nav-link" data-page="advanced"><svg class="ico"><use href="#i-sliders"></use></svg>Advanced</button>
+<div class="sidebar-bottom"><b>Tabloid browser</b><div>Design concept · 2026</div></div>
+</aside>
+<main class="content-frame"><div class="content">
+<section aria-labelledby="title-appearance" class="page is-active" id="appearance">
+<div class="heading"><h1 id="title-appearance">Appearance</h1><p>Choose how Tabloid looks and feels.</p></div>
+<div class="appearance-layout"><div class="appearance-primary"><div class="section">
+<div class="section-head"><div><h2>Browser theme</h2><p>Applies to the browser interface and settings.</p></div></div>
+<div class="setting theme-setting"><div class="setting-name">Color mode</div><div aria-label="Browser theme" class="segmented" role="group"><button aria-pressed="true" class="segment" data-theme="dark">Dark</button><button aria-pressed="false" class="segment" data-theme="light">Light</button><button aria-pressed="false" class="segment" data-theme="system">System</button></div></div>
+</div><div class="section">
+<div class="section-head"><div><h2>Accent color</h2><p>Used for selected tabs, active controls, and focus states.</p></div></div>
+<div class="setting accent-setting"><div class="setting-name">Highlight color</div><div aria-label="Accent color" class="color-options" role="group">
+<button aria-label="Purple" aria-pressed="true" class="color-button" data-color="#9877e8" style="--option:#9877e8"><span></span></button>
+<button aria-label="Blue" aria-pressed="false" class="color-button" data-color="#5594da" style="--option:#5594da"><span></span></button>
+<button aria-label="Green" aria-pressed="false" class="color-button" data-color="#52a889" style="--option:#52a889"><span></span></button>
+<button aria-label="Warm gray" aria-pressed="false" class="color-button" data-color="#b78d61" style="--option:#b78d61"><span></span></button>
+<button aria-label="Silver" aria-pressed="false" class="color-button" data-color="#e3e5ed" style="--option:#e3e5ed"><span></span></button>
+</div></div>
+</div><div class="newtab-block"><div class="section">
+<div class="section-head"><div><h2>New tab page</h2><p>Customize what you see when you open a tab.</p></div></div>
+<div class="newtab-body"><div class="newtab-background"><div class="setting top"><div class="setting-text"><div class="setting-name">Background</div><div class="setting-desc">Use a simple background or your own image.</div><div class="choice-inline"><label class="radio-inline"><input checked="" name="wallType" type="radio" value="default"/>Default</label><label class="radio-inline"><input name="wallType" type="radio" value="custom"/>Custom image</label></div><div class="upload-line" hidden="" id="uploadControls"><button class="button" id="uploadBtn"><svg class="ico sm"><use href="#i-upload"></use></svg>Choose image</button><span class="filename" id="filename">No image selected</span><input accept="image/*" hidden="" id="wallFile" type="file"/></div></div></div></div><div class="newtab-options"><div class="setting"><div class="setting-text"><div class="setting-name">Background opacity</div><div class="setting-desc">Adjust the visibility of your image.</div></div><div class="setting-control slider-line" style="width:170px"><input aria-label="Background opacity" id="opacity" max="100" min="0" type="range" value="50"/><span class="small-value" id="opacityValue">50%</span></div></div><div class="setting"><div class="setting-text"><div class="setting-name">Quick links</div><div class="setting-desc">Show shortcuts below the search box.</div></div><label class="switch setting-control"><input aria-label="Show quick links" checked="" id="quickLinks" type="checkbox"/><span class="track"></span></label></div></div></div></div></div></div><aside aria-label="Live new tab preview" class="preview-rail"><div class="preview-title">New tab preview</div><div class="preview-shell"><div class="preview-browser"><div class="preview-top"><i></i><i></i><i></i></div><div class="new-tab"><div class="wallpaper-layer" id="wallpaperLayer"></div><div class="preview-wordmark">Tabloid</div><div class="preview-search"><svg class="ico sm"><use href="#i-search"></use></svg>Search the web</div><div class="quick-links" id="previewQuick"><i></i><i></i><i></i><i></i></div></div></div></div><p class="preview-note">Updates instantly as you adjust appearance settings.</p></aside></div>
+</section>
+<section aria-labelledby="title-search" class="page" id="search">
+<div class="heading"><h1 id="title-search">Search engine</h1><p>Select the search provider used in the address bar.</p></div><div class="search-layout"><div class="search-provider"><div class="section pref-section"><div class="section-head"><div><h2>Default search engine</h2><p>Browse available providers.</p></div></div><div class="pref-content">
+<div aria-label="Search engine carousel" class="engine-carousel" id="engineCarousel"><div class="engine-stage"><div aria-label="Available search engines" class="engine-list carousel-list" id="engineList" role="group">
+<button aria-checked="false" aria-label="Google" class="engine-option" data-engine="Google" tabindex="-1" type="button"><span class="engine-status">Default</span><span class="engine-logo" style="color:#5d99e3">G</span><span class="engine-info"><b>Google</b><small>google.com</small></span></button>
+<button aria-checked="true" aria-label="DuckDuckGo" class="engine-option" data-engine="DuckDuckGo" tabindex="-1" type="button"><span class="engine-status">Default</span><span class="engine-logo" style="color:#e18555">D</span><span class="engine-info"><b>DuckDuckGo</b><small>duckduckgo.com</small></span></button>
+<button aria-checked="false" aria-label="Bing" class="engine-option" data-engine="Bing" tabindex="-1" type="button"><span class="engine-status">Default</span><span class="engine-logo" style="color:#4ca8a4">b</span><span class="engine-info"><b>Microsoft Bing</b><small>bing.com</small></span></button>
+<button aria-checked="false" aria-label="Brave Search" class="engine-option" data-engine="Brave Search" tabindex="-1" type="button"><span class="engine-status">Default</span><span class="engine-logo" style="color:#dd8665">B</span><span class="engine-info"><b>Brave Search</b><small>search.brave.com</small></span></button>
+<button aria-checked="false" aria-label="Startpage" class="engine-option" data-engine="Startpage" tabindex="-1" type="button"><span class="engine-status">Default</span><span class="engine-logo" style="color:#6f9bd8">S</span><span class="engine-info"><b>Startpage</b><small>startpage.com</small></span></button>
+</div></div><div class="engine-controls"><button aria-label="Previous search engine" class="carousel-arrow" id="enginePrev" type="button">‹</button><div aria-label="Search engine positions" class="engine-dots" id="engineDots"></div><button aria-label="Next search engine" class="carousel-arrow" id="engineNext" type="button">›</button></div><div class="engine-action"><button class="button" id="setEngineDefault" type="button">Set as default</button><span class="engine-active-indicator" id="engineActiveIndicator"><span class="engine-active-dot"></span> Active</span><span aria-live="polite" class="engine-action-status" id="engineActionStatus">Current default: DuckDuckGo</span></div></div>
+</div></div></div><div class="search-custom pref-section"><div class="section-head"><div><h2>Custom search engine</h2><p>Add a provider with its search URL.</p></div></div><div class="pref-content"><button class="button inline-action" id="addEngine">+ Add custom engine</button><div class="muted-panel editor-wrap" hidden="" id="customEngine" style="margin-top:15px"><div class="field-row"><div><label class="field-label" for="engineName">Name</label><input class="field" id="engineName" placeholder="Example Search"/></div><div><label class="field-label" for="engineURL">Search URL</label><input class="field" id="engineURL" placeholder="https://example.com/?q=%s"/></div></div><div class="hint">Use %s in place of the search term.</div><button class="button primary inline-action" id="saveEngine">Add engine</button></div></div></div></div>
+</section>
+<section aria-labelledby="title-tabs" class="page" id="tabs">
+<div class="heading"><h1 id="title-tabs">Tabs &amp; memory</h1><p>Manage tabs and reduce resource use.</p></div>
+<div class="section pref-section"><div class="section-head"><div><h2>Memory saver</h2><p>Free up memory when tabs are not being used.</p></div></div><div class="pref-content">
+<div class="memory-layout"><div class="setting"><div class="setting-text"><div class="setting-name">Hibernate inactive tabs</div><div class="setting-desc">Unload idle background tabs to free up RAM. Opening a hibernated tab reloads its contents.</div></div><label class="switch setting-control"><input aria-label="Hibernate inactive tabs" checked="" id="hibernate" type="checkbox"/><span class="track"></span></label></div><div class="setting"><div class="setting-text"><div class="setting-name">Hibernate after</div><div class="setting-desc">Minutes of inactivity before Tabloid unloads a background tab.</div></div><div class="number-picker setting-control"><button aria-label="Decrease minutes" id="minusMins">−</button><input aria-label="Hibernate after minutes" class="field" id="hibernateMins" max="180" min="1" type="number" value="15"/><button aria-label="Increase minutes" id="plusMins">+</button></div></div></div><div class="muted-panel inline-note"><div class="setting-name">About hibernation</div><div class="setting-desc">Some pages may need to reload before you can resume working. This preview does not actually suspend browser tabs.</div></div></div></div>
+
+</section>
+<section aria-labelledby="title-privacy" class="page" id="privacy">
+<div class="heading"><h1 id="title-privacy">Privacy &amp; security</h1><p>Control tracking protection and browsing permissions.</p></div><div class="privacy-layout"><div class="section pref-section"><div class="section-head"><div><h2>Tracking protection</h2><p>Built-in controls for ads and common tracking domains.</p></div></div><div class="pref-content">
+<div class="setting"><div class="setting-text"><div class="setting-name">Block common trackers</div><div class="setting-desc">Use a domain blocklist to prevent requests to known tracker domains.</div></div><label class="switch setting-control"><input aria-label="Block common trackers" checked="" type="checkbox"/><span class="track"></span></label></div>
+<div class="setting"><div class="setting-text"><div class="setting-name">Block ads</div><div class="setting-desc">Filter advertising requests using a built-in list.</div></div><label class="switch setting-control"><input aria-label="Block ads" checked="" type="checkbox"/><span class="track"></span></label></div>
+</div></div><div class="section pref-section"><div class="section-head"><div><h2>Passwords &amp; forms</h2></div></div><div class="pref-content">
+<div class="setting"><div class="setting-text"><div class="setting-name">Form autofill</div><div class="setting-desc">Offer to fill saved details in forms.</div></div><label class="switch setting-control"><input aria-label="Form autofill" type="checkbox"/><span class="track"></span></label></div>
+<div class="setting"><div class="setting-text"><div class="setting-name">Save passwords</div><div class="setting-desc">Offer to remember website passwords.</div></div><label class="switch setting-control"><input aria-label="Save passwords" type="checkbox"/><span class="track"></span></label></div>
+</div></div></div>
+<div class="section pref-section"><div class="section-head"><div><h2>Exceptions</h2><p>Manage domains blocked or allowed by the built-in filter.</p></div></div><div class="pref-content">
+<div class="setting"><div class="setting-text"><div class="setting-name">Tracker blocklist</div><div class="setting-desc">Edit your blocked domains, one domain per line.</div></div><button class="button setting-control" data-editor="blocklist">Edit blocklist</button></div>
+<div class="setting"><div class="setting-text"><div class="setting-name">Allowed sites</div><div class="setting-desc">Sites here bypass the built-in tracking blocklist.</div></div><button class="button setting-control" data-editor="allowlist">Manage sites</button></div>
+<div class="muted-panel" hidden="" id="listEditor" style="margin-top:14px"><label class="field-label" for="listText" id="listLabel">Blocked domains</label><textarea class="area" id="listText" spellcheck="false">google-analytics.com\ngoogletagmanager.com\ndoubleclick.net\nfacebook.net</textarea><div class="hint">One domain per line. Changes apply to this prototype only.</div><button class="button inline-action" id="finishEditor">Done</button></div>
+</div></div>
+</section>
+<section aria-labelledby="title-data" class="page" id="data">
+<div class="heading"><h1 id="title-data">Browsing data</h1><p>Manage history, local files, and session information.</p></div><div class="data-layout"><div class="section pref-section"><div class="section-head"><div><h2>Data retention</h2></div></div><div class="pref-content">
+<div class="setting"><div class="setting-text"><div class="setting-name">Clear browsing state on exit</div><div class="setting-desc">Remove browsing history, download history, and session recovery data when Tabloid closes.</div></div><label class="switch setting-control"><input aria-label="Clear browsing state on exit" type="checkbox"/><span class="track"></span></label></div>
+</div></div><div class="section pref-section"><div class="section-head"><div><h2>Clear data</h2><p>Choose which data types to remove.</p></div></div><div class="pref-content">
+<div class="setting"><div class="setting-text"><div class="setting-name">Clear local browsing data</div><div class="setting-desc">Review data categories before clearing them.</div></div><button class="button setting-control" id="clearData">Choose data…</button></div>
+</div></div></div>
+<div class="section reset-section pref-section"><div class="section-head"><div><h2 style="color:var(--danger)">Reset</h2></div></div><div class="pref-content">
+<div class="setting"><div class="setting-text"><div class="setting-name">Reset all settings</div><div class="setting-desc">Restore Tabloid settings to their defaults. This is separate from clearing browsing data.</div></div><button class="button destructive setting-control" id="resetSettings">Reset settings…</button></div>
+</div></div>
+</section>
+<section aria-labelledby="title-extensions" class="page" id="extensions">
+<div class="heading"><h1 id="title-extensions">Extensions</h1><p>Manage optional tools that extend your browser.</p></div><div class="extension-layout"><div class="section pref-section"><div class="section-head"><div><h2>Built-in</h2></div></div><div class="pref-content">
+<div class="setting"><div class="extension-icon"><svg class="ico lg"><use href="#i-shield"></use></svg></div><div class="setting-text"><div class="setting-name">uBlock Origin</div><div class="setting-desc">Built-in content blocking. The browser manages installation and updates.</div></div><label class="switch setting-control"><input aria-label="Enable uBlock Origin" checked="" type="checkbox"/><span class="track"></span></label></div>
+</div></div><div class="section pref-section"><div class="section-head"><div><h2>Installed extensions</h2><p>Extensions you have added manually.</p></div><span class="tag">0 installed</span></div><div class="pref-content">
+<div class="empty-state"><svg class="ico lg"><use href="#i-puzzle"></use></svg>No additional extensions installed.</div>
+<div class="inline-action" style="display:flex;gap:8px;flex-wrap:wrap"><button class="button" data-demo="Installing extensions requires the actual browser backend.">Install from CRX…</button><button class="button" data-demo="Unpacked extension loading requires the actual browser backend.">Load unpacked…</button></div>
+</div></div></div>
+</section>
+<section aria-labelledby="title-ai" class="page" id="ai">
+<div class="heading"><h1 id="title-ai">AI assistant</h1><p>Configure the assistant available in the browser sidebar.</p></div>
+<div class="section pref-section"><div class="section-head"><div><h2>Assistant</h2></div></div><div class="pref-content">
+<div class="setting"><div class="setting-text"><div class="setting-name">Enable AI assistant</div><div class="setting-desc">Show the AI chat sidebar in the current tab.</div></div><label class="switch setting-control"><input aria-label="Enable AI assistant" checked="" type="checkbox"/><span class="track"></span></label></div>
+</div></div><div class="ai-layout"><div class="section pref-section"><div class="section-head"><div><h2>Connection</h2><p>Select a service and enter its credentials.</p></div></div><div class="pref-content">
+<div class="control-group"><label class="field-label" for="aiProvider">Provider</label><select class="field" id="aiProvider" style="max-width:400px"><option>NVIDIA NIM</option><option>Ollama Cloud</option></select></div><div class="control-group"><label class="field-label" for="aiModel">Model</label><input class="field" id="aiModel" style="max-width:565px" value="moonshotai/kimi-k3"/></div>
+<div class="control-group"><label class="field-label" for="apiKey">API key</label><div class="api-input" style="max-width:565px"><input autocomplete="off" class="field" id="apiKey" placeholder="Enter API key" type="password"/><button aria-label="Show API key" class="button" id="showKey"><svg class="ico sm"><use href="#i-eye"></use></svg></button></div><div class="hint">Your API key is not saved by this HTML prototype.</div></div>
+<button class="button" id="testConnection">Test connection</button>
+</div></div><div class="section pref-section"><div class="section-head"><div><h2>Assistant instructions</h2></div></div><div class="pref-content">
+
+<div class="control-group"><label class="field-label" for="aiPrompt">System prompt</label><textarea class="area" id="aiPrompt" style="max-width:565px">You are a helpful assistant. Answer concisely.</textarea><div class="hint">Instructions applied to conversations in the actual browser implementation.</div></div>
+</div></div></div>
+<div class="section pref-section"><div class="section-head"><div><h2>Generation</h2><p>Advanced response settings.</p></div></div><div class="pref-content">
+<div class="generation-grid"><div class="setting"><div class="setting-text"><div class="setting-name">Max tokens</div><div class="setting-desc">Maximum number of output tokens per response.</div></div><div class="setting-control slider-line" style="width:240px"><input aria-label="Max tokens" id="tokens" max="16384" min="1024" step="1024" type="range" value="16384"/><span class="small-value" id="tokensValue">16,384</span></div></div><div class="setting"><div class="setting-text"><div class="setting-name">Temperature</div><div class="setting-desc">Controls response variability, depending on model support.</div></div><div class="setting-control slider-line" style="width:240px"><input aria-label="Temperature" id="temperature" max="2" min="0" step="0.1" type="range" value="0.7"/><span class="small-value" id="tempValue">0.7</span></div></div><div class="setting"><div class="setting-text"><div class="setting-name">Maximum open tabs</div><div class="setting-desc">The maximum number of AI-owned tabs open per task.</div></div><div class="setting-control slider-line" style="width:240px"><input aria-label="Maximum AI-owned tabs" id="aiTabs" max="12" min="1" type="range" value="3"/><span class="small-value" id="aiTabsValue">3</span></div></div></div></div></div>
+</section>
+<section aria-labelledby="title-advanced" class="page" id="advanced">
+<div class="heading"><h1 id="title-advanced">Advanced</h1><p>Developer settings and keyboard shortcuts.</p></div><div class="advanced-layout"><div class="section pref-section"><div class="section-head"><div><h2>Developer settings</h2></div></div><div class="pref-content">
+<div class="setting"><div class="setting-text"><div class="setting-name">Developer tools</div><div class="setting-desc">Enable F12 developer tools to inspect web pages.</div></div><label class="switch setting-control"><input aria-label="Enable developer tools" type="checkbox"/><span class="track"></span></label></div>
+<div class="setting"><div class="setting-text"><div class="setting-name">Force dark pages</div><div class="setting-desc">Apply a dark filter to websites. Some pages may not render correctly.</div></div><label class="switch setting-control"><input aria-label="Force dark pages" type="checkbox"/><span class="track"></span></label></div>
+</div></div><div class="section pref-section"><div class="section-head"><div><h2>Keyboard shortcuts</h2><p>Common browser commands.</p></div></div><div class="pref-content">
+<div class="advanced-grid"><div><div class="kbd-row"><span>New tab</span><kbd>Ctrl + T</kbd></div><div class="kbd-row"><span>Close tab</span><kbd>Ctrl + W</kbd></div><div class="kbd-row"><span>Focus address bar</span><kbd>Ctrl + L</kbd></div><div class="kbd-row"><span>Reload page</span><kbd>Ctrl + R</kbd></div></div><div><div class="kbd-row"><span>History</span><kbd>Ctrl + H</kbd></div><div class="kbd-row"><span>Find in page</span><kbd>Ctrl + F</kbd></div><div class="kbd-row"><span>Print</span><kbd>Ctrl + P</kbd></div><div class="kbd-row"><span>Reader mode</span><kbd>Ctrl + Shift + R</kbd></div></div></div>
+</div></div></div>
+</section>
+<footer class="prototype-footer">Interactive layout study. Changes in this preview do not modify the browser.</footer>
+</div></main>
+</div>
+<div aria-live="polite" class="toast" id="toast" role="status"></div>
+<div class="modal-backdrop" id="modalBackdrop"><div aria-labelledby="modalTitle" aria-modal="true" class="modal" role="dialog"><h2 id="modalTitle">Clear browsing data</h2><p id="modalDesc">Choose the data categories you want to clear.</p><div id="modalOptions"><label class="checkrow"><input checked="" type="checkbox"/>Browsing history</label><label class="checkrow"><input checked="" type="checkbox"/>Download history</label><label class="checkrow"><input type="checkbox"/>Session restore data</label></div><div class="modal-actions"><button class="button" id="modalCancel">Cancel</button><button class="button destructive" id="modalConfirm">Clear selected data</button></div></div></div>
+<script>
+    (() => {
+      'use strict';
+      const $ = (sel, root = document) => root.querySelector(sel);
+      const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+      const pages = $$('.page');
+      const nav = $$('.nav-link');
+      let toastTimeout;
+      function toast(message) {
+        const box = $('#toast');
+        box.textContent = message;
+        box.classList.add('show');
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => box.classList.remove('show'), 3500);
+      }
+      function navigate(pageId) {
+        if (!document.getElementById(pageId)) return;
+        pages.forEach(p => p.classList.toggle('is-active', p.id === pageId));
+        nav.forEach(b => b.setAttribute('aria-current', b.dataset.page === pageId ? 'page' : 'false'));
+        const q = $('#settingsSearch');
+        if (q.value) { q.value = ''; filterNav(''); }
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        if (history.replaceState) history.replaceState(null, '', `#${pageId}`);
+      }
+      nav.forEach(b => b.addEventListener('click', () => navigate(b.dataset.page)));
+      $('#aiShortcut').addEventListener('click', () => navigate('ai'));
+      function filterNav(query) {
+        nav.forEach(b => { b.hidden = !b.textContent.toLowerCase().includes(query.toLowerCase()); });
+        $$('.nav-caption').forEach(c => c.hidden = Boolean(query));
+      }
+      $('#settingsSearch').addEventListener('input', e => filterNav(e.target.value.trim()));
+      document.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault(); $('#settingsSearch').focus();
+        }
+        if (e.key === 'Escape') closeModal();
+      });
+      if (location.hash && document.getElementById(location.hash.slice(1))) navigate(location.hash.slice(1));
+
+      const themeButtons = $$('[data-theme].segment');
+      let themeChoice = 'dark';
+      const scheme = window.matchMedia?.('(prefers-color-scheme: dark)');
+      function applyTheme(value) {
+        themeChoice = value;
+        const resolved = value === 'system' ? (scheme?.matches ? 'dark' : 'light') : value;
+        document.documentElement.dataset.theme = resolved;
+        themeButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === value)));
+      }
+      themeButtons.forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme)));
+      scheme?.addEventListener?.('change', () => { if (themeChoice === 'system') applyTheme('system'); });
+
+      $$('.color-button').forEach(b => b.addEventListener('click', () => {
+        const color = b.dataset.color;
+        document.documentElement.style.setProperty('--accent', color);
+        const parts = color.match(/[a-f0-9]{2}/ig).map(h => parseInt(h, 16));
+        document.documentElement.style.setProperty('--accent-rgb', parts.join(','));
+        $$('.color-button').forEach(s => s.setAttribute('aria-pressed', String(s === b)));
+      }));
+      $$('input[name="wallType"]').forEach(input => input.addEventListener('change', e => {
+        $('#uploadControls').hidden = e.target.value !== 'custom';
+        $('#wallpaperLayer').style.backgroundImage = e.target.value === 'custom' ? $('#wallpaperLayer').style.backgroundImage : '';
+      }));
+      $('#uploadBtn').addEventListener('click', () => $('#wallFile').click());
+      let previewFile;
+      $('#wallFile').addEventListener('change', e => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) { toast('Select an image file.'); return; }
+        if (previewFile) URL.revokeObjectURL(previewFile);
+        previewFile = URL.createObjectURL(file);
+        $('#wallpaperLayer').style.backgroundImage = `url("${previewFile}")`;
+        $('#filename').textContent = file.name;
+      });
+      $('#opacity').addEventListener('input', e => {
+        $('#opacityValue').textContent = `${e.target.value}%`;
+        $('#wallpaperLayer').style.opacity = Number(e.target.value) / 100;
+      });
+      $('#quickLinks').addEventListener('change', e => $('#previewQuick').hidden = !e.target.checked);
+
+      // The carousel's centered card is a preview; confirming makes it the default.
+      let visibleEngineIndex = Math.max(0, $$('.engine-option').findIndex(b => b.getAttribute('aria-checked') === 'true'));
+      function engineOptions() { return $$('.engine-option', $('#engineList')); }
+      function renderEngines() {
+        const options = engineOptions();
+        const count = options.length;
+        if (!count) return;
+        visibleEngineIndex = (visibleEngineIndex + count) % count;
+        options.forEach((b, i) => {
+          const delta = (i - visibleEngineIndex + count) % count;
+          const prev = delta === count - 1;
+          const next = delta === 1;
+          const current = delta === 0;
+          b.classList.toggle('is-current', current);
+          b.classList.toggle('is-prev',prev);
+          b.classList.toggle('is-next',next);
+          b.classList.toggle('is-neighbor',prev || next);
+          b.setAttribute('aria-hidden', String(!(current || prev || next)));
+          b.tabIndex = current || prev || next ? 0 : -1;
+        });
+        const dots = $('#engineDots');
+        dots.replaceChildren();
+        options.forEach((_, i) => {
+          const b = document.createElement('button');
+          b.className = 'engine-dot' + (i === visibleEngineIndex ? ' is-current' : '');
+          b.type = 'button';
+          b.setAttribute('aria-label', `Show engine ${i + 1} of ${count}`);
+          b.setAttribute('aria-current', String(i === visibleEngineIndex));
+          b.addEventListener('click', () => { visibleEngineIndex = i; renderEngines(); });
+          dots.append(b);
+        });
+        const selected = options.find(b => b.getAttribute('aria-checked') === 'true');
+        const active = options[visibleEngineIndex];
+        const same = selected === active;
+        $('#setEngineDefault').hidden = same;
+        $('#engineActiveIndicator').hidden = !same;
+        $('#setEngineDefault').textContent = 'Set as default';
+        $('#engineActionStatus').textContent = `Current default: ${selected?.dataset.engine ?? 'None'}`;
+      }
+      function chooseEngine(button) {
+        engineOptions().forEach(b => b.setAttribute('aria-checked', String(b === button)));
+        visibleEngineIndex = engineOptions().indexOf(button);
+        renderEngines();
+      }
+      function bindEngine(button) {
+        button.addEventListener('click', () => {
+          const index = engineOptions().indexOf(button);
+          if (index !== visibleEngineIndex) { visibleEngineIndex = index; renderEngines(); }
+          else chooseEngine(button);
+        });
+      }
+      engineOptions().forEach(bindEngine);
+      $('#enginePrev').addEventListener('click', () => {visibleEngineIndex--;renderEngines();});
+      $('#engineNext').addEventListener('click', () => {visibleEngineIndex++;renderEngines();});
+      $('#setEngineDefault').addEventListener('click', () => chooseEngine(engineOptions()[visibleEngineIndex]));
+      $('#engineCarousel').addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault(); visibleEngineIndex += (e.key === 'ArrowRight' ? 1 : -1); renderEngines();
+          engineOptions()[visibleEngineIndex].focus();
+        }
+      });
+      renderEngines();
+      $('#addEngine').addEventListener('click', () => { $('#customEngine').hidden = !$('#customEngine').hidden; });
+      $('#saveEngine').addEventListener('click', () => {
+        const name = $('#engineName').value.trim();
+        const url = $('#engineURL').value.trim();
+        if (!name || !/^https:\/\//i.test(url) || !url.includes('%s')) {
+          toast('Enter a name and an HTTPS search URL containing %s.'); return;
+        }
+        const b = document.createElement('button');
+        b.className = 'engine-option'; b.dataset.engine = name; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', 'false');
+        const logo = document.createElement('span'); logo.className = 'engine-logo'; logo.textContent = name[0]?.toUpperCase() || '?';
+        const info = document.createElement('span'); info.className = 'engine-info';
+        const title = document.createElement('b'); title.textContent = name;
+        const subtitle = document.createElement('small'); subtitle.textContent = 'Custom search engine';
+        info.append(title, subtitle);
+        const selection = document.createElement('span'); selection.className = 'selection';
+        b.append(logo, info);
+        const status = document.createElement('span'); status.className = 'engine-status'; status.textContent = 'Default'; b.prepend(status);
+        b.type = 'button'; b.setAttribute('aria-label', name); bindEngine(b);
+        $('#engineList').append(b); chooseEngine(b);
+        $('#customEngine').hidden = true; $('#engineName').value = ''; $('#engineURL').value = '';
+        toast('Custom engine added to the preview.');
+      });
+
+      const minutes = $('#hibernateMins');
+      function setMinutes(n) { minutes.value = Math.min(180, Math.max(1, Math.round(n || 15))); }
+      $('#minusMins').addEventListener('click', () => setMinutes(Number(minutes.value) - 1));
+      $('#plusMins').addEventListener('click', () => setMinutes(Number(minutes.value) + 1));
+      minutes.addEventListener('change', () => setMinutes(Number(minutes.value)));
+      const blocklist = 'google-analytics.com\ngoogletagmanager.com\ndoubleclick.net\nfacebook.net';
+      let cachedBlocklist = blocklist; let cachedAllowlist = ''; let editor = 'blocklist';
+      $$('[data-editor]').forEach(b => b.addEventListener('click', () => {
+        editor = b.dataset.editor;
+        $('#listLabel').textContent = editor === 'blocklist' ? 'Blocked domains' : 'Allowed sites';
+        $('#listText').value = editor === 'blocklist' ? cachedBlocklist : cachedAllowlist;
+        $('#listEditor').hidden = false;
+      }));
+      $('#finishEditor').addEventListener('click', () => {
+        if (editor === 'blocklist') cachedBlocklist = $('#listText').value;
+        else cachedAllowlist = $('#listText').value;
+        $('#listEditor').hidden = true;
+        toast('List updated in the preview.');
+      });
+      $('#showKey').addEventListener('click', () => {
+        const input = $('#apiKey'); input.type = input.type === 'password' ? 'text' : 'password';
+        $('#showKey').setAttribute('aria-label', input.type === 'password' ? 'Show API key' : 'Hide API key');
+      });
+      $('#testConnection').addEventListener('click', () => toast('This is an interface preview. No connection request was sent.'));
+      $('#tokens').addEventListener('input', e => $('#tokensValue').textContent = Number(e.target.value).toLocaleString());
+      $('#temperature').addEventListener('input', e => $('#tempValue').textContent = Number(e.target.value).toFixed(1));
+      $('#aiTabs').addEventListener('input', e => $('#aiTabsValue').textContent = e.target.value);
+      $$('[data-demo]').forEach(b => b.addEventListener('click', () => toast(b.dataset.demo)));
+
+      let modalType = 'clear';
+      const backdrop = $('#modalBackdrop');
+      function openModal(type) {
+        modalType = type;
+        $('#modalTitle').textContent = type === 'clear' ? 'Clear browsing data?' : 'Reset settings?';
+        $('#modalDesc').textContent = type === 'clear'
+          ? 'Select which categories you want to clear. This demo will not delete any real browsing data.'
+          : 'Return browser settings to their defaults. This preview will only reset its visible controls.';
+        $('#modalOptions').hidden = type !== 'clear';
+        $('#modalConfirm').textContent = type === 'clear' ? 'Clear selected data' : 'Reset preview';
+        backdrop.classList.add('open'); $('#modalCancel').focus();
+      }
+      function closeModal() { backdrop.classList.remove('open'); }
+      $('#clearData').addEventListener('click', () => openModal('clear'));
+      $('#resetSettings').addEventListener('click', () => openModal('reset'));
+      $('#modalCancel').addEventListener('click', closeModal);
+      backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(); });
+      $('#modalConfirm').addEventListener('click', () => {
+        closeModal();
+        if (modalType === 'reset') {
+          applyTheme('dark');
+          document.documentElement.style.removeProperty('--accent');
+          document.documentElement.style.removeProperty('--accent-rgb');
+          $$('.color-button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color === '#9877e8')));
+          $('#opacity').value = '50'; $('#opacity').dispatchEvent(new Event('input'));
+          $('#quickLinks').checked = true; $('#quickLinks').dispatchEvent(new Event('change'));
+          $('#wallpaperLayer').style.backgroundImage = ''; $('#filename').textContent = 'No image selected';
+          $$('input[name="wallType"]').forEach(b => b.checked = b.value === 'default');
+          $('#uploadControls').hidden = true; setMinutes(15);
+          chooseEngine(engineOptions().find(b => b.dataset.engine === 'DuckDuckGo') || engineOptions()[0]);
+          navigate('appearance');
+          toast('Visual preview reset to its default appearance.');
+        } else toast('Preview only: no actual browsing data was deleted.');
+      });
+    })();
+  </script>
+</body>
+</html>
