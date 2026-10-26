@@ -224,7 +224,7 @@ public sealed class AdBlockEngine
         {
             try
             {
-                var last = DateTime.Parse(File.ReadAllText(metaFile), null, System.Globalization.DateTimeStyles.RoundtripKind);
+                var last = DateTime.Parse(File.ReadAllText(metaFile), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
                 stale = DateTime.UtcNow - last > TimeSpan.FromHours(RefreshHours);
             }
             catch (Exception ex) { Log.Error(ex, "Failed to parse adblock last-updated timestamp"); }
@@ -259,23 +259,103 @@ public sealed class AdBlockEngine
 
     public static Snapshot Compile(IEnumerable<string> lines)
     {
-        var hostPaths = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        var hostPathRegexes = new Dictionary<string, List<Regex>>(StringComparer.OrdinalIgnoreCase);
-        var hostRegexes = new List<(Regex Host, List<string> Prefixes, List<Regex> Paths)>();
-        var urlRegexes = new List<Regex>();
+        var block = new RuleSet();
+        var allow = new RuleSet();
 
-        void AddPrefix(Dictionary<string, List<string>> map, string host, string path)
+        foreach (var raw in lines)
         {
-            if (!map.TryGetValue(host, out var paths))
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            var first = line[0];
+            if (first is '!' or '#' or '[') continue;
+            if (line.Contains("##") || line.Contains("#@#") || line.Contains("#$#") ||
+                line.Contains("#?#") || line.Contains("#%#") || line.Contains("#=#")) continue;
+
+            // @@ marks an exception (whitelist) rule. Compile it into the allow
+            // set so EasyList's deliberate exemptions are honored.
+            var isException = line.StartsWith("@@", StringComparison.Ordinal);
+            if (isException) line = line[2..].Trim();
+
+            var dollar = line.IndexOf('$');
+            string rule;
+            if (dollar >= 0)
             {
-                paths = new List<string>();
-                map[host] = paths;
+                var options = line[(dollar + 1)..];
+                if (options.Contains("domain=", StringComparison.OrdinalIgnoreCase))
+                    continue; // site-scoped restrictions can't be honored — drop rather than over-block
+                rule = line[..dollar].Trim();
             }
-            if (!string.IsNullOrEmpty(path) && !paths.Contains(path, StringComparer.OrdinalIgnoreCase))
-                paths.Add(path);
+            else
+            {
+                rule = line.Trim();
+            }
+
+            if (rule.Length == 0) continue;
+            ParseRule(rule, isException ? allow : block);
         }
 
-        void AddHostRule(string host, string path)
+        return new Snapshot(block, allow);
+    }
+
+    private static void ParseRule(string rule, RuleSet target)
+    {
+        if (rule.StartsWith("||", StringComparison.Ordinal))
+        {
+            rule = rule.Substring(2);
+            var slash = rule.IndexOf('/');
+            var host = slash >= 0 ? rule.Substring(0, slash) : rule;
+            var path = slash >= 0 ? rule.Substring(slash) : "";
+            host = host.TrimEnd('^').TrimEnd('.');
+            path = path.TrimEnd('^');
+            target.AddHostRule(host, path);
+        }
+        else if (rule.StartsWith('|'))
+        {
+            var anchored = rule.TrimStart('|').TrimEnd('|');
+            if (anchored.Length > 0)
+                target.UrlRegexes.Add(CompileRegex("^" + ConvertSeparators(anchored) + "$"));
+        }
+        else if (rule.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                 rule.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                 rule.StartsWith("*/", StringComparison.Ordinal))
+        {
+            if (!ContainsWildcard(rule) && Uri.TryCreate(rule, UriKind.Absolute, out var u) && !string.IsNullOrEmpty(u.Host))
+            {
+                var path = u.PathAndQuery;
+                target.AddHostRule(u.Host.TrimEnd('.'), path);
+            }
+            else if (rule.Length > 0)
+            {
+                target.UrlRegexes.Add(CompileRegex(ConvertSeparators(rule)));
+            }
+        }
+        else
+        {
+            var slash = rule.IndexOf('/');
+            if (slash > 0)
+            {
+                var host = rule.Substring(0, slash);
+                var path = rule.Substring(slash).TrimEnd('^');
+                target.AddHostRule(host.TrimEnd('^'), path);
+            }
+            else if (rule.Length > 0)
+            {
+                if (rule.Contains('*') || rule.Contains('^'))
+                    target.UrlRegexes.Add(CompileRegex(ConvertSeparators(rule)));
+                else
+                    target.AddHostRule(rule.TrimEnd('^'), "");
+            }
+        }
+    }
+
+    internal sealed class RuleSet
+    {
+        public Dictionary<string, List<string>> HostPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, List<Regex>> HostPathRegexes { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<(Regex Host, List<string> Prefixes, List<Regex> Paths)> HostRegexes { get; } = [];
+        public List<Regex> UrlRegexes { get; } = [];
+
+        public void AddHostRule(string host, string path)
         {
             host = host.TrimStart('.').TrimEnd('.');
             if (host.Length == 0) return;
@@ -292,86 +372,68 @@ public sealed class AdBlockEngine
                     else
                         prefixes.Add(path);
                 }
-                hostRegexes.Add((hostRx, prefixes, pathRxs));
+                HostRegexes.Add((hostRx, prefixes, pathRxs));
                 return;
             }
 
             if (!string.IsNullOrEmpty(path) && ContainsWildcard(path))
             {
-                if (!hostPathRegexes.TryGetValue(host.ToLowerInvariant(), out var pathRxs))
+                if (!HostPathRegexes.TryGetValue(host.ToLowerInvariant(), out var pathRxs))
                 {
                     pathRxs = new List<Regex>();
-                    hostPathRegexes[host.ToLowerInvariant()] = pathRxs;
+                    HostPathRegexes[host.ToLowerInvariant()] = pathRxs;
                 }
                 pathRxs.Add(CompileRegex("^" + ConvertSeparators(path) + "$"));
             }
             else
             {
-                AddPrefix(hostPaths, host.ToLowerInvariant(), path);
+                if (!HostPaths.TryGetValue(host.ToLowerInvariant(), out var paths))
+                {
+                    paths = new List<string>();
+                    HostPaths[host.ToLowerInvariant()] = paths;
+                }
+                if (!string.IsNullOrEmpty(path) && !paths.Contains(path, StringComparer.OrdinalIgnoreCase))
+                    paths.Add(path);
             }
         }
 
-        foreach (var raw in lines)
+        public bool Matches(Uri uri, string host, string hostLower, string pathAndQuery, string url)
         {
-            var line = raw.Trim();
-            if (line.Length == 0) continue;
-            var first = line[0];
-            if (first is '!' or '#' or '[') continue;
-            if (line.Contains("##") || line.Contains("#@#") || line.Contains("#$#") ||
-                line.Contains("#?#") || line.Contains("#%#") || line.Contains("#=#")) continue;
+            while (true)
+            {
+                if (HostPaths.TryGetValue(hostLower, out var paths))
+                {
+                    if (paths.Count == 0) return true;
+                    foreach (var p in paths)
+                        if (pathAndQuery.StartsWith(p, StringComparison.OrdinalIgnoreCase)) return true;
+                }
 
-            var rule = line.Split('$')[0].Trim();
+                if (HostPathRegexes.TryGetValue(hostLower, out var pathRxs))
+                {
+                    foreach (var rx in pathRxs)
+                        if (rx.IsMatch(pathAndQuery)) return true;
+                }
 
-            if (rule.StartsWith("||", StringComparison.Ordinal))
-            {
-                rule = rule.Substring(2);
-                var slash = rule.IndexOf('/');
-                var host = slash >= 0 ? rule.Substring(0, slash) : rule;
-                var path = slash >= 0 ? rule.Substring(slash) : "";
-                host = host.TrimEnd('^').TrimEnd('.');
-                path = path.TrimEnd('^');
-                AddHostRule(host, path);
+                var idx = hostLower.IndexOf('.');
+                if (idx < 0) break;
+                hostLower = hostLower.Substring(idx + 1);
             }
-            else if (rule.StartsWith('|'))
+
+            foreach (var (hostRx, prefixes, pathRxs) in HostRegexes)
             {
-                var anchored = rule.TrimStart('|').TrimEnd('|');
-                if (anchored.Length > 0)
-                    urlRegexes.Add(CompileRegex("^" + ConvertSeparators(anchored) + "$"));
+                if (!hostRx.IsMatch(host)) continue;
+                if (prefixes.Count == 0 && pathRxs.Count == 0) return true;
+                foreach (var p in prefixes)
+                    if (pathAndQuery.StartsWith(p, StringComparison.OrdinalIgnoreCase)) return true;
+                foreach (var rx in pathRxs)
+                    if (rx.IsMatch(pathAndQuery)) return true;
             }
-            else if (rule.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                     rule.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-                     rule.StartsWith("*/", StringComparison.Ordinal))
-            {
-                if (!ContainsWildcard(rule) && Uri.TryCreate(rule, UriKind.Absolute, out var u) && !string.IsNullOrEmpty(u.Host))
-                {
-                    var path = u.PathAndQuery;
-                    AddHostRule(u.Host.TrimEnd('.'), path);
-                }
-                else if (rule.Length > 0)
-                {
-                    urlRegexes.Add(CompileRegex(ConvertSeparators(rule)));
-                }
-            }
-            else
-            {
-                var slash = rule.IndexOf('/');
-                if (slash > 0)
-                {
-                    var host = rule.Substring(0, slash);
-                    var path = rule.Substring(slash).TrimEnd('^');
-                    AddHostRule(host.TrimEnd('^'), path);
-                }
-                else if (rule.Length > 0)
-                {
-                    if (rule.Contains('*') || rule.Contains('^'))
-                        urlRegexes.Add(CompileRegex(ConvertSeparators(rule)));
-                    else
-                        AddHostRule(rule.TrimEnd('^'), "");
-                }
-            }
+
+            foreach (var rx in UrlRegexes)
+                if (rx.IsMatch(url)) return true;
+
+            return false;
         }
-
-        return new Snapshot(hostPaths, hostPathRegexes, hostRegexes, urlRegexes);
     }
 
     private static bool ContainsWildcard(string value) =>
@@ -400,24 +462,17 @@ public sealed class AdBlockEngine
     /// </summary>
     public sealed class Snapshot
     {
-        private readonly Dictionary<string, List<string>> _hostPaths;
-        private readonly Dictionary<string, List<Regex>> _hostPathRegexes;
-        private readonly List<(Regex Host, List<string> Prefixes, List<Regex> Paths)> _hostRegexes;
-        private readonly List<Regex> _urlRegexes;
+        private readonly RuleSet _block;
+        private readonly RuleSet _allow;
 
         public int RuleCount { get; }
 
-        internal Snapshot(
-            Dictionary<string, List<string>> hostPaths,
-            Dictionary<string, List<Regex>> hostPathRegexes,
-            List<(Regex Host, List<string> Prefixes, List<Regex> Paths)> hostRegexes,
-            List<Regex> urlRegexes)
+        internal Snapshot(AdBlockEngine.RuleSet block, AdBlockEngine.RuleSet allow)
         {
-            _hostPaths = hostPaths;
-            _hostPathRegexes = hostPathRegexes;
-            _hostRegexes = hostRegexes;
-            _urlRegexes = urlRegexes;
-            RuleCount = hostPaths.Count + hostPathRegexes.Count + hostRegexes.Count + urlRegexes.Count;
+            _block = block;
+            _allow = allow;
+            RuleCount = block.HostPaths.Count + block.HostPathRegexes.Count +
+                        block.HostRegexes.Count + block.UrlRegexes.Count;
         }
 
         public bool ShouldBlock(string? url)
@@ -430,40 +485,10 @@ public sealed class AdBlockEngine
             var hostLower = host.ToLowerInvariant();
             var pathAndQuery = uri.PathAndQuery;
 
-            while (true)
-            {
-                if (_hostPaths.TryGetValue(hostLower, out var paths))
-                {
-                    if (paths.Count == 0) return true;
-                    foreach (var p in paths)
-                        if (pathAndQuery.StartsWith(p, StringComparison.OrdinalIgnoreCase)) return true;
-                }
+            // Whitelist (@@) rules win over blocking rules.
+            if (_allow.Matches(uri, host, hostLower, pathAndQuery, url)) return false;
 
-                if (_hostPathRegexes.TryGetValue(hostLower, out var pathRxs))
-                {
-                    foreach (var rx in pathRxs)
-                        if (rx.IsMatch(pathAndQuery)) return true;
-                }
-
-                var idx = hostLower.IndexOf('.');
-                if (idx < 0) break;
-                hostLower = hostLower.Substring(idx + 1);
-            }
-
-            foreach (var (hostRx, prefixes, pathRxs) in _hostRegexes)
-            {
-                if (!hostRx.IsMatch(host)) continue;
-                if (prefixes.Count == 0 && pathRxs.Count == 0) return true;
-                foreach (var p in prefixes)
-                    if (pathAndQuery.StartsWith(p, StringComparison.OrdinalIgnoreCase)) return true;
-                foreach (var rx in pathRxs)
-                    if (rx.IsMatch(pathAndQuery)) return true;
-            }
-
-            foreach (var rx in _urlRegexes)
-                if (rx.IsMatch(url)) return true;
-
-            return false;
+            return _block.Matches(uri, host, hostLower, pathAndQuery, url);
         }
     }
 }

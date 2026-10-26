@@ -2435,15 +2435,18 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             foreach (var (id, _, _) in toolDefs)
                 newToolsEnabled[id] = toolToggles[id].IsChecked == true;
 
-            var saved = settings with
+            // Re-read the live settings so fields this page doesn't own (changed
+            // elsewhere since the page was built) are not clobbered by a stale
+            // snapshot.
+            var saved = _dataStore.Settings with
             {
                 AiToolsEnabled = newToolsEnabled,
                 AiMaxIterations = ClampInt(((int)maxIter.Input.Value).ToString(), 1, 20, 10),
                 AiPageContextConfirmation = confirmSensitive.IsChecked == true,
                 AiPolicy = new AiBrowserPolicy(
                     MaxOpenTabs: ClampInt(((int)maxOpenTabs.Input.Value).ToString(), 1, 50, AiBrowserPolicy.Default.MaxOpenTabs),
-                    AllowNavigateActiveTab: settings.AiPolicy?.AllowNavigateActiveTab ?? false,
-                    CleanupOnTaskComplete: settings.AiPolicy?.CleanupOnTaskComplete ?? false)
+                    AllowNavigateActiveTab: _dataStore.Settings.AiPolicy?.AllowNavigateActiveTab ?? false,
+                    CleanupOnTaskComplete: _dataStore.Settings.AiPolicy?.CleanupOnTaskComplete ?? false)
             };
             _dataStore.SaveSettings(saved);
             ApplySettings();

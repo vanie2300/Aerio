@@ -56,11 +56,33 @@ public sealed class AiService : IDisposable
         return response.Content ?? "";
     }
 
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromMinutes(10);
+
     public async Task<AiResponse> CompleteWithToolsAsync(
         List<ChatMessage> messages,
         List<AiTool>? tools = null,
         string? toolChoice = "auto",
         CancellationToken ct = default)
+    {
+        // Overall deadline: without it a stalled server stream hangs the agent
+        // (and the UI spinner) forever.
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(RequestTimeout);
+        try
+        {
+            return await CompleteWithToolsCoreAsync(messages, tools, toolChoice, timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException($"AI request timed out after {RequestTimeout.TotalMinutes:F0} minutes.");
+        }
+    }
+
+    private async Task<AiResponse> CompleteWithToolsCoreAsync(
+        List<ChatMessage> messages,
+        List<AiTool>? tools,
+        string? toolChoice,
+        CancellationToken ct)
     {
         for (int attempt = 0; attempt <= MaxRetries; attempt++)
         {
@@ -86,6 +108,26 @@ public sealed class AiService : IDisposable
         List<AiTool>? tools = null,
         string? toolChoice = "auto",
         CancellationToken ct = default)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(RequestTimeout);
+        try
+        {
+            return await CompleteStreamingCoreAsync(messages, onContentDelta, onRetry, tools, toolChoice, timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException($"AI request timed out after {RequestTimeout.TotalMinutes:F0} minutes.");
+        }
+    }
+
+    private async Task<AiResponse> CompleteStreamingCoreAsync(
+        List<ChatMessage> messages,
+        Action<string>? onContentDelta,
+        Action? onRetry,
+        List<AiTool>? tools,
+        string? toolChoice,
+        CancellationToken ct)
     {
         for (int attempt = 0; attempt <= MaxRetries; attempt++)
         {
@@ -700,12 +742,15 @@ public sealed class AiService : IDisposable
 
                     if (delta.ValueKind == JsonValueKind.Object)
                     {
-                        // content (and reasoning_content for NIM reasoner models)
+                        // content (and reasoning_content for NIM reasoner models).
+                        // Whitespace-only deltas are legal — dropping them
+                        // concatenates words ("first"+" "+"second" → "firstsecond").
                         string? text = null;
-                        if (delta.TryGetProperty("content", out var contentEl) &&
-                            contentEl.ValueKind == JsonValueKind.String &&
-                            !string.IsNullOrWhiteSpace(contentEl.GetString()))
-                            text = contentEl.GetString();
+                        if (delta.TryGetProperty("content", out var contentEl))
+                        {
+                            if (contentEl.ValueKind == JsonValueKind.String && contentEl.GetString() is { } s)
+                                text = s;
+                        }
                         else if (delta.TryGetProperty("reasoning_content", out var reasonEl) &&
                                  reasonEl.ValueKind == JsonValueKind.String)
                             text = reasonEl.GetString();

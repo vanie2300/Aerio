@@ -199,9 +199,12 @@ public sealed class BrowserDataStore : IDisposable
                 added++;
             }
 
-            if (added > 0)
+            if (added > 0 && !SaveBookmarks())
             {
-                SaveBookmarks();
+                // The disk write failed — roll back the in-memory inserts so the
+                // UI doesn't show bookmarks that will be gone after a restart.
+                BookmarksInternal.RemoveRange(0, added);
+                added = 0;
             }
         }
         finally { _lock.ExitWriteLock(); }
@@ -211,12 +214,17 @@ public sealed class BrowserDataStore : IDisposable
 
     public void ExportBookmarks(string path)
     {
+        // Snapshot under the lock, then write outside it so a slow export
+        // destination can't stall every other data operation.
+        BookmarkItem[] snapshot;
         _lock.EnterReadLock();
         try
         {
-            Save(path, BookmarksInternal);
+            snapshot = [.. BookmarksInternal];
         }
         finally { _lock.ExitReadLock(); }
+
+        Save(path, [.. snapshot]);
     }
 
     public bool IsBookmarked(string url)
@@ -346,24 +354,29 @@ public sealed class BrowserDataStore : IDisposable
         }
     }
 
-    public void SaveSettings(BrowserSettings settings)
+    public bool SaveSettings(BrowserSettings settings)
     {
         _lock.EnterWriteLock();
         try
         {
-            Settings = settings;
+            // Write to disk FIRST; only mutate the in-memory settings after the
+            // write succeeded, so memory and disk never diverge on failure.
             var forDisk = settings with
             {
-                AiApiKey = EncryptApiKey(settings.AiApiKey),
-                AiApiKeys = settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => EncryptApiKey(kv.Value))
+                AiApiKey = EncryptApiKeyForDisk("", settings.AiApiKey),
+                AiApiKeys = settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => EncryptApiKeyForDisk(kv.Key, kv.Value))
             };
             var tmp = _settingsPath + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(forDisk, JsonOptions));
             File.Move(tmp, _settingsPath, overwrite: true);
+            Settings = settings;
+            return true;
         }
         catch (Exception ex)
         {
             Log.Error(ex, "SaveSettings failed");
+            try { File.Delete(_settingsPath + ".tmp"); } catch (Exception delEx) { Log.Debug(delEx, "Failed to delete settings temp file"); }
+            return false;
         }
         finally { _lock.ExitWriteLock(); }
     }
@@ -456,6 +469,7 @@ public sealed class BrowserDataStore : IDisposable
             var settings = JsonSerializer.Deserialize<BrowserSettings>(File.ReadAllText(_settingsPath), JsonOptions)
                 ?? BrowserSettings.Default;
 
+            var legacyDecrypted = DecryptKeyTracked("", settings.AiApiKey ?? "");
             return settings with
             {
                 SearchEngine = string.IsNullOrWhiteSpace(settings.SearchEngine) ? BrowserSettings.Default.SearchEngine : settings.SearchEngine,
@@ -470,11 +484,11 @@ public sealed class BrowserDataStore : IDisposable
                 CustomEngines = settings.CustomEngines ?? [],
                 AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) ? BrowserSettings.Default.AiEndpoint : settings.AiEndpoint,
                 AiModel = string.IsNullOrWhiteSpace(settings.AiModel) ? BrowserSettings.Default.AiModel : settings.AiModel,
-                AiApiKey = DecryptApiKey(settings.AiApiKey) ?? BrowserSettings.Default.AiApiKey,
+                AiApiKey = legacyDecrypted,
                 AiApiKeys = MigrateProviderApiKeys(
-                    settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => DecryptApiKey(kv.Value) ?? ""),
+                    settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => DecryptKeyTracked(kv.Key, kv.Value ?? "")),
                     settings.AiProvider,
-                    DecryptApiKey(settings.AiApiKey)),
+                    legacyDecrypted),
                 AiSystemPrompt = string.IsNullOrWhiteSpace(settings.AiSystemPrompt) ? BrowserSettings.Default.AiSystemPrompt : settings.AiSystemPrompt,
                 AiMaxTokens = settings.AiMaxTokens <= 0 ? BrowserSettings.Default.AiMaxTokens : settings.AiMaxTokens,
                 AiProvider = string.IsNullOrWhiteSpace(settings.AiProvider) ? BrowserSettings.Default.AiProvider : settings.AiProvider,
@@ -512,6 +526,43 @@ public sealed class BrowserDataStore : IDisposable
     }
 
     private const string EncryptedApiKeyPrefix = "$dpapi$";
+
+    /// <summary>
+    /// Raw ciphertext blobs that failed DPAPI decryption at load time (slot key
+    /// "" is the legacy AiApiKey). Preserved so a transient DPAPI failure
+    /// (password reset, profile roamed without credentials) does not permanently
+    /// erase the stored keys on the next settings save.
+    /// </summary>
+    private readonly Dictionary<string, string> _preservedKeyBlobs = [];
+
+    private string EncryptApiKeyForDisk(string slotKey, string plaintext)
+    {
+        if (string.IsNullOrEmpty(plaintext) &&
+            _preservedKeyBlobs.TryGetValue(slotKey, out var blob) &&
+            blob.StartsWith(EncryptedApiKeyPrefix, StringComparison.Ordinal))
+        {
+            // The stored blob could not be decrypted and no new key was entered —
+            // keep the original ciphertext on disk instead of overwriting it
+            // with an empty value.
+            return blob;
+        }
+        return EncryptApiKey(plaintext);
+    }
+
+    private string DecryptKeyTracked(string slotKey, string stored)
+    {
+        var decrypted = DecryptApiKey(stored);
+        if (string.IsNullOrEmpty(decrypted) &&
+            stored.StartsWith(EncryptedApiKeyPrefix, StringComparison.Ordinal))
+        {
+            _preservedKeyBlobs[slotKey] = stored;
+        }
+        else
+        {
+            _preservedKeyBlobs.Remove(slotKey);
+        }
+        return decrypted;
+    }
 
     private static string EncryptApiKey(string plaintext)
     {

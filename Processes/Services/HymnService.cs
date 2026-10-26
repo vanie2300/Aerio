@@ -268,7 +268,9 @@ public static class HymnService
             }
 
             var decoded = WebUtility.HtmlDecode(text.Groups["text"].Value).Trim();
-            if (decoded.Length == 0 || !double.TryParse(y.Groups["y"].Value, out var lineY))
+            if (decoded.Length == 0 ||
+                !double.TryParse(y.Groups["y"].Value, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var lineY))
             {
                 continue;
             }

@@ -1222,8 +1222,19 @@ public partial class MainWindow
 
         await Dispatcher.InvokeAsync(() =>
         {
-            var args = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, System.Text.Json.JsonElement>>(toolCall.Arguments);
-            var url = args?.TryGetValue("url", out var urlEl) == true ? urlEl.GetString() : "unknown";
+            string url;
+            try
+            {
+                var args = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, System.Text.Json.JsonElement>>(toolCall.Arguments);
+                url = args?.TryGetValue("url", out var urlEl) == true ? urlEl.GetString() ?? "unknown" : "unknown";
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // Malformed tool arguments: deny the call and let the run
+                // continue instead of aborting the whole task.
+                tcs.SetResult(false);
+                return;
+            }
 
             var result = MessageBox.Show(
                 $"The AI wants to {toolCall.Name}:\n\n{url}\n\nPage context is active. Allow this?",
