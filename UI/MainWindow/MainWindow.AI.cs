@@ -1251,6 +1251,7 @@ public partial class MainWindow
             var history = tab.AiChatHistory ??= [];
             var messages = new List<ChatMessage>(history);
             messages.Add(new ChatMessage("user", text));
+            history.Add(new ChatMessage("user", text));
 
             var pageContextActive = AiSidebar.AiPageContextToggle.IsChecked == true;
             var contextOffset = 0;
@@ -1322,12 +1323,19 @@ public partial class MainWindow
             if (messages.Count > preLoopCount)
             {
                 var newMessages = messages.GetRange(preLoopCount, messages.Count - preLoopCount);
-                history.AddRange(newMessages);
+                foreach (var msg in newMessages)
+                {
+                    if (msg.Role == "user" && history.Count > 0 &&
+                        history[^1].Role == "user" && string.Equals(history[^1].Content, msg.Content, StringComparison.Ordinal))
+                        continue;
+                    history.Add(msg);
+                }
                 persistedInTry = true;
             }
 
             var reply = FinalizeStreamingBubble();
-            history.Add(new ChatMessage("assistant", reply));
+            if (!string.IsNullOrEmpty(reply))
+                history.Add(new ChatMessage("assistant", reply));
 
             await CleanupAiTabsIfNeededAsync();
         }

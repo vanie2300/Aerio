@@ -397,7 +397,7 @@ public sealed class AiService : IDisposable
             using var reader = new StreamReader(stream);
 
             var contentBuilder = new StringBuilder();
-            var toolCalls = new Dictionary<int, (string Id, string Name, StringBuilder Arguments)>();
+            var toolCallsList = new List<(string Id, string Name, StringBuilder Arguments)>();
             bool gotMessage = false;
             const int MaxResponseChars = 1_000_000;
 
@@ -440,18 +440,17 @@ public sealed class AiService : IDisposable
                     if (msg.TryGetProperty("tool_calls", out var toolCallsArr) &&
                         toolCallsArr.ValueKind == JsonValueKind.Array)
                     {
+                        var idx = 0;
                         foreach (var tc in toolCallsArr.EnumerateArray())
                         {
-                            var index = tc.TryGetProperty("index", out var idx) ? idx.GetInt32() : 0;
-
-                            if (!toolCalls.TryGetValue(index, out var existing))
+                            if (idx >= toolCallsList.Count)
                             {
                                 var id = tc.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "";
                                 var name = "";
                                 if (tc.TryGetProperty("function", out var fn) &&
                                     fn.TryGetProperty("name", out var nameEl))
                                     name = nameEl.GetString() ?? "";
-                                toolCalls[index] = (id, name, new StringBuilder());
+                                toolCallsList.Add((id, name, new StringBuilder()));
                             }
 
                             if (tc.TryGetProperty("function", out var fn2) &&
@@ -460,9 +459,11 @@ public sealed class AiService : IDisposable
                                 var argsStr = argsEl.ValueKind == JsonValueKind.String
                                     ? argsEl.GetString() ?? ""
                                     : argsEl.GetRawText();
-                                toolCalls[index] = (toolCalls[index].Id, toolCalls[index].Name,
-                                    toolCalls[index].Arguments.Append(argsStr));
+                                if (idx < toolCallsList.Count)
+                                    toolCallsList[idx] = (toolCallsList[idx].Id, toolCallsList[idx].Name,
+                                        toolCallsList[idx].Arguments.Append(argsStr));
                             }
+                            idx++;
                         }
                     }
 
@@ -475,15 +476,14 @@ public sealed class AiService : IDisposable
                 }
             }
 
-            if (!gotMessage && contentBuilder.Length == 0 && toolCalls.Count == 0)
+            if (!gotMessage && contentBuilder.Length == 0 && toolCallsList.Count == 0)
             {
                 Debug.WriteLine("[AiService] No messages received from Ollama — response may have been empty or malformed");
                 throw new InvalidOperationException("Ollama returned an empty response. Check your API key and model name.");
             }
 
-            var toolCallList = toolCalls.Count > 0
-                ? toolCalls.OrderBy(kv => kv.Key)
-                    .Select(kv => new AiToolCall(kv.Value.Id, kv.Value.Name, kv.Value.Arguments.ToString()))
+            var toolCallList = toolCallsList.Count > 0
+                ? toolCallsList.Select(kv => new AiToolCall(kv.Id, kv.Name, kv.Arguments.ToString()))
                     .ToList()
                 : null;
 

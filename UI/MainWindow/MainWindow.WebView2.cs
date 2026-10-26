@@ -336,6 +336,10 @@ public partial class MainWindow
     private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
     {
         if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+        if (e.ResourceContext == CoreWebView2WebResourceContext.Document)
+        {
+            return;
+        }
         
         var settings = _dataStore.Settings;
         var host = GetHost(tab.Address);
@@ -429,11 +433,22 @@ public partial class MainWindow
         if (e.Uri.StartsWith("tabloid://install-crx/", StringComparison.OrdinalIgnoreCase))
         {
             e.Cancel = true;
-            var extId = e.Uri["tabloid://install-crx/".Length..];
-            if (!string.IsNullOrWhiteSpace(extId))
+            if (tab.Kind != BrowserTabKind.Settings)
             {
-                FireAndForget(DownloadAndInstallCrxAsync(extId), "DownloadAndInstallCrxAsync");
+                SetStatusTextSafe("Extension install is only allowed from the Settings page.");
+                return;
             }
+            var extId = e.Uri["tabloid://install-crx/".Length..];
+            if (string.IsNullOrWhiteSpace(extId))
+                return;
+            var extConfirm = MessageBox.Show(
+                $"Install extension {extId} from the Chrome Web Store?",
+                "Confirm Extension Install",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (extConfirm != MessageBoxResult.Yes)
+                return;
+            FireAndForget(DownloadAndInstallCrxAsync(extId), "DownloadAndInstallCrxAsync");
             return;
         }
 
@@ -482,11 +497,29 @@ public partial class MainWindow
         if (e.Uri.StartsWith("tabloid://install-crx/", StringComparison.OrdinalIgnoreCase))
         {
             e.Cancel = true;
-            var extId = e.Uri["tabloid://install-crx/".Length..];
-            if (!string.IsNullOrWhiteSpace(extId))
+            if (sender is CoreWebView2 cwv && _webViewToTabMap.TryGetValue(cwv, out var tab))
             {
-                FireAndForget(DownloadAndInstallCrxAsync(extId), "DownloadAndInstallCrxAsync");
+                if (tab.Kind != BrowserTabKind.Settings)
+                {
+                    SetStatusTextSafe("Extension install is only allowed from the Settings page.");
+                    return;
+                }
             }
+            else
+            {
+                return;
+            }
+            var extId = e.Uri["tabloid://install-crx/".Length..];
+            if (string.IsNullOrWhiteSpace(extId))
+                return;
+            var extConfirm = MessageBox.Show(
+                $"Install extension {extId} from the Chrome Web Store?",
+                "Confirm Extension Install",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (extConfirm != MessageBoxResult.Yes)
+                return;
+            FireAndForget(DownloadAndInstallCrxAsync(extId), "DownloadAndInstallCrxAsync");
             return;
         }
 
@@ -666,50 +699,68 @@ public partial class MainWindow
             var url = args.DownloadOperation.Uri;
             var ext = Path.GetExtension(new Uri(url).LocalPath);
 
-            if (DangerousExtensions.Contains(ext))
+        if (DangerousExtensions.Contains(ext))
+        {
+            var fileName = Path.GetFileName(new Uri(url).LocalPath);
+            var result = MessageBox.Show(
+                $"Download \"{fileName}\"?\n\nThis file type ({ext}) can harm your computer.",
+                "Confirm Download",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes)
             {
-                var fileName = Path.GetFileName(new Uri(url).LocalPath);
-                var result = MessageBox.Show(
-                    $"Download \"{fileName}\"?\n\nThis file type ({ext}) can harm your computer.",
-                    "Confirm Download",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-                if (result != MessageBoxResult.Yes)
-                {
-                    args.Cancel = true;
-                    return;
-                }
-            }
-
-            if (!url.Contains(".crx", StringComparison.OrdinalIgnoreCase) &&
-                !url.Contains("clients2.google.com/service/update2/crx", StringComparison.OrdinalIgnoreCase))
-            {
-                TrackDownload(args);
+                args.Cancel = true;
                 return;
             }
+        }
 
-            args.Handled = true;
+        var isCrxUrl = url.Contains(".crx", StringComparison.OrdinalIgnoreCase) ||
+                        url.Contains("clients2.google.com/service/update2/crx", StringComparison.OrdinalIgnoreCase);
+        if (!isCrxUrl)
+        {
+            TrackDownload(args);
+            return;
+        }
 
-            var tempDir = Path.Combine(Path.GetTempPath(), "TabloidBrowser", "CrxDownloads");
-            Directory.CreateDirectory(tempDir);
-            var crxPath = Path.Combine(tempDir, Guid.NewGuid() + ".crx");
-            args.ResultFilePath = crxPath;
+        var crxFileName = Path.GetFileName(new Uri(url).LocalPath);
+        if (string.IsNullOrWhiteSpace(crxFileName)) crxFileName = "extension.crx";
+        var crxConfirm = MessageBox.Show(
+            $"Install extension from \"{crxFileName}\"?\n\nOnly install extensions from sources you trust.",
+            "Confirm Extension Install",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (crxConfirm != MessageBoxResult.Yes)
+        {
+            args.Cancel = true;
+            return;
+        }
 
-            var operation = args.DownloadOperation;
-            EventHandler<object>? handler = null;
-            handler = (_, _) =>
+        args.Handled = true;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "TabloidBrowser", "CrxDownloads");
+        Directory.CreateDirectory(tempDir);
+        var crxPath = Path.Combine(tempDir, Guid.NewGuid() + ".crx");
+        args.ResultFilePath = crxPath;
+
+        var operation = args.DownloadOperation;
+        EventHandler<object>? handler = null;
+        handler = (_, _) =>
+        {
+            if (operation.State == CoreWebView2DownloadState.Completed)
             {
-                if (operation.State == CoreWebView2DownloadState.Completed)
+                operation.StateChanged -= handler;
+                Dispatcher.InvokeAsync(async () =>
                 {
-                    operation.StateChanged -= handler;
-                    Dispatcher.InvokeAsync(async () =>
-                    {
-                        await InstallCrxAsync(crxPath);
-                        try { File.Delete(crxPath); } catch (Exception ex) { Log.Debug(ex, "Failed to delete CRX temp file"); }
-                    });
-                }
-            };
-            operation.StateChanged += handler;
+                    await InstallCrxAsync(crxPath);
+                    try { File.Delete(crxPath); } catch (Exception ex) { Log.Debug(ex, "Failed to delete CRX temp file"); }
+                });
+            }
+            else if (operation.State == CoreWebView2DownloadState.Interrupted)
+            {
+                operation.StateChanged -= handler;
+            }
+        };
+        operation.StateChanged += handler;
         }
         catch (Exception ex)
         {

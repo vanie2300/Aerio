@@ -8,7 +8,7 @@ public class AiToolRequiresWriteTests
     public void ReadTools_DoNotRequireWrite()
     {
         var tools = AiToolDefinitions.GetAllTools();
-        var readTools = new[] { "search", "read_page", "open_tab", "list_elements", "click", "fill" };
+        var readTools = new[] { "search", "read_page", "open_tab", "list_elements", "scroll" };
         foreach (var name in readTools)
         {
             var tool = tools.First(t => t.Name == name);
@@ -20,7 +20,7 @@ public class AiToolRequiresWriteTests
     public void WriteTools_RequireWrite()
     {
         var tools = AiToolDefinitions.GetAllTools();
-        var writeTools = new[] { "search_and_read", "navigate" };
+        var writeTools = new[] { "search_and_read", "navigate", "click", "fill", "close_tab" };
         foreach (var name in writeTools)
         {
             var tool = tools.First(t => t.Name == name);

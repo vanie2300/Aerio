@@ -112,7 +112,7 @@ public static class AiToolDefinitions
             },
             required = new[] { "selector" }
         },
-        RequiresWrite: false
+        RequiresWrite: true
     );
 
     public static AiTool FillTool() => new(
@@ -128,7 +128,7 @@ public static class AiToolDefinitions
             },
             required = new[] { "selector", "value" }
         },
-        RequiresWrite: false
+        RequiresWrite: true
     );
 
     public static AiTool ListElementsTool() => new(
@@ -168,7 +168,7 @@ public static class AiToolDefinitions
                 url = new { type = "string", description = "Exact URL of the tab to close" }
             }
         },
-        RequiresWrite: false
+        RequiresWrite: true
     );
 }
 
