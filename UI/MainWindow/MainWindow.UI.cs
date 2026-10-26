@@ -1263,7 +1263,12 @@ public partial class MainWindow
             await _tabOperationLock.WaitAsync();
             try
             {
-                snapshot = _tabs.Where(tab => tab != _activeTab && tab.Kind == BrowserTabKind.Web && !tab.IsSleeping).ToList();
+                snapshot = _tabs.Where(tab =>
+                    tab != _activeTab &&
+                    tab.Kind == BrowserTabKind.Web &&
+                    !tab.IsSleeping &&
+                    !(tab.IsAiOwned && tab.AiState != AiTaskState.Idle) &&
+                    !(IsSplitActive && IsSplitTab(tab))).ToList();
             }
             finally { _tabOperationLock.Release(); }
             await Task.WhenAll(snapshot.Select(HibernateTabAsync));
@@ -1736,18 +1741,28 @@ public partial class MainWindow
     }
 
 private bool _isClosing;
+private Task? _deferredCloseTask;
 
 private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
+        try { _aiCts?.Cancel(); } catch (Exception ex) { Log.Debug(ex, "AI cancellation on close failed"); }
+
         if (_isClosing)
         {
+            if (_deferredCloseTask is { IsCompleted: false })
+            {
+                // State save is still running — defer the close until it
+                // finishes instead of disposing the lock/data store under it.
+                e.Cancel = true;
+                return;
+            }
             DisposeWebViewsAndExit();
             return;
         }
 
         e.Cancel = true;
         _isClosing = true;
-        _ = DeferredCloseAsync();
+        _deferredCloseTask = DeferredCloseAsync();
     }
 
 private async Task DeferredCloseAsync()

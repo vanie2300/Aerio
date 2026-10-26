@@ -237,6 +237,7 @@ public partial class MainWindow
         }
 
         BrowserPane.WebViewHost.Children.Clear();
+        _attachedWebView = null;
         BrowserPane.SplitWebViewHost.Children.Clear();
 
         RemoveElementFromParent(primary.WebView);
@@ -336,6 +337,8 @@ public partial class MainWindow
         finally { _tabOperationLock.Release(); }
     }
 
+    private WebView2? _attachedWebView;
+
     private void AttachActiveWebView(BrowserTab tab)
     {
         var webView = tab.WebView;
@@ -347,6 +350,18 @@ public partial class MainWindow
         var wasSuspended = tab.SuspendedForSleep;
         tab.SuspendedForSleep = false;
         tab.SuspendedAtUtc = null;
+
+        if (!ReferenceEquals(_attachedWebView, webView))
+        {
+            // Detach the previously active WebView so stacked WebViews don't
+            // accumulate in the host while switching between web tabs.
+            if (_attachedWebView is { } previous &&
+                ReferenceEquals(previous.Parent, BrowserPane.WebViewHost))
+            {
+                BrowserPane.WebViewHost.Children.Remove(previous);
+            }
+            _attachedWebView = webView;
+        }
 
         if (BrowserPane.WebViewHost.Children.Count != 1 ||
             !ReferenceEquals(BrowserPane.WebViewHost.Children[0], webView))
@@ -497,7 +512,12 @@ public partial class MainWindow
             await _tabOperationLock.WaitAsync();
             try
             {
-                snapshot = _tabs.Where(tab => tab != active && tab.Kind == BrowserTabKind.Web && !tab.IsSleeping).ToList();
+                snapshot = _tabs.Where(tab =>
+                    tab != active &&
+                    tab.Kind == BrowserTabKind.Web &&
+                    !tab.IsSleeping &&
+                    !(tab.IsAiOwned && tab.AiState != AiTaskState.Idle) &&
+                    !(IsSplitActive && IsSplitTab(tab))).ToList();
             }
             finally { _tabOperationLock.Release(); }
 
@@ -552,6 +572,18 @@ public partial class MainWindow
                 return;
             }
 
+            // Don't hibernate a tab an AI task is actively using, or either
+            // half of an active split view.
+            if (tab.IsAiOwned && tab.AiState != AiTaskState.Idle)
+            {
+                return;
+            }
+
+            if (IsSplitActive && IsSplitTab(tab))
+            {
+                return;
+            }
+
             var hibernateUrl = tab.RestoredUrl ?? tab.Address;
             if (!BrowserDataStore.IsHttpUrl(hibernateUrl))
             {
@@ -600,7 +632,8 @@ public partial class MainWindow
 
     private void DisposeTabWebView(BrowserTab tab, WebView2 webView, string hibernateUrl)
     {
-        BrowserPane.WebViewHost.Children.Remove(webView);
+        RemoveElementFromParent(webView);
+        if (ReferenceEquals(_attachedWebView, webView)) _attachedWebView = null;
         tab.WebView = null;
         tab.IsWebViewInitialized = false;
         tab.RestoredUrl = hibernateUrl;
@@ -660,7 +693,8 @@ public partial class MainWindow
                 return false;
             }
 
-            BrowserPane.WebViewHost.Children.Remove(webView);
+            RemoveElementFromParent(webView);
+            if (ReferenceEquals(_attachedWebView, webView)) _attachedWebView = null;
 
             if (await coreWebView.TrySuspendAsync())
             {
@@ -712,10 +746,23 @@ public partial class MainWindow
 
             _tabs.Remove(tab);
 
+            if (tab.IsAiOwned)
+            {
+                // Keep the AI workspace panel and the model's workspace context
+                // in sync when the user closes an AI-owned tab mid-task.
+                var aiContext = _currentAiContext;
+                if (aiContext is not null && aiContext.Workspace.TabIds.Contains(tab.Id))
+                {
+                    aiContext.Workspace.RemoveTab(tab.Id);
+                    _ = Dispatcher.BeginInvoke(RefreshWorkspaceUi);
+                }
+            }
+
             if (tab.WebView is not null)
             {
                 tab.RunCleanup();
                 RemoveElementFromParent(tab.WebView);
+                if (ReferenceEquals(_attachedWebView, tab.WebView)) _attachedWebView = null;
                 tab.WebView.Dispose();
                 tab.WebView = null;
                 tab.IsWebViewInitialized = false;
@@ -936,7 +983,7 @@ public partial class MainWindow
             {
                 var url = _dragTab.RestoredUrl ?? _dragTab.Address;
                 _ = CloseTabAsync(_dragTab);
-                new MainWindow(isPrivate: false, startupUrl: url, startupNativeKind: null, skipSessionPersistence: true).Show();
+                new MainWindow(isPrivate: _isPrivate, startupUrl: url, startupNativeKind: null, skipSessionPersistence: true).Show();
             }
 
             AbortDrag();

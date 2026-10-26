@@ -33,6 +33,7 @@ public partial class MainWindow
     private void RenderNativeSurface(BrowserTab tab, bool forceRebuild = false)
     {
         BrowserPane.WebViewHost.Children.Clear();
+        _attachedWebView = null;
         BrowserPane.WebViewHost.Visibility = Visibility.Hidden;
         BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
 

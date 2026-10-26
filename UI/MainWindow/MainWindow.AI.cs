@@ -282,40 +282,64 @@ public partial class MainWindow
         var budget = contextBudgetTokens - systemTokens - 200;
         if (budget <= 0) return systemMessages;
 
+        // Build atomic groups: an assistant message with tool_calls plus ALL of
+        // its tool responses (matched by ToolCallId) must be kept or dropped
+        // together. Splitting such a turn makes OpenAI-compatible APIs reject
+        // the whole request with a 400 error.
+        var groups = new List<List<ChatMessage>>();
+        var toolResponseOwner = new Dictionary<string, List<ChatMessage>>();
+        foreach (var msg in otherMessages)
+        {
+            if (msg.Role == "assistant" && msg.ToolCalls is { Count: > 0 })
+            {
+                var group = new List<ChatMessage> { msg };
+                groups.Add(group);
+                foreach (var tc in msg.ToolCalls)
+                {
+                    if (!string.IsNullOrEmpty(tc.Id))
+                        toolResponseOwner[tc.Id] = group;
+                }
+            }
+            else if (msg.Role == "tool" &&
+                     !string.IsNullOrEmpty(msg.ToolCallId) &&
+                     toolResponseOwner.TryGetValue(msg.ToolCallId!, out var owner))
+            {
+                owner.Add(msg);
+            }
+            else
+            {
+                groups.Add([msg]);
+            }
+        }
+
+        // Walk groups from newest to oldest, keeping whole groups within budget.
         var used = 0;
-        var kept = new List<ChatMessage>();
-        for (int i = otherMessages.Count - 1; i >= 0; i--)
+        var keptGroups = new List<List<ChatMessage>>();
+        for (int i = groups.Count - 1; i >= 0; i--)
         {
-            var msgTokens = EstimateTokens(otherMessages[i].Content ?? "");
-            if (used + msgTokens > budget) break;
-            used += msgTokens;
-            kept.Insert(0, otherMessages[i]);
+            var groupTokens = groups[i].Sum(m => EstimateTokens(m.Content ?? ""));
+            if (used + groupTokens > budget) break;
+            used += groupTokens;
+            keptGroups.Insert(0, groups[i]);
         }
 
-        if (kept.Count < otherMessages.Count && kept.Count > 0)
+        // Never send a conversation that starts with an orphaned tool response
+        // or an assistant whose tool calls have no responses.
+        while (keptGroups.Count > 0)
         {
-            while (kept.Count > 0 && kept[0].Role == "tool")
-                kept.RemoveAt(0);
-        }
-
-        for (int i = kept.Count - 1; i >= 0; i--)
-        {
-            if (kept[i].Role == "tool")
+            var first = keptGroups[0][0];
+            var incompleteAssistant = first.Role == "assistant" &&
+                first.ToolCalls is { Count: > 0 } &&
+                keptGroups[0].Count == 1;
+            if (first.Role == "tool" || incompleteAssistant)
             {
-                var prevMsg = i > 0 ? kept[i - 1] : null;
-                if (prevMsg?.Role != "assistant" || prevMsg?.ToolCalls is not { Count: > 0 })
-                    kept.RemoveAt(i);
+                keptGroups.RemoveAt(0);
+                continue;
             }
+            break;
         }
 
-        for (int i = kept.Count - 1; i >= 0; i--)
-        {
-            if (kept[i].Role == "assistant" && kept[i].ToolCalls is { Count: > 0 })
-            {
-                if (i + 1 >= kept.Count || kept[i + 1].Role != "tool")
-                    kept.RemoveAt(i);
-            }
-        }
+        var kept = keptGroups.SelectMany(g => g).ToList();
 
         if (kept.Count < otherMessages.Count && kept.Count > 0)
         {
@@ -886,7 +910,18 @@ public partial class MainWindow
                     }
                     return await GetPageLinksAsync();
                 },
-                async (url, title, ct) => await NavigateToFocusOrActiveAsync(url),
+                async (url, title, ct) =>
+                {
+                    await NavigateToFocusOrActiveAsync(url);
+                    // Wait for the new page before the caller reads its content,
+                    // otherwise the navigate tool returns the previous page.
+                    var tab = GetAiFocusTab();
+                    if (tab is not null)
+                    {
+                        await WaitForNavigationAsync(tab);
+                        await WaitForContentAsync(tab);
+                    }
+                },
                 async (url, title, ct) =>
                 {
                     var context = _currentAiContext;
@@ -1342,13 +1377,15 @@ public partial class MainWindow
         catch (OperationCanceledException ex)
         {
             RemoveStreamingBubbleIfExists();
-            await CleanupAiTabsIfNeededAsync();
+            try { await CleanupAiTabsIfNeededAsync(); }
+            catch (Exception cleanupEx) { Log.Error(cleanupEx, "AI tab cleanup after cancel failed"); }
             Log.Debug("AiSend canceled: {Message}", ex.Message);
         }
         catch (Exception ex)
         {
             RemoveStreamingBubbleIfExists();
-            await CleanupAiTabsIfNeededAsync();
+            try { await CleanupAiTabsIfNeededAsync(); }
+            catch (Exception cleanupEx) { Log.Error(cleanupEx, "AI tab cleanup after error failed"); }
             var errorText = ex switch
             {
                 HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } =>

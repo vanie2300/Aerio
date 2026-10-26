@@ -21,7 +21,10 @@ public class AnimatedTabPanel : Panel
     protected override void OnVisualChildrenChanged(DependencyObject visualAdded, DependencyObject visualRemoved)
     {
         if (visualRemoved is UIElement removed)
+        {
             _animatedIn.Remove(removed);
+            _lastX.Remove(removed);
+        }
         base.OnVisualChildrenChanged(visualAdded, visualRemoved);
     }
 
@@ -220,17 +223,20 @@ public class AnimatedTabPanel : Panel
             return new Size(x, finalSize.Height);
         }
 
+        double dragTotalMargin = 0;
         for (int i = 0; i < Children.Count; i++)
         {
             if (i == _dragIndex) continue;
 
             var child = Children[i];
             var m = (child as FrameworkElement)?.Margin ?? new Thickness();
+            dragTotalMargin += m.Left + m.Right;
 
             int visualIdx = i > _dragIndex ? i - 1 : i;
             double arrangeX = (visualIdx >= _insertIndex ? visualIdx + 1 : visualIdx) * _tabWidth + m.Left;
 
-            if (_lastX.TryGetValue(child, out var prevX) && Math.Abs(prevX - arrangeX) > 0.5 && !_animatedIn.Contains(child))
+            // Slide only children that already entered (new children use AnimateEntry).
+            if (_lastX.TryGetValue(child, out var prevX) && Math.Abs(prevX - arrangeX) > 0.5 && _animatedIn.Contains(child))
                 AnimateSlide(child, prevX, arrangeX);
 
             child.Arrange(new Rect(arrangeX, m.Top, Math.Max(0, _tabWidth), Math.Max(0, availableHeight - m.Top - m.Bottom)));
@@ -240,10 +246,11 @@ public class AnimatedTabPanel : Panel
         if (GetChild(_dragIndex) is { } draggedChild)
         {
             var m = (draggedChild as FrameworkElement)?.Margin ?? new Thickness();
+            dragTotalMargin += m.Left + m.Right;
             double arrangeX = _insertIndex * _tabWidth + m.Left;
             draggedChild.Arrange(new Rect(arrangeX, m.Top, Math.Max(0, _tabWidth), Math.Max(0, availableHeight - m.Top - m.Bottom)));
         }
 
-        return new Size(_tabWidth * Children.Count, finalSize.Height);
+        return new Size(_tabWidth * Children.Count + dragTotalMargin, finalSize.Height);
     }
 }

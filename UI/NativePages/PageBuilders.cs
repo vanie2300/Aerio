@@ -848,7 +848,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
         aiApiKey.Input.LostFocus += (_, _) => Save();
         aiMaxTokens.Input.LostFocus += (_, _) => Save();
         aiTemperature.Input.LostFocus += (_, _) => Save();
-        aiMaxOpenTabs.Input.ValueChanged += (_, _) => Save();
+        aiMaxOpenTabs.Input.LostFocus += (_, _) => Save();
 
         var listActions = new StackPanel
         {
@@ -2455,8 +2455,8 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             toggle.Checked += (_, _) => SaveAiSettings();
         foreach (var toggle in toolToggles.Values)
             toggle.Unchecked += (_, _) => SaveAiSettings();
-        maxIter.Input.ValueChanged += (_, _) => SaveAiSettings();
-        maxOpenTabs.Input.ValueChanged += (_, _) => SaveAiSettings();
+        maxIter.Input.LostFocus += (_, _) => SaveAiSettings();
+        maxOpenTabs.Input.LostFocus += (_, _) => SaveAiSettings();
         confirmSensitive.Checked += (_, _) => SaveAiSettings();
         confirmSensitive.Unchecked += (_, _) => SaveAiSettings();
 

@@ -567,7 +567,7 @@ public partial class MainWindow : Window
             {
                 var url = tab.RestoredUrl ?? tab.Address;
                 await CloseTabAsync(tab);
-                var window = new MainWindow(isPrivate: false, startupUrl: url, startupNativeKind: null, skipSessionPersistence: true);
+                var window = new MainWindow(isPrivate: _isPrivate, startupUrl: url, startupNativeKind: null, skipSessionPersistence: true);
                 window.Show();
             }
         }

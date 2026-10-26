@@ -167,11 +167,13 @@ public partial class MainWindow
         }
     }
 
-    private async Task EnsureWebViewAsync(BrowserTab tab, bool attachBeforeInitialize = false)
+    private readonly ConcurrentDictionary<BrowserTab, Task> _pendingInitTasks = [];
+
+    private Task EnsureWebViewAsync(BrowserTab tab, bool attachBeforeInitialize = false)
     {
         if (tab.WebView?.CoreWebView2 is not null && tab.IsWebViewInitialized)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         if (_environment is null)
@@ -180,18 +182,32 @@ public partial class MainWindow
         }
 
         // Prevent duplicate initialization BEFORE creating a WebView2
+        Task initTask;
         lock (_initializationLock)
         {
             if (tab.IsWebViewInitialized)
             {
-                return;
+                return Task.CompletedTask;
             }
-            if (!_initializingTabs.Add(tab))
+            if (_pendingInitTasks.TryGetValue(tab, out var pending))
             {
-                return; // Another call is already initializing this tab
+                // Another call is already initializing this tab. Await it rather
+                // than returning early — an early return silently drops the
+                // caller's pending navigation (blank restored tabs, ignored URLs).
+                initTask = pending;
+            }
+            else
+            {
+                initTask = InitializeTabWebViewCoreAsync(tab, attachBeforeInitialize);
+                _pendingInitTasks[tab] = initTask;
             }
         }
 
+        return initTask;
+    }
+
+    private async Task InitializeTabWebViewCoreAsync(BrowserTab tab, bool attachBeforeInitialize)
+    {
         var webView = tab.WebView;
         if (webView is null)
         {
@@ -234,6 +250,9 @@ public partial class MainWindow
             var cwv = webView.CoreWebView2;
             _webViewToTabMap[cwv] = tab;
 
+            var cleanupCountBefore = tab.CleanupActions.Count;
+            try
+            {
             cwv.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
             cwv.WebResourceRequested += OnWebResourceRequested;
             cwv.WebMessageReceived += OnWebMessageReceived;
@@ -299,9 +318,24 @@ public partial class MainWindow
             settings.IsStatusBarEnabled = false;
 
             tab.IsWebViewInitialized = true;
+            }
+            catch
+            {
+                // Initialization failed midway — unsubscribe anything registered
+                // so far so a retry doesn't double-subscribe event handlers.
+                var registered = tab.CleanupActions.Skip(cleanupCountBefore).ToArray();
+                tab.CleanupActions.RemoveRange(cleanupCountBefore, tab.CleanupActions.Count - cleanupCountBefore);
+                foreach (var action in registered)
+                {
+                    try { action(); } catch { }
+                }
+                _webViewToTabMap.TryRemove(cwv, out _);
+                throw;
+            }
         }
         finally
         {
+            _pendingInitTasks.TryRemove(tab, out _);
             lock (_initializationLock) _initializingTabs.Remove(tab);
 
             if (tempHosted)
