@@ -144,11 +144,7 @@ public partial class MainWindow
             return "Deny";
         }
 
-        rootGrid.Effect = new BlurEffect
-        {
-            Radius = 14,
-            KernelType = KernelType.Gaussian
-        };
+        UiFx.PlayBackdropBlur(rootGrid);
 
         var overlay = new Grid
         {
@@ -345,6 +341,8 @@ public partial class MainWindow
         stack.Children.Add(btnRow);
 
         popup.Child = body;
+        if (body is FrameworkElement permBody)
+            UiFx.PlayPopupEntrance(permBody);
         popup.Opened += (_, _) => allowBtn.Focus();
         popup.IsOpen = true;
 

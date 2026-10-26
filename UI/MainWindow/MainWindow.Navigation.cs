@@ -32,6 +32,7 @@ public partial class MainWindow
 
     private void RenderNativeSurface(BrowserTab tab, bool forceRebuild = false)
     {
+        BrowserPane.PlaySwapScrim();
         BrowserPane.WebViewHost.Children.Clear();
         _attachedWebView = null;
         BrowserPane.WebViewHost.Visibility = Visibility.Hidden;
@@ -42,6 +43,7 @@ public partial class MainWindow
             BrowserPane.InternalPageHost.Visibility = Visibility.Collapsed;
             BrowserPane.StartOverlay.Visibility = Visibility.Visible;
             BrowserPane.StartSearchBox.Text = string.Empty;
+            BrowserPane.PlayStartIntro();
             FocusStartSearchIfActive();
             if (_dataStore.Settings.Background == "Default")
                 _startBgTimer?.Start();

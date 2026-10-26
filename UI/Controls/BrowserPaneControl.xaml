@@ -17,6 +17,13 @@
           Background="{DynamicResource AppBg}"
           Visibility="Collapsed" />
 
+    <!-- Cross-fade scrim: masks the hard WebView swap (HwndHost can't fade). -->
+    <Border x:Name="SwapScrim"
+            Grid.Column="0"
+            Background="{DynamicResource AppBg}"
+            Opacity="0"
+            IsHitTestVisible="False" />
+
     <Grid x:Name="LoadingOverlay"
           Grid.Column="0"
           Visibility="Collapsed"
@@ -76,6 +83,7 @@
               IsHitTestVisible="False"
               Focusable="False" />
       <StackPanel Width="620"
+                  x:Name="StartHero"
                   HorizontalAlignment="Center"
                   VerticalAlignment="Center"
                   Margin="0,0,0,40"
@@ -115,7 +123,7 @@
                    HorizontalAlignment="Center"
                    Margin="0,0,0,18" />
         <Grid Height="40">
-          <Border Background="#15FFFFFF"
+          <Border Background="{DynamicResource ChromeAlt}"
                   CornerRadius="8"
                   Margin="0" />
           <Border x:Name="SearchBorder"
@@ -144,6 +152,8 @@
                        CaretBrush="{DynamicResource Accent}"
                        FontSize="14"
                        Padding="0,9,10,0"
+                       GotKeyboardFocus="StartSearchBox_GotKeyboardFocus"
+                       LostKeyboardFocus="StartSearchBox_LostKeyboardFocus"
                        PreviewKeyDown="StartSearchBox_PreviewKeyDown" />
               <Button Grid.Column="2"
                       Content="&#xE721;"
@@ -179,8 +189,7 @@
           <Button Content="HN"
                   Click="QuickHackerNews_Click"
                   Style="{StaticResource MicroButton}"
-                  Height="32"
-                  Margin="0,0,8,0" />
+                  Height="32" />
         </UniformGrid>
       </StackPanel>
     </Grid>

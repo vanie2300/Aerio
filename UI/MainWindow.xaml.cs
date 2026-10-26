@@ -658,11 +658,7 @@ public partial class MainWindow : Window
 
         if (Content is Grid rootGrid)
         {
-            rootGrid.Effect = new BlurEffect
-            {
-                Radius = 14,
-                KernelType = KernelType.Gaussian
-            };
+            UiFx.PlayBackdropBlur(rootGrid);
 
             _popupOverlay = new Grid
             {
@@ -817,6 +813,7 @@ public partial class MainWindow : Window
         mainStack.Children.Add(buttonRow);
         outerBorder.Child = mainStack;
         popup.Child = outerBorder;
+        UiFx.PlayPopupEntrance(outerBorder);
         popup.IsOpen = true;
     }
 }

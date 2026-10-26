@@ -1277,11 +1277,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
 
             if (Content is Grid rootGrid)
             {
-                rootGrid.Effect = new BlurEffect
-                {
-                    Radius = 14,
-                    KernelType = KernelType.Gaussian
-                };
+                UiFx.PlayBackdropBlur(rootGrid);
 
                 _popupOverlay = new Grid
                 {
@@ -1319,6 +1315,8 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             };
 
             popup.Child = BuildSitePermissionsPopupContent(popup);
+            if (popup.Child is FrameworkElement sitePermContent)
+                UiFx.PlayPopupEntrance(sitePermContent);
             _sitePermissionsPopup = popup;
             popup.IsOpen = true;
         }
@@ -1628,9 +1626,24 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+        var hover = new Border
+        {
+            Background = GetBrush("ButtonHover"),
+            CornerRadius = new CornerRadius(5),
+            Opacity = 0,
+            IsHitTestVisible = false,
+            Margin = new Thickness(-6)
+        };
+        Grid.SetColumnSpan(hover, 3);
+        grid.Children.Add(hover);
+        root.MouseEnter += (_, _) => hover.BeginAnimation(Border.OpacityProperty, Motion.Fade(0, 1, Motion.Fast));
+        root.MouseLeave += (_, _) => hover.BeginAnimation(Border.OpacityProperty, Motion.Fade(1, 0, TimeSpan.FromSeconds(0.12)));
+        root.Cursor = Cursors.Hand;
+
         var text = new StackPanel();
         text.Children.Add(new TextBlock { Text = title, Foreground = GetBrush("Text"), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
         text.Children.Add(new TextBlock { Text = detail, Foreground = GetBrush("Muted"), FontSize = 12, Margin = new Thickness(0, 4, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+        Grid.SetColumn(text, 0);
         grid.Children.Add(text);
 
         var primary = MatteButton(primaryText, primaryAction);
@@ -2251,10 +2264,6 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
                 Content = current,
                 Padding = new Thickness(10, 4, 10, 4),
                 MinWidth = 100,
-                Background = new SolidColorBrush(Color.FromRgb(50, 50, 50)),
-                Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
-                BorderThickness = new Thickness(1),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(70, 70, 70)),
                 FontSize = 11,
                 Cursor = System.Windows.Input.Cursors.Hand
             };
@@ -2338,22 +2347,12 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
 
         var stack = new StackPanel();
 
-        var header = new TextBlock
-        {
-            Text = "AI Agent Tools",
-            Foreground = GetBrush("Text"),
-            FontSize = 20,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 8)
-        };
-        stack.Children.Add(header);
-
         var subtitle = new TextBlock
         {
             Text = "Enable or disable individual tools that the AI agent can use.",
             Foreground = GetBrush("Muted"),
             FontSize = 13,
-            Margin = new Thickness(0, 0, 0, 16)
+            Margin = new Thickness(0, 2, 0, 16)
         };
         stack.Children.Add(subtitle);
 

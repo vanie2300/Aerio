@@ -2059,6 +2059,7 @@ private void DisposeWebViewsAndExit()
             MinWidth = 300
         };
         popup.Child = border;
+        UiFx.PlayPopupEntrance(border);
         popup.IsOpen = true;
         }
         catch (Exception ex) { Log.Error(ex, "ShowSiteDataPopup failed"); }

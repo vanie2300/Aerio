@@ -239,6 +239,7 @@ public partial class MainWindow
         BrowserPane.WebViewHost.Children.Clear();
         _attachedWebView = null;
         BrowserPane.SplitWebViewHost.Children.Clear();
+        BrowserPane.PlaySwapScrim();
 
         RemoveElementFromParent(primary.WebView);
         RemoveElementFromParent(secondary.WebView);
@@ -361,6 +362,7 @@ public partial class MainWindow
                 BrowserPane.WebViewHost.Children.Remove(previous);
             }
             _attachedWebView = webView;
+            BrowserPane.PlaySwapScrim();
         }
 
         if (BrowserPane.WebViewHost.Children.Count != 1 ||

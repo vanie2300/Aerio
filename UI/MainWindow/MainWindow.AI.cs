@@ -409,11 +409,7 @@ public partial class MainWindow
 
         if (Content is Grid rootGrid)
         {
-            rootGrid.Effect = new BlurEffect
-            {
-                Radius = 14,
-                KernelType = KernelType.Gaussian
-            };
+            UiFx.PlayBackdropBlur(rootGrid);
 
             _popupOverlay = new Grid
             {
@@ -448,6 +444,8 @@ public partial class MainWindow
         };
 
         popup.Child = BuildAiSetupContent(popup);
+        if (popup.Child is FrameworkElement aiSetupContent)
+            UiFx.PlayPopupEntrance(aiSetupContent);
         _aiSetupPopup = popup;
         popup.IsOpen = true;
         _isAiSetupOpen = true;
@@ -1590,8 +1588,8 @@ public partial class MainWindow
     {
         var stack = new StackPanel();
         var fg = isAssistant ? "Text" : "White";
-        var codeBg = isAssistant ? "ChromeAlt" : "#50FFFFFF";
-        var muted = isAssistant ? "Muted" : "#C0FFFFFF";
+        var codeBg = isAssistant ? "ChromeAlt" : "#40FFFFFF";
+        var muted = isAssistant ? "Muted" : "White";
 
         var lines = text.Split('\n');
         var inCodeBlock = false;
