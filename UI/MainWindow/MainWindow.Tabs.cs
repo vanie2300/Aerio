@@ -88,7 +88,8 @@ public partial class MainWindow
                     RestoredUrl = sessionTab.Url,
                     ScrollX = Math.Max(0, sessionTab.ScrollX),
                     ScrollY = Math.Max(0, sessionTab.ScrollY),
-                    IsRestoredPlaceholder = true
+                    IsRestoredPlaceholder = true,
+                    AiChatHistory = sessionTab.AiChatHistory
                 };
 
                 _tabs.Add(tab);
@@ -350,7 +351,6 @@ public partial class MainWindow
         if (BrowserPane.WebViewHost.Children.Count != 1 ||
             !ReferenceEquals(BrowserPane.WebViewHost.Children[0], webView))
         {
-            BrowserPane.WebViewHost.Children.Clear();
             RemoveElementFromParent(webView);
             BrowserPane.WebViewHost.Children.Add(webView);
         }
@@ -775,7 +775,8 @@ public partial class MainWindow
                     tab.Title.Replace(" (sleep)", string.Empty, StringComparison.Ordinal),
                     url,
                     tab.ScrollX,
-                    tab.ScrollY));
+                    tab.ScrollY,
+                    tab.AiChatHistory is { Count: > 0 } ? tab.AiChatHistory : null));
             }
 
             var activeIndex = 0;

@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -201,11 +202,26 @@ public partial class MainWindow
             tab.WebView = webView;
         }
 
+        // A WPF WebView2 must be in the visual tree to complete initialization.
+        // Background tabs (e.g. AI tabs) have no visible surface, so temporarily
+        // host them (hidden, behind the active WebView) until CoreWebView2 exists.
+        var tempHosted = false;
+        var hostWasVisible = BrowserPane.WebViewHost.Visibility == Visibility.Visible;
         try
         {
             if (attachBeforeInitialize && _activeTab == tab)
             {
                 AttachActiveWebView(tab);
+            }
+            else if (webView.Parent is null)
+            {
+                tempHosted = true;
+                webView.Visibility = Visibility.Hidden;
+                if (_activeTab is not null)
+                {
+                    Panel.SetZIndex(webView, -1);
+                }
+                BrowserPane.WebViewHost.Children.Add(webView);
             }
 
             await webView.EnsureCoreWebView2Async(_environment);
@@ -287,6 +303,33 @@ public partial class MainWindow
         finally
         {
             lock (_initializationLock) _initializingTabs.Remove(tab);
+
+            if (tempHosted)
+            {
+                Panel.SetZIndex(webView, 0);
+
+                if (_activeTab == tab)
+                {
+                    webView.Visibility = Visibility.Visible;
+                    AttachActiveWebView(tab);
+                }
+                else
+                {
+                    RemoveElementFromParent(webView);
+                    webView.Visibility = Visibility.Visible;
+
+                    if (!IsSplitActive &&
+                        _activeTab is { Kind: BrowserTabKind.Web } active &&
+                        active.WebView is { } activeWebView)
+                    {
+                        AttachActiveWebView(active);
+                    }
+                    else if (!hostWasVisible)
+                    {
+                        BrowserPane.WebViewHost.Visibility = Visibility.Hidden;
+                    }
+                }
+            }
         }
         }
 
@@ -465,6 +508,8 @@ public partial class MainWindow
 
             if (e.IsSuccess)
             {
+                Interlocked.Increment(ref _pageVersion);
+                tab.PageVersion = _pageVersion;
                 var title = cwv.DocumentTitle;
                 tab.Title = string.IsNullOrWhiteSpace(title) ? TrimUrl(tab.Address) : title;
 

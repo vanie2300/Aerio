@@ -347,6 +347,35 @@ public partial class MainWindow
         catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
+    private async void KeepAiTab_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not FrameworkElement { Tag: BrowserTab tab } || !tab.IsAiOwned)
+            {
+                return;
+            }
+
+            if (_aiTabManager is null)
+            {
+                SetStatusTextSafe("Keep failed: AI services not initialized.");
+                return;
+            }
+
+            if (await _aiTabManager.KeepTabAsync(tab.Id))
+            {
+                _currentAiContext?.Workspace.KeepTab(tab.Id);
+                RefreshWorkspaceUi();
+                SetStatusTextSafe($"Kept tab \"{tab.Title}\" — it's now yours.");
+            }
+            else
+            {
+                SetStatusTextSafe("Couldn't keep that tab — it's no longer AI-owned.");
+            }
+        }
+        catch (Exception ex) { Log.Error(ex, "KeepAiTab failed"); }
+    }
+
     private void MuteButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -1287,6 +1316,12 @@ public partial class MainWindow
         catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
+    private async void ShowHymns_Click(object sender, RoutedEventArgs e)
+    {
+        try { await AddNativePageTabAsync(BrowserTabKind.Hymns); }
+        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
+    }
+
     private void Privacy_Click(object sender, RoutedEventArgs e)
     {
         StatusBar.StatusText.Text = _isPrivate
@@ -1725,26 +1760,22 @@ private void DisposeWebViewsAndExit()
     {
         try
         {
-            _tabOperationLock.Wait();
-            try
+            var snapshot = _tabs.ToArray();
+            foreach (var tab in snapshot)
             {
-                foreach (var tab in _tabs)
+                if (tab.WebView is not null)
                 {
-                    if (tab.WebView is not null)
+                    try
                     {
-                        try
-                        {
-                            tab.RunCleanup();
-                            RemoveElementFromParent(tab.WebView);
-                            tab.WebView.Dispose();
-                            tab.WebView = null;
-                            tab.IsWebViewInitialized = false;
-                        }
-                        catch (Exception ex) { Log.Error(ex, "Tab WebView dispose on close"); }
+                        tab.RunCleanup();
+                        RemoveElementFromParent(tab.WebView);
+                        tab.WebView.Dispose();
+                        tab.WebView = null;
+                        tab.IsWebViewInitialized = false;
                     }
+                    catch (Exception ex) { Log.Error(ex, "Tab WebView dispose on close"); }
                 }
             }
-            finally { _tabOperationLock.Release(); }
 
             if (_isPrivate && !string.IsNullOrWhiteSpace(_privateUserDataFolder) && Directory.Exists(_privateUserDataFolder))
             {

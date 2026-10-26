@@ -8,5 +8,6 @@ public enum BrowserTabKind
     History,
     Downloads,
     Settings,
-    AiManagement
+    AiManagement,
+    Hymns
 }

@@ -31,6 +31,7 @@ public partial class NavToolbarControl : UserControl
     public event RoutedEventHandler? ShowHistory;
     public event RoutedEventHandler? ShowDownloads;
     public event RoutedEventHandler? ShowExtensions;
+    public event RoutedEventHandler? ShowHymns;
     public event RoutedEventHandler? ZoomIn;
     public event RoutedEventHandler? ZoomOut;
     public event RoutedEventHandler? ResetZoom;
@@ -62,6 +63,7 @@ public partial class NavToolbarControl : UserControl
     private void ShowHistory_Click(object s, RoutedEventArgs e) => ShowHistory?.Invoke(s, e);
     private void ShowDownloads_Click(object s, RoutedEventArgs e) => ShowDownloads?.Invoke(s, e);
     private void ShowExtensions_Click(object s, RoutedEventArgs e) => ShowExtensions?.Invoke(s, e);
+    private void ShowHymns_Click(object s, RoutedEventArgs e) => ShowHymns?.Invoke(s, e);
     private void ZoomIn_Click(object s, RoutedEventArgs e) => ZoomIn?.Invoke(s, e);
     private void ZoomOut_Click(object s, RoutedEventArgs e) => ZoomOut?.Invoke(s, e);
     private void ResetZoom_Click(object s, RoutedEventArgs e) => ResetZoom?.Invoke(s, e);

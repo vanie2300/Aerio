@@ -215,6 +215,9 @@
                 <MenuItem Header="&#xE896;  Downloads"
                           Style="{StaticResource BrowserSubMenuItemStyle}"
                           Click="ShowDownloads_Click" />
+                <MenuItem Header="&#xE902;  Hymns"
+                          Style="{StaticResource BrowserSubMenuItemStyle}"
+                          Click="ShowHymns_Click" />
                 <MenuItem Header="&#xE7B9;  Extensions"
                           Style="{StaticResource BrowserSubMenuItemStyle}"
                           Click="ShowExtensions_Click" />

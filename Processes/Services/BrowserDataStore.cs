@@ -352,7 +352,11 @@ public sealed class BrowserDataStore : IDisposable
         try
         {
             Settings = settings;
-            var forDisk = settings with { AiApiKey = EncryptApiKey(settings.AiApiKey) };
+            var forDisk = settings with
+            {
+                AiApiKey = EncryptApiKey(settings.AiApiKey),
+                AiApiKeys = settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => EncryptApiKey(kv.Value))
+            };
             var tmp = _settingsPath + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(forDisk, JsonOptions));
             File.Move(tmp, _settingsPath, overwrite: true);
@@ -467,10 +471,22 @@ public sealed class BrowserDataStore : IDisposable
                 AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) ? BrowserSettings.Default.AiEndpoint : settings.AiEndpoint,
                 AiModel = string.IsNullOrWhiteSpace(settings.AiModel) ? BrowserSettings.Default.AiModel : settings.AiModel,
                 AiApiKey = DecryptApiKey(settings.AiApiKey) ?? BrowserSettings.Default.AiApiKey,
+                AiApiKeys = MigrateProviderApiKeys(
+                    settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => DecryptApiKey(kv.Value) ?? ""),
+                    settings.AiProvider,
+                    DecryptApiKey(settings.AiApiKey)),
                 AiSystemPrompt = string.IsNullOrWhiteSpace(settings.AiSystemPrompt) ? BrowserSettings.Default.AiSystemPrompt : settings.AiSystemPrompt,
                 AiMaxTokens = settings.AiMaxTokens <= 0 ? BrowserSettings.Default.AiMaxTokens : settings.AiMaxTokens,
+                AiProvider = string.IsNullOrWhiteSpace(settings.AiProvider) ? BrowserSettings.Default.AiProvider : settings.AiProvider,
+                AiMaxIterations = settings.AiMaxIterations <= 0 ? BrowserSettings.Default.AiMaxIterations : settings.AiMaxIterations,
                 BackgroundOpacity = settings.BackgroundOpacity is >= 0 and <= 1 ? settings.BackgroundOpacity : BrowserSettings.Default.BackgroundOpacity,
-                AiTemperature = settings.AiTemperature < 0 || settings.AiTemperature > 2 ? BrowserSettings.Default.AiTemperature : settings.AiTemperature
+                AiTemperature = settings.AiTemperature < 0 || settings.AiTemperature > 2 ? BrowserSettings.Default.AiTemperature : settings.AiTemperature,
+                AiPolicy = settings.AiPolicy is null
+                    ? AiBrowserPolicy.Default
+                    : settings.AiPolicy with
+                    {
+                        MaxOpenTabs = Math.Clamp(settings.AiPolicy.MaxOpenTabs, 1, 50)
+                    }
             };
         }
         catch (JsonException ex)
@@ -485,6 +501,16 @@ public sealed class BrowserDataStore : IDisposable
         }
     }
 
+    private static Dictionary<string, string>? MigrateProviderApiKeys(
+        Dictionary<string, string>? keys, string provider, string legacyKey)
+    {
+        if (string.IsNullOrWhiteSpace(legacyKey))
+            return keys;
+        if (keys is not null && keys.ContainsKey(provider))
+            return keys;
+        return BrowserSettings.StoreProviderApiKey(keys, provider, legacyKey);
+    }
+
     private const string EncryptedApiKeyPrefix = "$dpapi$";
 
     private static string EncryptApiKey(string plaintext)
@@ -492,9 +518,17 @@ public sealed class BrowserDataStore : IDisposable
         if (string.IsNullOrEmpty(plaintext))
             return string.Empty;
 
-        var plainBytes = Encoding.UTF8.GetBytes(plaintext);
-        var encryptedBytes = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
-        return EncryptedApiKeyPrefix + Convert.ToBase64String(encryptedBytes);
+        try
+        {
+            var plainBytes = Encoding.UTF8.GetBytes(plaintext);
+            var encryptedBytes = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
+            return EncryptedApiKeyPrefix + Convert.ToBase64String(encryptedBytes);
+        }
+        catch (CryptographicException ex)
+        {
+            Log.Error(ex, "Failed to encrypt API key via DPAPI – storing as plaintext fallback");
+            return plaintext;
+        }
     }
 
     private static string DecryptApiKey(string stored)
@@ -505,10 +539,23 @@ public sealed class BrowserDataStore : IDisposable
         if (!stored.StartsWith(EncryptedApiKeyPrefix, StringComparison.Ordinal))
             return stored;
 
-        var base64 = stored[EncryptedApiKeyPrefix.Length..];
-        var encryptedBytes = Convert.FromBase64String(base64);
-        var plainBytes = ProtectedData.Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
-        return Encoding.UTF8.GetString(plainBytes);
+        try
+        {
+            var base64 = stored[EncryptedApiKeyPrefix.Length..];
+            var encryptedBytes = Convert.FromBase64String(base64);
+            var plainBytes = ProtectedData.Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(plainBytes);
+        }
+        catch (CryptographicException ex)
+        {
+            Log.Error(ex, "Failed to decrypt API key – DPAPI may have been reset or data is corrupted");
+            return string.Empty;
+        }
+        catch (FormatException ex)
+        {
+            Log.Error(ex, "Failed to decode stored API key – data is corrupted");
+            return string.Empty;
+        }
     }
 
     private static string CleanTitle(string title)
@@ -589,7 +636,7 @@ public sealed record BrowserSession(List<SessionTab> Tabs, int ActiveIndex)
     public static BrowserSession Empty { get; } = new([], 0);
 }
 
-public sealed record SessionTab(string Title, string Url, double ScrollX = 0, double ScrollY = 0);
+public sealed record SessionTab(string Title, string Url, double ScrollX = 0, double ScrollY = 0, List<ChatMessage>? AiChatHistory = null);
 
 public sealed record SitePermissionRule(string Host, string Permission, string State);
 
@@ -617,11 +664,15 @@ public sealed record BrowserSettings(
     double BackgroundOpacity = 1.0,
     bool AiEnabled = false,
     bool AiSidebarOpen = false,
-    string AiProvider = "Ollama",
-    string AiEndpoint = "http://localhost:11434/v1",
+    string AiProvider = "Ollama Cloud",
+    string AiEndpoint = "https://ollama.com",
     string AiModel = "",
     string AiApiKey = "",
-    string AiSystemPrompt = "You are a helpful assistant. Answer concisely.",
+    Dictionary<string, string>? AiApiKeys = null,
+    string AiSystemPrompt = "You are a helpful assistant controlling a live browser. " +
+        "You have tools (search, open_tab, navigate, read_page, list_elements, click, fill, close_tab) to browse and interact with web pages. " +
+        "To find information, call the search tool to get a result list; open a page only when the user asks (use open_tab or navigate). Never navigate to a search engine site directly. " +
+        "Use the appropriate tool to carry out the user's request (e.g. fill forms, click buttons, navigate to URLs). Answer concisely.",
     int AiMaxTokens = 2048,
     double AiTemperature = 0.7,
     bool EnableAdBlock = true,
@@ -633,7 +684,8 @@ public sealed record BrowserSettings(
     int AiMaxIterations = 10,
     bool AiPageContextConfirmation = true,
     Dictionary<string, bool>? AiToolsEnabled = null,
-    string LastSeenVersion = "")
+    string LastSeenVersion = "",
+    AiBrowserPolicy? AiPolicy = null)
 {
     public static List<string> DefaultTrackerBlocklist { get; } =
     [
@@ -665,17 +717,37 @@ public sealed record BrowserSettings(
     public static string GetShortcut(Dictionary<string, string>? overrides, string id) =>
         overrides is not null && overrides.TryGetValue(id, out var v) ? v : DefaultShortcuts.GetValueOrDefault(id, "");
 
+    public static string GetApiKey(BrowserSettings settings, string? provider)
+    {
+        if (!string.IsNullOrWhiteSpace(provider) &&
+            settings.AiApiKeys is { } keys &&
+            keys.TryGetValue(provider, out var stored) &&
+            !string.IsNullOrEmpty(stored))
+            return stored;
+        return settings.AiApiKey;
+    }
+
+    public static Dictionary<string, string>? StoreProviderApiKey(
+        Dictionary<string, string>? existing, string provider, string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return existing;
+
+        var keys = existing is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(existing, StringComparer.OrdinalIgnoreCase);
+        keys[provider] = key;
+        return keys;
+    }
+
     public static Dictionary<string, string> AiProviderPresets { get; } = new()
     {
-        ["Ollama"] = "http://localhost:11434/v1",
-        ["OpenAI"] = "https://api.openai.com/v1",
-        ["Groq"] = "https://api.groq.com/openai/v1",
-        ["OpenRouter"] = "https://openrouter.ai/api/v1",
-        ["Custom"] = ""
+        ["Ollama Cloud"] = "https://ollama.com",
+        ["NVIDIA NIM"] = "https://integrate.api.nvidia.com/v1"
     };
 
     public static string GetProviderEndpoint(string provider) =>
-        AiProviderPresets.TryGetValue(provider, out var ep) ? ep : "";
+        AiProviderPresets.TryGetValue(provider, out var ep) ? ep : "https://ollama.com";
 
     public static BrowserSettings Default { get; } = new(
         SearchEngine: "DuckDuckGo",
@@ -699,11 +771,14 @@ public sealed record BrowserSettings(
         Shortcuts: null,
         AiEnabled: false,
         AiSidebarOpen: false,
-        AiProvider: "Ollama",
-        AiEndpoint: "http://localhost:11434/v1",
+        AiProvider: "Ollama Cloud",
+        AiEndpoint: "https://ollama.com",
         AiModel: "",
         AiApiKey: "",
-        AiSystemPrompt: "You are a helpful assistant. Answer concisely.",
+        AiSystemPrompt: "You are a helpful assistant controlling a live browser. " +
+            "You have tools (search, open_tab, navigate, read_page, list_elements, click, fill, close_tab) to browse and interact with web pages. " +
+            "To find information, call the search tool to get a result list; open a page only when the user asks (use open_tab or navigate). Never navigate to a search engine site directly. " +
+            "Use the appropriate tool to carry out the user's request (e.g. fill forms, click buttons, navigate to URLs). Answer concisely.",
         AiMaxTokens: 2048,
         AiTemperature: 0.7,
         EnableAdBlock: true,
@@ -715,5 +790,6 @@ public sealed record BrowserSettings(
         AiMaxIterations: 10,
         AiPageContextConfirmation: true,
         AiToolsEnabled: null,
-        LastSeenVersion: "");
+        LastSeenVersion: "",
+        AiPolicy: new AiBrowserPolicy());
 }

@@ -4,6 +4,20 @@
 
 Transform the existing AI chat sidebar into a full browser searching agent with tool calling, web search, and comprehensive management UI.
 
+## Known Issue — Background AI Tab WebView2 Initialization (FIXED)
+
+**Symptom (user report):** AI-opened tabs showed in the strip as "Loading..." forever and did not load until the user clicked them; closing was unreliable.
+
+**Root cause (verified empirically with a WPF WebView2 harness at `Temp\opencode\wvtest`):**
+- A WPF `WebView2` that is NOT in the visual tree never completes `EnsureCoreWebView2Async` (times out). It only initializes once it has an HWND, i.e. after being rendered.
+- AI background tabs were created via `_openBackgroundTab` and `NavigateWebAsync` (non-active branch) which called `EnsureWebViewAsync(tab)` on a **detached** WebView → init hung forever → `CoreWebView2` stayed `null` → `?.Navigate(target)` was a silent no-op. `CreateAiTabAsync` → `CreateTabAsync` never returned, so the tab was never added to the AI workspace.
+- Clicking the tab attached it to `WebViewHost`, which finally let init finish.
+
+**Fix:** `EnsureWebViewAsync` (MainWindow.WebView2.cs) now temporarily hosts a detached background WebView in `BrowserPane.WebViewHost` (Visibility=Hidden, ZIndex -1, behind the active tab) during `EnsureCoreWebView2Async`, then removes it and re-attaches the active WebView. Verified: hidden background WebViews initialize, and after init a **detached** WebView still navigates headlessly and fires `NavigationCompleted`. The tab loads in the background and is ready when clicked.
+
+**Files changed:**
+- `UI/MainWindow/MainWindow.WebView2.cs` — temp-hosting logic in `EnsureWebViewAsync`.
+
 ## Implementation Status
 
 ### ✅ Phase 1 — Tool Calling Infrastructure (COMPLETED)
@@ -29,6 +43,7 @@ Transform the existing AI chat sidebar into a full browser searching agent with 
 - [x] extract_page_links(source)
 - [x] navigate_to(url)
 - [x] open_tab(url, title)
+- [x] close_tab(title?, url?) — close an AI-owned tab by title or URL; falls back to the focused AI tab. Sensitive/write tool (user-confirmed when page context is active). Cannot touch user-owned tabs. Not in `IsSensitiveTool` gate for non-page-context, matches authorizer (AI-owned only).
 
 ### ✅ Phase 4 — Agent Loop (COMPLETED)
 - [x] AgentLoopAsync method

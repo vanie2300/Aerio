@@ -24,6 +24,7 @@ public class BrowserTab : INotifyPropertyChanged
     private Color InactiveAccentColor = Color.FromRgb(58, 58, 58);
     private Color SleepingAccentColor = Color.FromRgb(94, 94, 94);
     private Color AudioAccentColor = Color.FromRgb(0, 200, 83);
+    private Color AiAccentColor = Color.FromRgb(0, 180, 220);
 
     private static readonly Brush AudioMuteBrush = FreezeBrush(new SolidColorBrush(Color.FromRgb(0, 200, 83)));
     private static readonly Brush InactiveMuteBrush = FreezeBrush(new SolidColorBrush(Color.FromRgb(128, 128, 128)));
@@ -38,6 +39,31 @@ public class BrowserTab : INotifyPropertyChanged
     private bool _isPlayingAudio;
     private bool _isMuted;
     private bool _hasAudio;
+    private TabOwner _owner = TabOwner.User;
+
+    public string Id { get; init; } = Guid.NewGuid().ToString("N");
+
+    public TabOwner Owner
+    {
+        get => _owner;
+        set
+        {
+            if (_owner == value) return;
+            _owner = value;
+            _cachedAccentBrush = null;
+            DispatchOnPropertyChanged();
+            DispatchOnPropertyChanged(nameof(AccentBrush));
+            DispatchOnPropertyChanged(nameof(IsAiOwned));
+        }
+    }
+
+    public string? AiTaskId { get; set; }
+
+    public bool IsAiOwned => Owner == TabOwner.AI;
+
+    public AiTaskState AiState { get; set; } = AiTaskState.Idle;
+
+    public long PageVersion { get; set; } = 1;
 
     public BrowserTabKind Kind { get; set; } = BrowserTabKind.Start;
 
@@ -267,13 +293,15 @@ public class BrowserTab : INotifyPropertyChanged
         get
         {
             if (_cachedAccentBrush is not null) return _cachedAccentBrush;
-            var brush = IsPlayingAudio
-                ? new SolidColorBrush(AudioAccentColor)
-                : IsSleeping
-                    ? new SolidColorBrush(SleepingAccentColor)
-                    : IsActiveOrSplit
-                        ? new SolidColorBrush(ActiveAccentColor)
-                        : new SolidColorBrush(InactiveAccentColor);
+            var brush = Owner == TabOwner.AI
+                ? new SolidColorBrush(AiAccentColor)
+                : IsPlayingAudio
+                    ? new SolidColorBrush(AudioAccentColor)
+                    : IsSleeping
+                        ? new SolidColorBrush(SleepingAccentColor)
+                        : IsActiveOrSplit
+                            ? new SolidColorBrush(ActiveAccentColor)
+                            : new SolidColorBrush(InactiveAccentColor);
             brush.Freeze();
             _cachedAccentBrush = brush;
             return brush;

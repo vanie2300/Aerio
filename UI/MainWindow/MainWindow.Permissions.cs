@@ -104,7 +104,6 @@ public partial class MainWindow
                         args.SavesInProfile = false;
                         args.State = ToWebViewPermissionState(requestedState);
                         args.Handled = true;
-                        SaveRuntimeSitePermission(host, permission, requestedState);
                         StatusBar.StatusText.Text = $"{PermissionLabel(permission)} {PermissionStateLabel(requestedState).ToLowerInvariant()} for {host}";
                     }
                     finally { deferral.Dispose(); }

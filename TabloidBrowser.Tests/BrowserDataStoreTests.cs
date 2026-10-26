@@ -28,7 +28,7 @@ public class BrowserDataStoreTests : IDisposable
         Assert.Equal("Purple", defaults.Accent);
         Assert.Equal("Dark", defaults.Theme);
         Assert.False(defaults.AiEnabled);
-        Assert.Equal("Ollama", defaults.AiProvider);
+        Assert.Equal("Ollama Cloud", defaults.AiProvider);
         Assert.Equal(2048, defaults.AiMaxTokens);
         Assert.Equal(0.7, defaults.AiTemperature);
         Assert.True(defaults.EnableAdBlock);
@@ -62,20 +62,19 @@ public class BrowserDataStoreTests : IDisposable
     public void BrowserSettings_AiProviderPresets_ContainsExpectedProviders()
     {
         var presets = BrowserSettings.AiProviderPresets;
-        Assert.True(presets.ContainsKey("Ollama"));
-        Assert.True(presets.ContainsKey("OpenAI"));
-        Assert.True(presets.ContainsKey("Groq"));
-        Assert.True(presets.ContainsKey("OpenRouter"));
-        Assert.True(presets.ContainsKey("Custom"));
-        Assert.Equal("http://localhost:11434/v1", presets["Ollama"]);
+        Assert.Equal(2, presets.Count);
+        Assert.True(presets.ContainsKey("Ollama Cloud"));
+        Assert.Equal("https://ollama.com", presets["Ollama Cloud"]);
+        Assert.True(presets.ContainsKey("NVIDIA NIM"));
+        Assert.Equal("https://integrate.api.nvidia.com/v1", presets["NVIDIA NIM"]);
     }
 
     [Fact]
     public void BrowserSettings_GetProviderEndpoint_ReturnsPreset()
     {
-        Assert.Equal("http://localhost:11434/v1", BrowserSettings.GetProviderEndpoint("Ollama"));
-        Assert.Equal("https://api.openai.com/v1", BrowserSettings.GetProviderEndpoint("OpenAI"));
-        Assert.Equal("", BrowserSettings.GetProviderEndpoint("Unknown"));
+        Assert.Equal("https://ollama.com", BrowserSettings.GetProviderEndpoint("Ollama Cloud"));
+        Assert.Equal("https://integrate.api.nvidia.com/v1", BrowserSettings.GetProviderEndpoint("NVIDIA NIM"));
+        Assert.Equal("https://ollama.com", BrowserSettings.GetProviderEndpoint("Unknown"));
     }
 
     [Fact]

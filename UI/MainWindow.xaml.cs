@@ -139,6 +139,7 @@ public partial class MainWindow : Window
     private readonly bool _skipSessionPersistence;
     private int _blockedTrackerCount;
     private int _privacyIndicatorPending;
+    private long _pageVersion;
 
     public MainWindow()
         : this(isPrivate: false)
@@ -182,6 +183,7 @@ public partial class MainWindow : Window
         TitleBar.TabPopOut += PopOutTab_Click;
         TitleBar.MuteToggle += MuteButton_Click;
         TitleBar.TabClose += CloseTab_Click;
+        TitleBar.KeepAiTab += KeepAiTab_Click;
         TitleBar.Minimize += Minimize_Click;
         TitleBar.MaximizeRestore += MaximizeRestore_Click;
         TitleBar.CloseWindow += CloseWindow_Click;
@@ -224,6 +226,7 @@ public partial class MainWindow : Window
         NavToolbar.ShowHistory += ShowHistory_Click;
         NavToolbar.ShowDownloads += ShowDownloads_Click;
         NavToolbar.ShowExtensions += ShowExtensions_Click;
+        NavToolbar.ShowHymns += ShowHymns_Click;
         NavToolbar.ZoomIn += ZoomIn_Click;
         NavToolbar.ZoomOut += ZoomOut_Click;
         NavToolbar.ResetZoom += ResetZoom_Click;
@@ -244,6 +247,10 @@ public partial class MainWindow : Window
         AiSidebar.AiSidebarClose += AiSidebarClose_Click;
         AiSidebar.AiSend += AiSend_Click;
         AiSidebar.AiInputKeyDown += AiInput_PreviewKeyDown;
+        AiSidebar.WorkspaceKeepTab += WorkspaceKeepTab_Click;
+        AiSidebar.WorkspaceCloseTab += WorkspaceCloseTab_Click;
+        AiSidebar.WorkspaceKeepAll += WorkspaceKeepAll_Click;
+        AiSidebar.WorkspaceCloseAll += WorkspaceCloseAll_Click;
         PreviewKeyDown += MainWindow_PreviewKeyDown;
         _sleepTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _sleepTimer.Tick += SleepTimer_Tick;
@@ -459,10 +466,7 @@ public partial class MainWindow : Window
     private void ApplyForceDarkToExistingTabs()
     {
         var enable = _dataStore.Settings.ForceDarkPage;
-        _tabOperationLock.Wait();
-        BrowserTab[] snapshot;
-        try { snapshot = [.. _tabs]; }
-        finally { _tabOperationLock.Release(); }
+        BrowserTab[] snapshot = _tabs.ToArray();
         foreach (var tab in snapshot)
         {
             if (tab.WebView?.CoreWebView2 is not null && tab.Kind == BrowserTabKind.Web)
@@ -504,10 +508,7 @@ public partial class MainWindow : Window
         Background = GetBrush("AppBg");
 
         var webViewBackground = GetWebViewBackgroundColor();
-        BrowserTab[] snapshot;
-        _tabOperationLock.Wait();
-        try { snapshot = [.. _tabs]; }
-        finally { _tabOperationLock.Release(); }
+        BrowserTab[] snapshot = _tabs.ToArray();
         foreach (var tab in snapshot)
         {
             tab.SetVisualColors(theme);

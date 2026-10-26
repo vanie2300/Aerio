@@ -67,8 +67,43 @@
                         CornerRadius="4"
                         MouseLeftButtonDown="Tab_MouseLeftButtonDown"
                         Tag="{Binding}">
+                  <Border.ToolTip>
+                    <ToolTip>
+                      <StackPanel>
+                        <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="12" />
+                        <TextBlock Text="{Binding Address}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="300" />
+                        <TextBlock Foreground="{DynamicResource Cyan}" FontSize="10" Margin="0,2,0,0">
+                          <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                              <Setter Property="Visibility" Value="Collapsed" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsAiOwned}" Value="True">
+                                  <Setter Property="Visibility" Value="Visible" />
+                                  <Setter Property="Text" Value="AI-controlled tab" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </TextBlock.Style>
+                        </TextBlock>
+                      </StackPanel>
+                    </ToolTip>
+                  </Border.ToolTip>
                   <Border.ContextMenu>
                     <ContextMenu Style="{StaticResource BrowserContextMenuStyle}">
+                      <MenuItem Header="Keep tab"
+                                Click="KeepAiTab_Click"
+                                Tag="{Binding}">
+                        <MenuItem.Style>
+                          <Style TargetType="MenuItem">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding IsAiOwned}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </MenuItem.Style>
+                      </MenuItem>
                       <MenuItem Header="Split right"
                                 Click="SplitTab_Click"
                                 Tag="{Binding}" />
@@ -127,6 +162,23 @@
                                Height="7"
                                Fill="{Binding AccentBrush}"
                                VerticalAlignment="Center" />
+                      <TextBlock Text="AI"
+                                 FontSize="8"
+                                 FontWeight="Bold"
+                                 Foreground="{Binding AccentBrush}"
+                                 VerticalAlignment="Center"
+                                 Margin="3,0,0,0">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding IsAiOwned}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
                       <Button Content="{Binding MuteIcon}"
                               Click="MuteButton_Click"
                               Tag="{Binding}"

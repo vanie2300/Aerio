@@ -138,6 +138,256 @@ public partial class MainWindow
         return BuildPageShell(tab, "History", stack);
     }
 
+    private UIElement BuildHymnsPage(BrowserTab tab)
+    {
+        var stack = new StackPanel();
+
+        var intro = new TextBlock
+        {
+            Text = "Search hymn texts by title or Scripture reference on Hymnary.org, then click a result to read its lyrics.",
+            Foreground = GetBrush("Muted"),
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        stack.Children.Add(intro);
+
+        var hint = new TextBlock
+        {
+            Text = "Examples:  Amazing Grace   |   John 3:16   |   Psalm 136",
+            Foreground = GetBrush("Muted"),
+            FontSize = 11,
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+        stack.Children.Add(hint);
+
+        var searchBox = Input("");
+        searchBox.Margin = new Thickness(0, 0, 0, 10);
+        stack.Children.Add(searchBox);
+
+        var summary = new TextBlock
+        {
+            Foreground = GetBrush("Muted"),
+            FontSize = 12,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        stack.Children.Add(summary);
+
+        var resultsPanel = new StackPanel();
+        stack.Children.Add(resultsPanel);
+
+        var lyricsPanel = new StackPanel { Visibility = Visibility.Collapsed };
+        stack.Children.Add(lyricsPanel);
+
+        CancellationTokenSource? searchCts = null;
+        var lastResults = new List<HymnSearchResult>();
+        string lastQuery = "";
+
+        void ShowResults(List<HymnSearchResult> results, string query)
+        {
+            lastResults = results;
+            lastQuery = query;
+            resultsPanel.Children.Clear();
+            resultsPanel.Visibility = Visibility.Visible;
+            lyricsPanel.Visibility = Visibility.Collapsed;
+
+            if (results.Count == 0)
+            {
+                summary.Text = HymnService.LooksLikeScriptureQuery(query)
+                    ? $"No hymns found for Scripture {query}."
+                    : "No matching hymns found.";
+                resultsPanel.Children.Add(EmptyText(
+                    "Try a different title, or a Scripture reference like \"John 3:16\"."));
+                return;
+            }
+
+            summary.Text = $"{results.Count} matching hymn{(results.Count == 1 ? "" : "s")}.";
+
+            foreach (var result in results)
+            {
+                var parts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(result.FirstLine)) parts.Add(result.FirstLine);
+                if (!string.IsNullOrWhiteSpace(result.Scripture)) parts.Add(result.Scripture);
+                if (!string.IsNullOrWhiteSpace(result.Meter)) parts.Add(result.Meter);
+                if (!string.IsNullOrWhiteSpace(result.Authors)) parts.Add(result.Authors);
+                if (!string.IsNullOrWhiteSpace(result.Languages)) parts.Add(result.Languages);
+                if (result.InstanceCount > 0) parts.Add($"{result.InstanceCount} hymnals");
+                var detail = parts.Count > 0 ? string.Join("   ·   ", parts) : result.HymnaryUrl;
+
+                resultsPanel.Children.Add(BuildEntry(
+                    result.Title,
+                    detail,
+                    "Lyrics",
+                    (_, _) => _ = ShowLyricsAsync(result),
+                    "Open",
+                    async (_, _) =>
+                    {
+                        try { await NavigateWebAsync(tab, result.HymnaryUrl); }
+                        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
+                    }));
+            }
+        }
+
+        async Task ShowLyricsAsync(HymnSearchResult result)
+        {
+            try
+            {
+                resultsPanel.Visibility = Visibility.Collapsed;
+                lyricsPanel.Children.Clear();
+                lyricsPanel.Visibility = Visibility.Visible;
+
+                lyricsPanel.Children.Add(new TextBlock
+                {
+                    Text = $"Loading lyrics for {result.Title}...",
+                    Foreground = GetBrush("Muted"),
+                    FontSize = 13,
+                    Margin = new Thickness(0, 4, 0, 10)
+                });
+
+                var lyrics = await HymnService.FetchLyricsAsync(result.Slug, result.Title);
+                lyricsPanel.Children.Clear();
+
+                var titleBlock = new TextBlock
+                {
+                    Text = lyrics?.Title ?? result.Title,
+                    Foreground = GetBrush("Text"),
+                    FontSize = 22,
+                    FontWeight = FontWeights.SemiBold,
+                    TextWrapping = TextWrapping.Wrap
+                };
+                lyricsPanel.Children.Add(titleBlock);
+
+                if (lyrics is null || lyrics.Stanzas.Count == 0)
+                {
+                    lyricsPanel.Children.Add(new TextBlock
+                    {
+                        Text = "Couldn't load lyrics for this hymn. It may not have a text file available on Hymnary.org.",
+                        Foreground = GetBrush("Muted"),
+                        FontSize = 13,
+                        TextWrapping = TextWrapping.Wrap,
+                        Margin = new Thickness(0, 8, 0, 0)
+                    });
+                }
+                else
+                {
+                    foreach (var stanza in lyrics.Stanzas)
+                    {
+                        lyricsPanel.Children.Add(new TextBlock
+                        {
+                            Text = stanza,
+                            Foreground = GetBrush("Text"),
+                            FontSize = 14,
+                            TextWrapping = TextWrapping.Wrap,
+                            LineHeight = 26,
+                            Margin = new Thickness(0, 14, 0, 0)
+                        });
+                    }
+                }
+
+                var actionRow = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(0, 18, 0, 4)
+                };
+                actionRow.Children.Add(MatteButton("Back to results", (_, _) => ShowResults(lastResults, lastQuery)));
+                actionRow.Children.Add(MatteButton("Open on Hymnary.org", async (_, _) =>
+                {
+                    try { await NavigateWebAsync(tab, result.HymnaryUrl); }
+                    catch (Exception ex) { Log.Error(ex, "Error occurred"); }
+                }, new Thickness(8, 0, 0, 0)));
+                lyricsPanel.Children.Add(actionRow);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to load hymn lyrics");
+                StatusBar.StatusText.Text = $"Couldn't load lyrics: {ex.Message}";
+            }
+        }
+
+        async Task RunSearchAsync(string query)
+        {
+            try
+            {
+                if (HymnService.LooksLikeScriptureQuery(query))
+                {
+                    summary.Text = $"Searching hymns for Scripture {query}...";
+                }
+                else
+                {
+                    summary.Text = "Searching Hymnary.org...";
+                }
+
+                var results = await HymnService.SearchAsync(query);
+                if (!string.Equals(searchBox.Text?.Trim(), query, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                ShowResults(results.ToList(), query);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Hymn search failed");
+                summary.Text = "Search failed — check your connection and try again.";
+                resultsPanel.Children.Clear();
+                resultsPanel.Children.Add(EmptyText(ex.Message));
+            }
+        }
+
+        searchBox.TextChanged += (_, _) =>
+        {
+            searchCts?.Cancel();
+            searchCts?.Dispose();
+            searchCts = new CancellationTokenSource();
+            var ct = searchCts.Token;
+
+            var text = searchBox.Text?.Trim() ?? "";
+            if (text.Length == 0)
+            {
+                searchCts = null;
+                summary.Text = "";
+                resultsPanel.Children.Clear();
+                lyricsPanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(450, ct);
+                    ct.ThrowIfCancellationRequested();
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (!ct.IsCancellationRequested)
+                        {
+                            _ = RunSearchAsync(text);
+                        }
+                    });
+                }
+                catch (OperationCanceledException) { }
+            }, ct);
+        };
+
+        searchBox.KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Enter || String.IsNullOrWhiteSpace(searchBox.Text))
+            {
+                return;
+            }
+
+            searchCts?.Cancel();
+            searchCts?.Dispose();
+            searchCts = null;
+            _ = RunSearchAsync(searchBox.Text.Trim());
+            e.Handled = true;
+        };
+
+        Dispatcher.BeginInvoke(() => searchBox.Focus(), DispatcherPriority.Loaded);
+
+        return BuildPageShell(tab, "Hymns", stack);
+    }
+
     private UIElement BuildDownloadsPage(BrowserTab tab)
     {
         var stack = new StackPanel();
@@ -339,13 +589,22 @@ public partial class MainWindow
 
         var aiEnabled = ToggleRow(
             "AI assistant",
-            "Enable the local AI chat sidebar. Uses an OpenAI-compatible endpoint.",
+            "Enable the AI chat sidebar powered by Ollama Cloud or NVIDIA NIM.",
             settings.AiEnabled);
-        var aiProviderKeys = BrowserSettings.AiProviderPresets.Keys.ToArray();
-        var aiProviderCombo = Combo(aiProviderKeys, string.IsNullOrWhiteSpace(settings.AiProvider) ? "Ollama" : settings.AiProvider);
-        var aiEndpoint = TextRow("Endpoint URL",
-            "Full URL to the OpenAI-compatible API (e.g. http://localhost:11434/v1).",
-            settings.AiEndpoint);
+
+        var aiProviderCombo = new ComboBox
+        {
+            Height = 32,
+            Background = GetBrush("InputBg"),
+            Foreground = GetBrush("Text"),
+            BorderBrush = GetBrush("Stroke")
+        };
+        aiProviderCombo.ItemsSource = BrowserSettings.AiProviderPresets.Keys.ToList();
+        aiProviderCombo.SelectedItem = BrowserSettings.AiProviderPresets.Keys.Contains(settings.AiProvider)
+            ? settings.AiProvider : "Ollama Cloud";
+        var aiProviderControl = SettingRow("Provider",
+            "AI provider to use (Ollama Cloud or NVIDIA NIM).", aiProviderCombo);
+
         var aiModelCombo = new ComboBox
         {
             IsEditable = true,
@@ -360,20 +619,22 @@ public partial class MainWindow
             if (aiModelCombo.SelectedItem is string s)
                 aiModelCombo.Text = s;
         };
-        var aiModelControl = SettingRow("Model", "Model name to use (e.g. llama3.2, gpt-4o-mini).", aiModelCombo);
+        var aiModelControl = SettingRow("Model", "Model to use (e.g. gemma4:31b).", aiModelCombo);
         var aiApiKey = PasswordRow("API key",
-            "Optional API key if your endpoint requires authentication.",
-            settings.AiApiKey);
+            "Each provider keeps its own key — switch providers and your saved key returns automatically.",
+            BrowserSettings.GetApiKey(settings, settings.AiProvider));
+
+        var aiApiKeyBorder = new Border { Child = aiApiKey.Control };
 
         CancellationTokenSource? _modelFetchToken = null;
 
-        async Task FetchModelsAsync(string ep, string key, string prov, CancellationToken ct)
+        async Task FetchModelsAsync(string ep, string key, CancellationToken ct)
         {
             try
             {
                 await Task.Delay(500, ct);
                 ct.ThrowIfCancellationRequested();
-                var models = await AiService.FetchModelsAsync(ep, key, prov, ct);
+                var models = await AiService.FetchModelsAsync(ep, key, aiProviderCombo.Text, ct);
                 ct.ThrowIfCancellationRequested();
                 if (PresentationSource.FromDependencyObject(aiModelCombo) is null) return;
                 if (models.Count > 0)
@@ -385,7 +646,7 @@ public partial class MainWindow
                 }
                 else
                 {
-                    StatusBar.StatusText.Text = "Could not reach endpoint — check URL or API key";
+                    StatusBar.StatusText.Text = "Could not reach endpoint — check API key";
                 }
             }
             catch (OperationCanceledException) { Log.Debug("Model discovery cancelled"); }
@@ -402,24 +663,26 @@ public partial class MainWindow
             {
                 await Task.Delay(800, ct);
                 ct.ThrowIfCancellationRequested();
+                var ep = BrowserSettings.GetProviderEndpoint(aiProviderCombo.Text);
                 var op = Dispatcher.InvokeAsync(() =>
-                    FetchModelsAsync(aiEndpoint.Input.Text, aiApiKey.Input.Password,
-                        GetComboText(aiProviderCombo), ct));
+                    FetchModelsAsync(ep, aiApiKey.Input.Password, ct));
                 await op.Task.Unwrap();
             }
             catch (OperationCanceledException) { Log.Debug("Model fetch debounce cancelled"); }
             catch (Exception ex) { Log.Error(ex, "DebounceFetchModels error"); }
         }
-
-        void RefreshEndpoint()
+        aiApiKey.Input.LostFocus += (_, _) => DebounceFetchModels();
+        aiProviderCombo.SelectionChanged += (_, _) =>
         {
-            var prov = GetComboText(aiProviderCombo);
-            var preset = BrowserSettings.GetProviderEndpoint(prov);
-            if (!string.IsNullOrWhiteSpace(preset))
-                aiEndpoint.Input.Text = preset;
-        }
-        aiProviderCombo.SelectionChanged += (_, _) => RefreshEndpoint();
-        aiEndpoint.Input.TextChanged += (_, _) => DebounceFetchModels();
+            if (aiProviderCombo.SelectedItem is string s)
+            {
+                var storedKey = BrowserSettings.GetApiKey(settings, s);
+                if (!string.IsNullOrEmpty(storedKey))
+                    aiApiKey.Input.Password = storedKey;
+            }
+            DebounceFetchModels();
+        };
+        DebounceFetchModels();
         var aiSystemPrompt = Multiline(settings.AiSystemPrompt);
         var aiMaxTokens = SliderRow("Max tokens",
             "Maximum number of tokens per response.",
@@ -427,6 +690,11 @@ public partial class MainWindow
         var aiTemperature = SliderRow("Temperature",
             "Controls randomness: lower is more deterministic, higher is more creative.",
             settings.AiTemperature, 0.0, 2.0);
+
+        var aiMaxOpenTabs = SliderRow("Max open tabs",
+            "Maximum AI-owned tabs the agent can keep open per task (oldest is closed when exceeded).",
+            settings.AiPolicy?.MaxOpenTabs ?? AiBrowserPolicy.Default.MaxOpenTabs, 1, 50);
+
 
         var resetBlocklist = MatteButton("Reset blocklist", (_, _) =>
         {
@@ -470,13 +738,30 @@ public partial class MainWindow
                 Shortcuts: shortcutOverrides is { Count: > 0 } ? new Dictionary<string, string>(shortcutOverrides) : null,
                 AiEnabled: aiEnabled.IsChecked == true,
                 AiSidebarOpen: _dataStore.Settings.AiSidebarOpen,
-                AiProvider: GetComboText(aiProviderCombo),
-                AiEndpoint: aiEndpoint.GetValue(),
+AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
+                AiEndpoint: BrowserSettings.GetProviderEndpoint(aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud"),
                 AiModel: GetComboText(aiModelCombo),
                 AiApiKey: aiApiKey.GetValue(),
+                AiApiKeys: BrowserSettings.StoreProviderApiKey(
+                    _dataStore.Settings.AiApiKeys,
+                    aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
+                    aiApiKey.GetValue()),
                 AiSystemPrompt: aiSystemPrompt.Text?.Trim() ?? "",
                 AiMaxTokens: aiMaxTokens.GetValue(),
-                AiTemperature: aiTemperature.GetValue());
+                AiTemperature: aiTemperature.GetValue(),
+                AiPolicy: new AiBrowserPolicy(
+                    MaxOpenTabs: ClampInt(((int)aiMaxOpenTabs.Input.Value).ToString(), 1, 50, AiBrowserPolicy.Default.MaxOpenTabs),
+                    AllowNavigateActiveTab: _dataStore.Settings.AiPolicy?.AllowNavigateActiveTab ?? false,
+                    CleanupOnTaskComplete: _dataStore.Settings.AiPolicy?.CleanupOnTaskComplete ?? false),
+                UblockEnabled: _dataStore.Settings.UblockEnabled,
+                UblockUpdateCheckUtc: _dataStore.Settings.UblockUpdateCheckUtc,
+                UblockVersion: _dataStore.Settings.UblockVersion,
+                AiSearchBackend: _dataStore.Settings.AiSearchBackend,
+                AiSearchEndpoint: _dataStore.Settings.AiSearchEndpoint,
+                AiMaxIterations: _dataStore.Settings.AiMaxIterations,
+                AiPageContextConfirmation: _dataStore.Settings.AiPageContextConfirmation,
+                AiToolsEnabled: _dataStore.Settings.AiToolsEnabled,
+                LastSeenVersion: _dataStore.Settings.LastSeenVersion);
 
             _dataStore.SaveSettings(saved);
             ApplySettings();
@@ -558,13 +843,12 @@ public partial class MainWindow
 
         aiEnabled.Checked += (_, _) => Save();
         aiEnabled.Unchecked += (_, _) => Save();
-        aiProviderCombo.SelectionChanged += (_, _) => Save();
         aiSystemPrompt.LostFocus += (_, _) => Save();
-        aiEndpoint.Input.LostFocus += (_, _) => Save();
         aiModelCombo.LostFocus += (_, _) => Save();
         aiApiKey.Input.LostFocus += (_, _) => Save();
         aiMaxTokens.Input.LostFocus += (_, _) => Save();
         aiTemperature.Input.LostFocus += (_, _) => Save();
+        aiMaxOpenTabs.Input.ValueChanged += (_, _) => Save();
 
         var listActions = new StackPanel
         {
@@ -649,16 +933,16 @@ public partial class MainWindow
                 BuildShortcutRows(shortcutOverrides, () => onChange())),
             ["AI"] = SettingsSection(
                 "AI",
-                "Local AI assistant settings. Connects to any OpenAI-compatible API.",
+                "AI assistant powered by Ollama Cloud or NVIDIA NIM.",
                 SettingRow("Enable AI", "Show the AI chat sidebar for the current tab.", aiEnabled),
-                SettingRow("Provider", "The API provider type.", aiProviderCombo),
-                aiEndpoint.Control,
+                aiProviderControl,
+                SettingRow("API key", "Your AI provider's API key.", aiApiKeyBorder),
                 aiModelControl,
-                aiApiKey.Control,
                 SettingRow("System prompt", "Instructions for the AI assistant. Applied to every conversation.",
                     aiSystemPrompt),
                 aiMaxTokens.Control,
-                aiTemperature.Control)
+                aiTemperature.Control,
+                aiMaxOpenTabs.Control)
         };
 
         var categories = new (string Name, string Icon)[]
@@ -2049,14 +2333,16 @@ public partial class MainWindow
 
         var toolDefs = new (string Id, string Name, string Description)[]
         {
-            ("web_search", "Web Search", "Search the web for information"),
-            ("search_and_read", "Search & Read", "Search, navigate to a result, and read its content"),
-            ("search_followup", "Search Follow-up", "Get related search suggestions"),
-            ("get_page_content", "Get Page Content", "Read the current page's text content"),
-            ("get_page_metadata", "Get Page Metadata", "Get title, description, and headings from a page"),
-            ("extract_page_links", "Extract Links", "Extract all hyperlinks from a page"),
-            ("navigate_to", "Navigate To", "Navigate the current tab to a URL"),
+            ("search", "Search", "Search the web for information"),
+            ("search_and_read", "Search & Read", "Search, navigate to a result, and read it"),
+            ("read_page", "Read Page", "Read current page content, metadata, or links"),
+            ("navigate", "Navigate", "Navigate the current tab to a URL"),
             ("open_tab", "Open Tab", "Open a URL in a new background tab"),
+            ("close_tab", "Close Tab", "Close an AI-owned background tab"),
+            ("click", "Click Element", "Click an interactive element by selector"),
+            ("fill", "Fill Field", "Fill an input field with text"),
+            ("list_elements", "List Elements", "List all interactive elements on the page"),
+            ("scroll", "Scroll Page", "Scroll the page up or down"),
         };
 
         var toolToggles = new Dictionary<string, CheckBox>();
@@ -2106,13 +2392,9 @@ public partial class MainWindow
             "Maximum number of tool-calling iterations per request.",
             settings.AiMaxIterations, 1, 20);
 
-        var searchBackend = Combo(
-            ["DuckDuckGo", "SearXNG", "Custom"],
-            settings.AiSearchBackend);
-
-        var searchEndpoint = TextRow("Search endpoint",
-            "Endpoint URL for SearXNG or custom search backend.",
-            settings.AiSearchEndpoint);
+        var maxOpenTabs = SliderRow("Max open tabs",
+            "Maximum AI-owned tabs the agent can keep open per task (oldest is closed when exceeded).",
+            settings.AiPolicy?.MaxOpenTabs ?? AiBrowserPolicy.Default.MaxOpenTabs, 1, 50);
 
         var confirmSensitive = ToggleRow(
             "Confirm sensitive actions",
@@ -2120,8 +2402,13 @@ public partial class MainWindow
             settings.AiPageContextConfirmation);
 
         stack.Children.Add(maxIter.Control);
-        stack.Children.Add(SettingRow("Search backend", "Backend used for web search tool.", searchBackend));
-        stack.Children.Add(searchEndpoint.Control);
+        stack.Children.Add(maxOpenTabs.Control);
+        stack.Children.Add(SettingRow("Search engine", "The AI's web search tool uses your browser's selected search engine.", new TextBlock
+        {
+            Text = settings.SearchEngine,
+            Foreground = GetBrush("Text"),
+            VerticalAlignment = VerticalAlignment.Center
+        }));
         stack.Children.Add(confirmSensitive);
 
         stack.Children.Add(new Separator
@@ -2135,8 +2422,7 @@ public partial class MainWindow
             foreach (var (id, _, _) in toolDefs)
                 toolToggles[id].IsChecked = true;
             maxIter.Input.Value = 10;
-            searchBackend.SelectedItem = "DuckDuckGo";
-            searchEndpoint.Input.Text = "";
+            maxOpenTabs.Input.Value = AiBrowserPolicy.Default.MaxOpenTabs;
             confirmSensitive.IsChecked = true;
             SaveAiSettings();
         });
@@ -2153,9 +2439,11 @@ public partial class MainWindow
             {
                 AiToolsEnabled = newToolsEnabled,
                 AiMaxIterations = ClampInt(((int)maxIter.Input.Value).ToString(), 1, 20, 10),
-                AiSearchBackend = GetComboText(searchBackend),
-                AiSearchEndpoint = searchEndpoint.Input.Text ?? "",
-                AiPageContextConfirmation = confirmSensitive.IsChecked == true
+                AiPageContextConfirmation = confirmSensitive.IsChecked == true,
+                AiPolicy = new AiBrowserPolicy(
+                    MaxOpenTabs: ClampInt(((int)maxOpenTabs.Input.Value).ToString(), 1, 50, AiBrowserPolicy.Default.MaxOpenTabs),
+                    AllowNavigateActiveTab: settings.AiPolicy?.AllowNavigateActiveTab ?? false,
+                    CleanupOnTaskComplete: settings.AiPolicy?.CleanupOnTaskComplete ?? false)
             };
             _dataStore.SaveSettings(saved);
             ApplySettings();
@@ -2168,8 +2456,7 @@ public partial class MainWindow
         foreach (var toggle in toolToggles.Values)
             toggle.Unchecked += (_, _) => SaveAiSettings();
         maxIter.Input.ValueChanged += (_, _) => SaveAiSettings();
-        searchBackend.SelectionChanged += (_, _) => SaveAiSettings();
-        searchEndpoint.Input.TextChanged += (_, _) => SaveAiSettings();
+        maxOpenTabs.Input.ValueChanged += (_, _) => SaveAiSettings();
         confirmSensitive.Checked += (_, _) => SaveAiSettings();
         confirmSensitive.Unchecked += (_, _) => SaveAiSettings();
 

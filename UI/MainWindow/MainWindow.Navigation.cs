@@ -200,6 +200,7 @@ public partial class MainWindow
             BrowserTabKind.Downloads => BuildDownloadsPage(tab),
             BrowserTabKind.Settings => BuildSettingsPage(tab),
             BrowserTabKind.AiManagement => BuildAiManagementPage(tab),
+            BrowserTabKind.Hymns => BuildHymnsPage(tab),
             _ => new Grid()
         };
         tab.CachedContent = page;
@@ -331,10 +332,11 @@ public partial class MainWindow
             "downloads" => BrowserTabKind.Downloads,
             "settings" => BrowserTabKind.Settings,
             "ai" => BrowserTabKind.AiManagement,
+            "hymns" => BrowserTabKind.Hymns,
             _ => BrowserTabKind.Start
         };
 
-        return page is "start" or "bookmarks" or "history" or "downloads" or "settings" or "ai";
+        return page is "start" or "bookmarks" or "history" or "downloads" or "settings" or "ai" or "hymns";
     }
 
     private static string GetNativePageTitle(BrowserTabKind kind)
@@ -346,6 +348,7 @@ public partial class MainWindow
             BrowserTabKind.Downloads => "Downloads",
             BrowserTabKind.Settings => "Settings",
             BrowserTabKind.AiManagement => "AI Management",
+            BrowserTabKind.Hymns => "Hymns",
             _ => "New tab"
         };
     }
@@ -359,6 +362,7 @@ public partial class MainWindow
             BrowserTabKind.Downloads => "tabloid://downloads",
             BrowserTabKind.Settings => "tabloid://settings",
             BrowserTabKind.AiManagement => "tabloid://ai",
+            BrowserTabKind.Hymns => "tabloid://hymns",
             _ => string.Empty
         };
     }
