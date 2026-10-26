@@ -8,4 +8,30 @@
     <ResourceDictionary Source="MenuStyles.xaml" />
     <ResourceDictionary Source="ScrollBarStyles.xaml" />
   </ResourceDictionary.MergedDictionaries>
+
+  <!-- Implicit dark tooltip: replaces the stock light system chrome. -->
+  <Style TargetType="ToolTip">
+    <Setter Property="Background" Value="{DynamicResource ChromeBg}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="HorizontalOffset" Value="0" />
+    <Setter Property="VerticalOffset" Value="6" />
+    <Setter Property="HasDropShadow" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToolTip">
+          <Border Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="6"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 </ResourceDictionary>

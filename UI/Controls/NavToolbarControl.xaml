@@ -76,7 +76,7 @@
                    Background="Transparent"
                    BorderThickness="0"
                    Foreground="{DynamicResource Text}"
-                   CaretBrush="{DynamicResource Cyan}"
+                   CaretBrush="{DynamicResource Accent}"
                    FontSize="12.5"
                    Padding="2,5,8,0"
                    PreviewKeyDown="AddressBox_PreviewKeyDown" />

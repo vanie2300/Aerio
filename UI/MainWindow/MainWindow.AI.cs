@@ -1492,7 +1492,7 @@ public partial class MainWindow
             HorizontalAlignment = isAssistant ? HorizontalAlignment.Left : HorizontalAlignment.Right,
             Background = isAssistant
                 ? GetBrush("InputBg")
-                : GetBrush("Cyan"),
+                : GetBrush("Accent"),
             BorderBrush = isAssistant
                 ? GetBrush("SubtleStroke")
                 : Brushes.Transparent,
@@ -1516,7 +1516,7 @@ public partial class MainWindow
         var roleLabel = new TextBlock
         {
             Text = isAssistant ? "Assistant" : "You",
-            Foreground = isAssistant ? GetBrush("Cyan") : Brushes.White,
+            Foreground = isAssistant ? GetBrush("Accent") : Brushes.White,
             FontSize = 10,
             FontWeight = FontWeights.SemiBold
         };
@@ -1868,7 +1868,7 @@ public partial class MainWindow
         var roleLabel = new TextBlock
         {
             Text = "Assistant",
-            Foreground = GetBrush("Cyan"),
+            Foreground = GetBrush("Accent"),
             FontSize = 10,
             FontWeight = FontWeights.SemiBold
         };
@@ -1952,7 +1952,7 @@ public partial class MainWindow
                 var roleLabel = new TextBlock
                 {
                     Text = "Assistant",
-                    Foreground = GetBrush("Cyan"),
+                    Foreground = GetBrush("Accent"),
                     FontSize = 10,
                     FontWeight = FontWeights.SemiBold
                 };

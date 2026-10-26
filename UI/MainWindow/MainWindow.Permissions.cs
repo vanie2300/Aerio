@@ -208,7 +208,7 @@ public partial class MainWindow
                 Text = icon,
                 FontFamily = new FontFamily("Segoe MDL2 Assets"),
                 FontSize = 26,
-                Foreground = GetBrush("Cyan"),
+                Foreground = GetBrush("Accent"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             }
@@ -306,7 +306,7 @@ public partial class MainWindow
             Padding = new Thickness(16, 2, 16, 2),
             Margin = new Thickness(8, 0, 0, 0),
             Cursor = Cursors.Hand,
-            Background = GetBrush("Cyan"),
+            Background = GetBrush("Accent"),
             Foreground = Brushes.White,
             FontWeight = FontWeights.SemiBold,
             BorderThickness = new Thickness(0)

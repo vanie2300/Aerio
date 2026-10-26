@@ -194,7 +194,7 @@
                        Background="Transparent"
                        BorderThickness="0"
                        Foreground="{DynamicResource Text}"
-                       CaretBrush="{DynamicResource Cyan}"
+                       CaretBrush="{DynamicResource Accent}"
                        FontSize="13"
                        Padding="8,6,8,6"
                        AcceptsReturn="True"

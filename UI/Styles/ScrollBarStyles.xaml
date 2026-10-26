@@ -11,7 +11,7 @@
                      Orientation="{TemplateBinding Orientation}">
                 <Track.Thumb>
                   <Thumb BorderThickness="0"
-                         Margin="0,2"
+                         Margin="2"
                          x:Name="Thumb">
                     <Thumb.Template>
                       <ControlTemplate TargetType="Thumb">
@@ -37,7 +37,16 @@
           </ControlTemplate>
         </Setter.Value>
       </Setter>
+      <Style.Triggers>
+        <Trigger Property="Orientation" Value="Horizontal">
+          <Setter Property="Width" Value="Auto" />
+          <Setter Property="Height" Value="8" />
+        </Trigger>
+      </Style.Triggers>
     </Style>
+
+    <!-- Implicit: every scrollbar in the app uses the dark style. -->
+    <Style TargetType="ScrollBar" BasedOn="{StaticResource DarkScrollBar}" />
 
 
 </ResourceDictionary>

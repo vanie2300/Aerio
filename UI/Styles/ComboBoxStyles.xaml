@@ -61,7 +61,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                       <Trigger Property="IsMouseOver" Value="True">
-                        <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Cyan}" />
+                        <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Accent}" />
                         <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ChromeBg}" />
                       </Trigger>
                       <Trigger Property="IsPressed" Value="True">

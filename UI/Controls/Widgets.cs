@@ -28,7 +28,7 @@ public partial class MainWindow
         titleRow.Children.Add(new Border
         {
             Width = 3, Height = 18,
-            Background = GetBrush("Cyan"),
+            Background = GetBrush("Accent"),
             CornerRadius = new CornerRadius(1.5),
             Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center
@@ -106,7 +106,7 @@ public partial class MainWindow
             {
                 var isSelected = string.Equals(button.Tag?.ToString(), selectedValue, StringComparison.Ordinal);
                 button.Background = isSelected ? GetBrush("ButtonPressed") : GetBrush("ButtonBg");
-                button.BorderBrush = isSelected ? GetBrush("Cyan") : GetBrush("Stroke");
+                button.BorderBrush = isSelected ? GetBrush("Accent") : GetBrush("Stroke");
                 button.Opacity = isSelected ? 1 : 0.78;
             }
         }
@@ -292,8 +292,8 @@ public partial class MainWindow
         void update()
         {
             var on = toggle.IsChecked == true;
-            statePill.Background = on ? GetBrush("Cyan") : GetBrush("ButtonBg");
-            statePill.BorderBrush = on ? GetBrush("Cyan") : GetBrush("Stroke");
+            statePill.Background = on ? GetBrush("Accent") : GetBrush("ButtonBg");
+            statePill.BorderBrush = on ? GetBrush("Accent") : GetBrush("Stroke");
             thumb.Background = on ? GetBrush("AppBg") : GetBrush("Text");
             var anim = new ThicknessAnimation(
                 on ? new Thickness(27, 0, 0, 0) : new Thickness(2, 0, 0, 0),
@@ -472,11 +472,11 @@ public partial class MainWindow
 
     private Slider StyleSlider(Slider slider)
     {
-        slider.Foreground = GetBrush("Cyan");
+        slider.Foreground = GetBrush("Accent");
         slider.Resources.Add(SystemColors.ControlBrushKey, GetBrush("ButtonBg"));
         slider.Resources.Add(SystemColors.ControlLightBrushKey, GetBrush("ButtonPressed"));
         slider.Resources.Add(SystemColors.ControlLightLightBrushKey, GetBrush("ButtonHover"));
-        slider.Resources.Add(SystemColors.HighlightBrushKey, GetBrush("Cyan"));
+        slider.Resources.Add(SystemColors.HighlightBrushKey, GetBrush("Accent"));
         slider.Resources.Add(SystemColors.WindowBrushKey, GetBrush("InputBg"));
         return slider;
     }

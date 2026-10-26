@@ -72,7 +72,7 @@
                       <StackPanel>
                         <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="12" />
                         <TextBlock Text="{Binding Address}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="300" />
-                        <TextBlock Foreground="{DynamicResource Cyan}" FontSize="10" Margin="0,2,0,0">
+                        <TextBlock Foreground="{DynamicResource Accent}" FontSize="10" Margin="0,2,0,0">
                           <TextBlock.Style>
                             <Style TargetType="TextBlock">
                               <Setter Property="Visibility" Value="Collapsed" />

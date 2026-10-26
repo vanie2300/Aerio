@@ -469,7 +469,7 @@ public partial class MainWindow
 
         var customBgBadge = new Border
         {
-            Background = GetBrush("Cyan"),
+            Background = GetBrush("Accent"),
             CornerRadius = new CornerRadius(3),
             Padding = new Thickness(5, 1, 5, 1),
             VerticalAlignment = VerticalAlignment.Center,
@@ -1076,7 +1076,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             {
                 var isSelected = categories[i].Name == category;
                 tabButtons[i].Background = isSelected ? GetBrush("ButtonPressed") : GetBrush("ButtonBg");
-                tabButtons[i].BorderBrush = isSelected ? GetBrush("Cyan") : Brushes.Transparent;
+                tabButtons[i].BorderBrush = isSelected ? GetBrush("Accent") : Brushes.Transparent;
                 tabButtons[i].Opacity = isSelected ? 1 : 0.7;
                 var anim = new DoubleAnimation(isSelected ? 1.0 : 0.0, TimeSpan.FromSeconds(0.12))
                 {
@@ -1160,7 +1160,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             var indicator = new Border
             {
                 Height = 2,
-                Background = GetBrush("Cyan"),
+                Background = GetBrush("Accent"),
                 CornerRadius = new CornerRadius(1),
                 Opacity = 0,
                 Margin = new Thickness(0, 4, 0, 0)
@@ -1297,7 +1297,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             }
 
             _isPermissionsPopupOpen = true;
-            NavToolbar.PrivacyButton.BorderBrush = GetBrush("Cyan");
+            NavToolbar.PrivacyButton.BorderBrush = GetBrush("Accent");
             NavToolbar.PrivacyButton.Background = GetBrush("ButtonPressed");
 
             var popup = new Popup
@@ -1380,7 +1380,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
                 {
                     var isSelected = string.Equals(pill.Tag?.ToString(), current, StringComparison.Ordinal);
                     pill.Background = isSelected ? GetBrush("ButtonPressed") : GetBrush("ButtonBg");
-                    pill.BorderBrush = isSelected ? GetBrush("Cyan") : GetBrush("Stroke");
+                    pill.BorderBrush = isSelected ? GetBrush("Accent") : GetBrush("Stroke");
                     pill.FontWeight = isSelected ? FontWeights.SemiBold : FontWeights.Normal;
                     pill.Opacity = isSelected ? 1 : 0.78;
                 }
@@ -1816,7 +1816,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
         var storeLink = new TextBlock
         {
             Text = "Get more extensions from Chrome Web Store",
-            Foreground = GetBrush("Cyan"),
+            Foreground = GetBrush("Accent"),
             FontSize = 12,
             Cursor = Cursors.Hand,
             Margin = new Thickness(0, 8, 0, 12),
@@ -1864,7 +1864,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 e.Effects = DragDropEffects.Copy;
-                dropZone.BorderBrush = GetBrush("Cyan");
+                dropZone.BorderBrush = GetBrush("Accent");
                 dropZone.Background = GetBrush("ButtonPressed");
             }
             else
@@ -1947,7 +1947,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
                     FontSize = 10,
                     Padding = new Thickness(4, 1, 4, 1)
                 },
-                Background = GetBrush("Cyan"),
+                Background = GetBrush("Accent"),
                 CornerRadius = new CornerRadius(3),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(4, 0, 0, 0)

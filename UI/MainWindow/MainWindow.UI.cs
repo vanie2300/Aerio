@@ -1027,7 +1027,7 @@ public partial class MainWindow
 
     private void ReaderMode_Click(object sender, RoutedEventArgs e) => FireAndForget(ToggleReaderModeAsync(), "ToggleReaderModeAsync");
 
-    private Brush GetReaderActiveBrush() => GetBrush("Cyan");
+    private Brush GetReaderActiveBrush() => GetBrush("Accent");
 
     private async Task ToggleReaderModeAsync()
     {

@@ -64,7 +64,7 @@ public partial class AiSidebarControl : UserControl
 
         var arc = new Path
         {
-            Stroke = (Brush)FindResource("Cyan"),
+            Stroke = (Brush)FindResource("Accent"),
             StrokeThickness = 1.75,
             StrokeStartLineCap = PenLineCap.Round,
             StrokeEndLineCap = PenLineCap.Round,
@@ -119,7 +119,7 @@ public partial class AiSidebarControl : UserControl
         WorkspaceTabCount.Text = $"{tabCount} / {maxTabs}";
         WorkspaceStatus.Text = FormatTaskStatus(status);
         WorkspaceStatus.Foreground = status == AiTaskStatus.Running
-            ? (Brush)FindResource("Cyan")
+            ? (Brush)FindResource("Accent")
             : (Brush)FindResource("Muted");
         RebuildTabsList([]);
     }
@@ -136,7 +136,7 @@ public partial class AiSidebarControl : UserControl
         WorkspaceTabCount.Text = $"{tabCount} / {maxTabs}";
         WorkspaceStatus.Text = FormatTaskStatus(status);
         WorkspaceStatus.Foreground = status == AiTaskStatus.Running
-            ? (Brush)FindResource("Cyan")
+            ? (Brush)FindResource("Accent")
             : (Brush)FindResource("Muted");
     }
 
@@ -146,7 +146,7 @@ public partial class AiSidebarControl : UserControl
         WorkspaceTabCount.Text = $"{tabs.Count} / {maxTabs}";
         WorkspaceStatus.Text = FormatTaskStatus(status);
         WorkspaceStatus.Foreground = status == AiTaskStatus.Running
-            ? (Brush)FindResource("Cyan")
+            ? (Brush)FindResource("Accent")
             : (Brush)FindResource("Muted");
         RebuildTabsList(tabs);
     }

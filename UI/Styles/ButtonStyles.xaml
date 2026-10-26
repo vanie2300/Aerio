@@ -37,7 +37,7 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource Cyan}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
                 <Trigger.EnterActions>
                   <BeginStoryboard>
                     <Storyboard>
@@ -118,7 +118,7 @@
                 </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Opacity" Value="0.32" />
+                <Setter Property="Opacity" Value="0.45" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -160,7 +160,7 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource Cyan}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
                 <Trigger.EnterActions>
                   <BeginStoryboard>
                     <Storyboard>
@@ -209,7 +209,7 @@
                 </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource Cyan}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
                 <Trigger.EnterActions>
                   <BeginStoryboard>
                     <Storyboard>

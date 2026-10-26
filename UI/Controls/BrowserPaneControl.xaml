@@ -28,7 +28,7 @@
         <Border Width="36"
                 Height="36"
                 CornerRadius="18"
-                BorderBrush="{DynamicResource Cyan}"
+                BorderBrush="{DynamicResource Accent}"
                 BorderThickness="3"
                 Background="Transparent"
                 HorizontalAlignment="Center"
@@ -50,7 +50,7 @@
         </Border>
         <Ellipse Width="18"
                  Height="18"
-                 Fill="{DynamicResource Cyan}"
+                 Fill="{DynamicResource Accent}"
                  Opacity="0.3"
                  HorizontalAlignment="Center"
                  Margin="0,-50,0,0" />
@@ -141,7 +141,7 @@
                        Background="Transparent"
                        BorderThickness="0"
                        Foreground="{DynamicResource Text}"
-                       CaretBrush="{DynamicResource Cyan}"
+                       CaretBrush="{DynamicResource Accent}"
                        FontSize="14"
                        Padding="0,9,10,0"
                        PreviewKeyDown="StartSearchBox_PreviewKeyDown" />
@@ -211,7 +211,7 @@
           <Border Width="30"
                   Height="30"
                   CornerRadius="15"
-                  BorderBrush="{DynamicResource Cyan}"
+                  BorderBrush="{DynamicResource Accent}"
                   BorderThickness="3"
                   Background="Transparent"
                   HorizontalAlignment="Center"

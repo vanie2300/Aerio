@@ -45,7 +45,7 @@
                              Text="&#xE73E;"
                              FontFamily="Segoe MDL2 Assets"
                              FontSize="10"
-                             Foreground="{DynamicResource Cyan}"
+                             Foreground="{DynamicResource Accent}"
                              VerticalAlignment="Center"
                              HorizontalAlignment="Left"
                              Visibility="Collapsed" />

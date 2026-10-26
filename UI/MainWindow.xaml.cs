@@ -268,6 +268,23 @@ public partial class MainWindow : Window
         Loaded += OnWindowLoaded;
         ContentRendered += OnWindowContentRendered;
         Closing += MainWindow_Closing;
+        SourceInitialized += OnWindowSourceInitialized;
+    }
+
+    private void OnWindowSourceInitialized(object? sender, EventArgs e)
+    {
+        // Win11 rounded window corners (no-op on Win10 / older DWM).
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+                int preference = 2; // DWMWCP_ROUND
+                DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+            }
+        }
+        catch (Exception ex) { Log.Debug(ex, "Rounded corner preference not applied"); }
     }
 
     private async void OnWindowLoaded(object? sender, RoutedEventArgs e)
