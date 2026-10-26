@@ -582,8 +582,10 @@ public partial class MainWindow
 
             if (e.IsSuccess)
             {
-                Interlocked.Increment(ref _pageVersion);
-                tab.PageVersion = _pageVersion;
+                // Per-tab counter: a global counter is bumped by any tab's
+                // navigation and produces cross-tab false positives when the AI
+                // verifies whether its click caused a navigation.
+                tab.PageVersion++;
                 var title = cwv.DocumentTitle;
                 tab.Title = string.IsNullOrWhiteSpace(title) ? TrimUrl(tab.Address) : title;
 
@@ -855,6 +857,14 @@ public partial class MainWindow
         operation.StateChanged += OnDownloadCompleted;
         void OnDownloadCompleted(object? _, object? __)
         {
+            if (operation.State == CoreWebView2DownloadState.Interrupted)
+            {
+                // Cancelled/failed downloads: detach the handler so it doesn't
+                // leak for the process lifetime.
+                operation.StateChanged -= OnDownloadCompleted;
+                return;
+            }
+
             if (operation.State != CoreWebView2DownloadState.Completed)
             {
                 return;

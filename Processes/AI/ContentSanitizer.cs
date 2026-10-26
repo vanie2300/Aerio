@@ -77,6 +77,11 @@ public static class ContentSanitizer
         string.Join("|", InjectionPatterns),
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
 
+    private static readonly Regex PageContentOpenTagRegex = new("<\\s*page_content\\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex PageContentCloseTagRegex = new("<\\s*/\\s*page_content\\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex SystemOpenTagRegex = new("<\\s*system\\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex SystemCloseTagRegex = new("<\\s*/\\s*system\\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     public static string Sanitize(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
@@ -88,14 +93,21 @@ public static class ContentSanitizer
             return redacted;
         });
 
-        sanitized = sanitized
-            .Replace("<page_content>", "&lt;page_content&gt;")
-            .Replace("</page_content>", "&lt;/page_content&gt;")
-            .Replace("<system>", "&lt;system&gt;")
-            .Replace("</system>", "&lt;/system&gt;");
+        // Regex-based tag escaping: exact-string Replace misses whitespace
+        // variants like "</page_content >".
+        sanitized = PageContentOpenTagRegex.Replace(sanitized, EscapedPageContentOpen);
+        sanitized = PageContentCloseTagRegex.Replace(sanitized, EscapedPageContentClose);
+        sanitized = SystemOpenTagRegex.Replace(sanitized, EscapedSystemOpen);
+        sanitized = SystemCloseTagRegex.Replace(sanitized, EscapedSystemClose);
 
         return sanitized;
     }
+
+    private static readonly string Esc = '\u0026'.ToString();
+    private static readonly string EscapedPageContentOpen = Esc + "lt;page_content" + Esc + "gt;";
+    private static readonly string EscapedPageContentClose = Esc + "lt;/page_content" + Esc + "gt;";
+    private static readonly string EscapedSystemOpen = Esc + "lt;system" + Esc + "gt;";
+    private static readonly string EscapedSystemClose = Esc + "lt;/system" + Esc + "gt;";
 
     public static bool ContainsSuspiciousPatterns(string content)
     {

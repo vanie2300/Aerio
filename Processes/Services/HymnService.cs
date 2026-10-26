@@ -143,10 +143,10 @@ public static class HymnService
         var csv = await HttpGetStringAsync(string.Format(SearchCsvUrl, encoded), ct).ConfigureAwait(false);
 
         var results = new List<HymnSearchResult>();
-        var lines = csv.Split('\n');
-        for (int i = 1; i < lines.Length; i++)
+        var rows = ParseCsvRows(csv);
+        for (int i = 1; i < rows.Count; i++)
         {
-            var row = ParseCsvRow(lines[i]);
+            var row = rows[i];
             if (row.Count < 10)
             {
                 continue;
@@ -453,33 +453,39 @@ public static class HymnService
 
     internal static List<List<string>> ParseCsvRows(string text)
     {
+        // Character-stream parser: a line-based split corrupts rows whose
+        // quoted fields contain embedded newlines.
         var results = new List<List<string>>();
-        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
-        {
-            var row = ParseCsvRow(line);
-            if (row is not null && row.Count > 0 && row.Any(cell => cell.Length > 0))
-            {
-                results.Add(row);
-            }
-        }
+        var normalized = text.Replace("\r\n", "\n").Replace('\r', '\n');
 
-        return results;
-    }
-
-    private static List<string>? ParseCsvRow(string line)
-    {
         var row = new List<string>();
         var current = new System.Text.StringBuilder();
         bool inQuotes = false;
 
-        for (int i = 0; i < line.Length; i++)
+        void EndField()
         {
-            char c = line[i];
+            row.Add(current.ToString());
+            current.Clear();
+        }
+
+        void EndRow()
+        {
+            EndField();
+            if (row.Count > 0 && row.Any(cell => cell.Length > 0))
+            {
+                results.Add(row);
+            }
+            row = new List<string>();
+        }
+
+        for (int i = 0; i < normalized.Length; i++)
+        {
+            char c = normalized[i];
             if (inQuotes)
             {
                 if (c == '"')
                 {
-                    if (i + 1 < line.Length && line[i + 1] == '"')
+                    if (i + 1 < normalized.Length && normalized[i + 1] == '"')
                     {
                         current.Append('"');
                         i++;
@@ -500,8 +506,11 @@ public static class HymnService
             }
             else if (c == ',')
             {
-                row.Add(current.ToString());
-                current.Clear();
+                EndField();
+            }
+            else if (c == '\n')
+            {
+                EndRow();
             }
             else
             {
@@ -509,8 +518,17 @@ public static class HymnService
             }
         }
 
-        row.Add(current.ToString());
-        return row.Count > 0 ? row : null;
+        if (row.Count > 0 || current.Length > 0)
+        {
+            EndRow();
+        }
+
+        return results;
+    }
+
+    private static List<string>? ParseCsvRow(string line)
+    {
+        return ParseCsvRows(line).FirstOrDefault();
     }
 
     private static async Task<string> HttpGetStringAsync(string url, CancellationToken ct)

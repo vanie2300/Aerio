@@ -376,6 +376,7 @@ public partial class MainWindow
         EnsureAiService(settings);
         ClearAiMessages();
         LoadAiMessages();
+        AiSidebarColumn.MinWidth = 200; // keep the open sidebar from being dragged to a sliver
         AiSidebarColumn.Width = new GridLength(_aiSidebarWidth);
         AiSidebar.Visibility = Visibility.Visible;
         AiSidebar.Opacity = 0;
@@ -746,15 +747,19 @@ public partial class MainWindow
         try
         {
             var ctsToDispose = _aiCts;
+            var contextToClean = _currentAiContext;
 
             ctsToDispose?.Cancel();
             ctsToDispose?.Dispose();
             _aiCts = null;
+            // Null the context immediately so the unwinding agent loop stops
+            // falling back to the user's tab for in-flight tool calls.
+            _currentAiContext = null;
 
-            try { await CleanupAiTabsIfNeededAsync(); }
+            try { await CleanupAiTabsIfNeededAsync(contextToClean); }
             catch (Exception ex) { Log.Error(ex, "CleanupAiTabs failed during sidebar hide"); }
 
-            if (_currentAiContext is { } ctx && _aiTabManager is not null)
+            if (contextToClean is { } ctx && _aiTabManager is not null)
             {
                 var remaining = ctx.Workspace.TabIds.ToList();
                 foreach (var tabId in remaining)
@@ -764,10 +769,10 @@ public partial class MainWindow
                 }
             }
 
-            _currentAiContext = null;
             var actualWidth = AiSidebarColumn.ActualWidth;
             if (actualWidth > 10)
                 _aiSidebarWidth = actualWidth;
+            AiSidebarColumn.MinWidth = 0;
 
             var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.2))
             {
@@ -1171,9 +1176,9 @@ public partial class MainWindow
         return new AiResponse("I couldn't complete this task in the allowed steps.", null);
     }
 
-    private async Task CleanupAiTabsIfNeededAsync()
+    private async Task CleanupAiTabsIfNeededAsync(AiTaskContext? context = null)
     {
-        var context = _currentAiContext;
+        context ??= _currentAiContext;
         if (context == null) return;
 
         var policy = _dataStore.Settings.AiPolicy ?? AiBrowserPolicy.Default;
@@ -1193,7 +1198,7 @@ public partial class MainWindow
 
     private static bool IsSensitiveTool(string toolName)
     {
-        return toolName is "navigate_to" or "navigate" or "open_tab" or "close_tab";
+        return toolName is "navigate_to" or "navigate" or "open_tab" or "close_tab" or "search_and_read";
     }
 
     private static bool IsToolEnabled(List<AiTool> enabledTools, string toolName)
@@ -1282,8 +1287,9 @@ public partial class MainWindow
                 _aiTaskLauncher = new AiTaskLauncher(_aiTabManager, settings.AiPolicy ?? AiBrowserPolicy.Default, CloseTabAsync);
                 _currentAiContext = await _aiTaskLauncher.LaunchAsync(text);
                 var policy = settings.AiPolicy ?? AiBrowserPolicy.Default;
+                var launched = _currentAiContext;
                 _ = Dispatcher.BeginInvoke(() =>
-                    AiSidebar.ShowWorkspace(text, 0, policy.MaxOpenTabs, AiTaskStatus.Running));
+                    AiSidebar.ShowWorkspace(text, launched.Workspace.TabIds.Count, policy.MaxOpenTabs, AiTaskStatus.Running));
             }
 
             _aiCts?.Cancel();
@@ -1383,11 +1389,13 @@ public partial class MainWindow
             if (!string.IsNullOrEmpty(reply))
                 history.Add(new ChatMessage("assistant", reply));
 
+            _currentAiContext?.Task.Complete();
             await CleanupAiTabsIfNeededAsync();
         }
         catch (OperationCanceledException ex)
         {
             RemoveStreamingBubbleIfExists();
+            _currentAiContext?.Task.Cancel();
             try { await CleanupAiTabsIfNeededAsync(); }
             catch (Exception cleanupEx) { Log.Error(cleanupEx, "AI tab cleanup after cancel failed"); }
             Log.Debug("AiSend canceled: {Message}", ex.Message);
@@ -1395,6 +1403,7 @@ public partial class MainWindow
         catch (Exception ex)
         {
             RemoveStreamingBubbleIfExists();
+            _currentAiContext?.Task.Fail();
             try { await CleanupAiTabsIfNeededAsync(); }
             catch (Exception cleanupEx) { Log.Error(cleanupEx, "AI tab cleanup after error failed"); }
             var errorText = ex switch
@@ -1923,6 +1932,14 @@ public partial class MainWindow
     {
         var fullText = _streamingContent?.ToString() ?? "";
 
+        if (_streamingPlaceholderActive)
+        {
+            // Only the placeholder was shown — no content ever arrived. Don't
+            // persist the placeholder as the assistant's reply.
+            RemoveStreamingBubbleIfExists();
+            return "";
+        }
+
         if (_streamingBubble is { } bubble)
         {
             bubble.Tag = null;
@@ -1982,7 +1999,7 @@ public partial class MainWindow
     private void CommitStreamingContent()
     {
         var text = _streamingContent?.ToString();
-        if (!string.IsNullOrEmpty(text))
+        if (!string.IsNullOrEmpty(text) && !_streamingPlaceholderActive)
         {
             AddAiMessage("assistant", text);
         }
@@ -2021,6 +2038,12 @@ public partial class MainWindow
 
     private void AiClearChat_Click(object sender, RoutedEventArgs e)
     {
+        if (_isAiProcessing)
+        {
+            SetStatusTextSafe("Can't clear the chat while the AI is processing.");
+            return;
+        }
+
         ClearAiMessages();
         if (_activeTab?.AiChatHistory is { } history)
             history.Clear();
@@ -2043,7 +2066,7 @@ public partial class MainWindow
             var context = _currentAiContext;
             if (context == null || _aiTabManager == null) return;
 
-            if (await _aiTabManager.KeepTabAsync(tabId))
+            if (await _aiTabManager.KeepTabAsync(tabId, context.Task.Id))
             {
                 context.Workspace.KeepTab(tabId);
                 RefreshWorkspaceUi();

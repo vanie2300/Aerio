@@ -228,8 +228,11 @@ public partial class MainWindow
             }
         }
 
+        int lyricsRequestId = 0;
+
         async Task ShowLyricsAsync(HymnSearchResult result)
         {
+            var requestId = ++lyricsRequestId;
             try
             {
                 resultsPanel.Visibility = Visibility.Collapsed;
@@ -245,6 +248,10 @@ public partial class MainWindow
                 });
 
                 var lyrics = await HymnService.FetchLyricsAsync(result.Slug, result.Title);
+                if (requestId != lyricsRequestId)
+                {
+                    return; // a newer request superseded this one
+                }
                 lyricsPanel.Children.Clear();
 
                 var titleBlock = new TextBlock
@@ -299,8 +306,11 @@ public partial class MainWindow
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Failed to load hymn lyrics");
-                StatusBar.StatusText.Text = $"Couldn't load lyrics: {ex.Message}";
+                if (requestId == lyricsRequestId)
+                {
+                    Log.Error(ex, "Failed to load hymn lyrics");
+                    StatusBar.StatusText.Text = $"Couldn't load lyrics: {ex.Message}";
+                }
             }
         }
 
@@ -337,7 +347,8 @@ public partial class MainWindow
         searchBox.TextChanged += (_, _) =>
         {
             searchCts?.Cancel();
-            searchCts?.Dispose();
+            // Don't dispose immediately — the previous debounce task may still
+            // be registering on its token (ObjectDisposedException race).
             searchCts = new CancellationTokenSource();
             var ct = searchCts.Token;
 
@@ -366,6 +377,7 @@ public partial class MainWindow
                     });
                 }
                 catch (OperationCanceledException) { }
+                catch (ObjectDisposedException) { }
             }, ct);
         };
 
@@ -377,7 +389,6 @@ public partial class MainWindow
             }
 
             searchCts?.Cancel();
-            searchCts?.Dispose();
             searchCts = null;
             _ = RunSearchAsync(searchBox.Text.Trim());
             e.Handled = true;
@@ -1748,7 +1759,6 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
 
                 try
                 {
-                    var webExt = await _profile.AddBrowserExtensionAsync(dialog.FolderName);
                     var existing = _dataStore.Settings.Extensions;
 
                     if (existing.Any(e => string.Equals(e.FolderPath, dialog.FolderName, StringComparison.OrdinalIgnoreCase)))
@@ -1757,6 +1767,7 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
                         return;
                     }
 
+                    var webExt = await _profile.AddBrowserExtensionAsync(dialog.FolderName);
                     var newExt = new ExtensionInfo(webExt.Id, webExt.Name, dialog.FolderName, true, false);
                     var updated = existing.Append(newExt).ToList();
                     _loadedExtensions[webExt.Id] = webExt;
@@ -2175,6 +2186,21 @@ AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
 
     private static int FindZipStart(byte[] data)
     {
+        // CRX3 files: parse the header length from the Cr24 container instead of
+        // blind-scanning — headers larger than 2 KB were rejected, and PK bytes
+        // inside the header blob produced bogus offsets.
+        if (data.Length >= 12 &&
+            data[0] == 'C' && data[1] == 'r' && data[2] == '2' && data[3] == '4')
+        {
+            var headerLength = BitConverter.ToUInt32(data, 8);
+            var zipStart = 12 + (int)Math.Min(headerLength, int.MaxValue - 12);
+            if (zipStart + 4 <= data.Length &&
+                data[zipStart] == 0x50 && data[zipStart + 1] == 0x4B && data[zipStart + 2] == 0x03 && data[zipStart + 3] == 0x04)
+            {
+                return zipStart;
+            }
+        }
+
         int maxSearch = Math.Min(data.Length, 2048);
         for (int i = 0; i <= maxSearch - 4; i++)
         {

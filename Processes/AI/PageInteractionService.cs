@@ -18,7 +18,7 @@ public sealed class PageInteractionService
     public async Task<string?> GetCurrentUrlAsync()
     {
         var result = await _executeJs("window.location.href");
-        return result?.Trim('"');
+        return DecodeJsonString(result);
     }
 
     public async Task<bool> ClickElementAsync(string selector)
@@ -85,7 +85,26 @@ public sealed class PageInteractionService
         var result = await _executeJs("window.getSelection().toString()");
         if (string.IsNullOrEmpty(result) || result == "null")
             return "";
-        return result.Trim('"');
+        return DecodeJsonString(result) ?? "";
+    }
+
+    /// <summary>
+    /// ExecuteScriptAsync returns a JSON-encoded string. Trim('"') leaves \n,
+    /// \" and unicode escapes un-decoded (and trims legitimate quotes from the
+    /// text itself) — decode properly instead.
+    /// </summary>
+    private static string? DecodeJsonString(string? json)
+    {
+        if (string.IsNullOrEmpty(json) || json == "null")
+            return null;
+        try
+        {
+            return JsonSerializer.Deserialize<string>(json);
+        }
+        catch (JsonException)
+        {
+            return json.Trim('"');
+        }
     }
 
     public async Task<bool> ScrollPageAsync(string direction, int? amount = null)

@@ -199,24 +199,26 @@ public partial class MainWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+        int current = value;
         void setValue(int next)
         {
-            text.Text = Math.Clamp(next, min, max).ToString();
+            current = Math.Clamp(next, min, max);
+            text.Text = current.ToString();
         }
 
-        var decrement = MatteButton("-", (_, _) => setValue(ClampInt(text.Text, min, max, value) - 1));
+        var decrement = MatteButton("-", (_, _) => setValue(ClampInt(text.Text, min, max, current) - 1));
         decrement.MinWidth = 34;
         decrement.Width = 34;
         decrement.Height = 32;
         decrement.Margin = new Thickness(0, 0, 6, 0);
 
-        var increment = MatteButton("+", (_, _) => setValue(ClampInt(text.Text, min, max, value) + 1));
+        var increment = MatteButton("+", (_, _) => setValue(ClampInt(text.Text, min, max, current) + 1));
         increment.MinWidth = 34;
         increment.Width = 34;
         increment.Height = 32;
         increment.Margin = new Thickness(6, 0, 0, 0);
 
-        text.LostFocus += (_, _) => setValue(ClampInt(text.Text, min, max, value));
+        text.LostFocus += (_, _) => setValue(ClampInt(text.Text, min, max, current));
         text.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsDigit);
 
         Grid.SetColumn(text, 1);
@@ -725,16 +727,17 @@ function build(){
 function cardHtml(e){
   const clr=e.color||'#666';
   const badge=e.icon
-    ? '<div class="logo-badge" style="background:'+clr+'"><span class="logo-letter">'+e.letter+'</span><img src="https://assets.local/'+e.icon+'" alt="" onerror="this.remove()"></div>'
-    : '<div class="logo-badge" style="background:'+clr+'"><span class="logo-letter">'+e.letter+'</span></div>';
+    ? '<div class="logo-badge" style="background:'+clr+'"><span class="logo-letter">'+esc(e.letter)+'</span><img src="https://assets.local/'+e.icon+'" alt="" onerror="this.remove()"></div>'
+    : '<div class="logo-badge" style="background:'+clr+'"><span class="logo-letter">'+esc(e.letter)+'</span></div>';
   return '<div class="card-inner">'
     +'<span class="status">Active</span>'
     +badge
-    +'<div class="name">'+e.name+'</div>'
+    +'<div class="name">'+esc(e.name)+'</div>'
     +'<span class="accent" style="background:'+clr+'"></span>'
-    +'<p class="desc">'+(e.desc||'')+'</p>'
+    +'<p class="desc">'+esc(e.desc||'')+'</p>'
     +'</div>';
 }
+function esc(s){return String(s).replace(/&/g,'\x26amp;').replace(/</g,'\x26lt;').replace(/>/g,'\x26gt;').replace(/"/g,'\x26quot;').replace(/'/g,'\x26#39;')}
 function goTo(i){if(locked||i===idx)return;idx=i;select();}
 function nav(dir){if(locked)return;idx=wrap(idx+dir,data.engines.length);select();}
 function select(){paint();renderDots();announce();send('select',idx);}
@@ -826,7 +829,7 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
                 engines.Add((builtInNames[i], builtInLetters[i], new SolidColorBrush(builtInColors[i]), builtInDescs[i], builtInIcons[i]));
             foreach (var c in currentCustoms)
             {
-                var letter = c.Name.Length > 0 ? c.Name[..1].ToUpper() : "?";
+                var letter = c.Name.Length > 0 ? c.Name[..1].ToUpperInvariant() : "?";
                 engines.Add((c.Name, letter, customBrush, c.UrlTemplate, null));
             }
         }

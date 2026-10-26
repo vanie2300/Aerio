@@ -8,3 +8,9 @@ obj/
 
 # WebView2 local profile data
 WebView2/
+
+# Scratch / crash-log artifacts
+*.tmp
+err.txt
+out.txt
+test-output*.txt

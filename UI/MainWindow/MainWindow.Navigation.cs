@@ -266,7 +266,14 @@ public partial class MainWindow
         {
             if (absolute.Scheme == Uri.UriSchemeHttp && !IsLocalAddress(absolute.Host))
             {
-                return absolute.ToString().Replace("http://", "https://", StringComparison.OrdinalIgnoreCase);
+                // Rebuild the URI instead of string-replacing "http://" — a global
+                // replace also mangles http:// URLs inside the query string.
+                var upgraded = new UriBuilder(absolute)
+                {
+                    Scheme = Uri.UriSchemeHttps,
+                    Port = -1
+                };
+                return upgraded.Uri.ToString();
             }
             return absolute.ToString();
         }
@@ -285,9 +292,11 @@ public partial class MainWindow
 
     private static bool IsLocalAddress(string host)
     {
-        return string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) ||
-               host == "127.0.0.1" ||
-               host == "::1";
+        // Uri.Host keeps IPv6 literals bracketed ("[::1]").
+        var bare = host?.Trim('[', ']') ?? "";
+        return string.Equals(bare, "localhost", StringComparison.OrdinalIgnoreCase) ||
+               bare == "127.0.0.1" ||
+               bare == "::1";
     }
 
     private static string GetSearchUrlTemplate(string searchEngine, List<SearchEngineDef>? customEngines = null)
