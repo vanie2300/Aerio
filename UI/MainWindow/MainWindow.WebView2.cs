@@ -466,7 +466,14 @@ public partial class MainWindow
             tab.IsLoading = true;
             tab.HasAudio = false;
             tab.IsPlayingAudio = false;
-            tab.IsMuted = false;
+            if (cwv is CoreWebView2 webCwv)
+            {
+                try { tab.IsMuted = webCwv.IsMuted; } catch { tab.IsMuted = false; }
+            }
+            else
+            {
+                tab.IsMuted = false;
+            }
 
             if (tab.AllowNextNavigationScrollRestore)
             {

@@ -36,14 +36,24 @@
                       Padding="{TemplateBinding Padding}">
                 <Grid>
                   <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="16" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
-                  <ContentPresenter Grid.Column="0"
+                  <TextBlock x:Name="CheckMark"
+                             Grid.Column="0"
+                             Text="&#xE73E;"
+                             FontFamily="Segoe MDL2 Assets"
+                             FontSize="10"
+                             Foreground="{DynamicResource Cyan}"
+                             VerticalAlignment="Center"
+                             HorizontalAlignment="Left"
+                             Visibility="Collapsed" />
+                  <ContentPresenter Grid.Column="1"
                                     ContentSource="Header"
                                     RecognizesAccessKey="True"
                                     VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="1"
+                  <TextBlock Grid.Column="2"
                              x:Name="SubmenuArrow"
                              Text="&#xE76C;"
                              FontFamily="Segoe MDL2 Assets"
@@ -72,6 +82,9 @@
               </Popup>
             </Grid>
             <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+              </Trigger>
               <Trigger Property="IsHighlighted" Value="True">
                 <Setter TargetName="templateRoot" Property="Background" Value="{DynamicResource ButtonHover}" />
               </Trigger>

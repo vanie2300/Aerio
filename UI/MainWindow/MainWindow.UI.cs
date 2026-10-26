@@ -858,6 +858,9 @@ public partial class MainWindow
         FindBar.FindPopup.PlacementTarget = null;
         FindBar.FindPopup.Placement = System.Windows.Controls.Primitives.PlacementMode.Absolute;
         var screenPoint = host.PointToScreen(new Point(0, 0));
+        var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice;
+        if (transform.HasValue)
+            screenPoint = transform.Value.Transform(screenPoint);
         FindBar.FindPopup.IsOpen = true;
         FindBar.FindPopupContent.Opacity = 0;
         FindBar.FindPopupContent.RenderTransform = new TranslateTransform(0, -8);

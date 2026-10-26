@@ -742,7 +742,7 @@ function toggleLock(){
   locked=!locked;
   renderLock();
   updateNav();paint();
-  send('lock',idx);
+  sendLock(locked,idx);
 }
 function renderLock(){
   const t=$('lockToggle');
@@ -787,7 +787,8 @@ function updateNav(){
   document.querySelectorAll('.dot').forEach(d=>d.disabled=locked);
 }
 function announce(){$('announcer').textContent='Selected engine: '+data.engines[idx].name;}
-function send(type,index){const eng=data.engines[index];window.chrome.webview.postMessage(JSON.stringify({type:type,index:index,engine:eng.name}))}
+function send(type,index){const eng=data.engines[index];window.chrome.webview.postMessage(JSON.stringify({type:type,index:index,engine:eng.name}));}
+function sendLock(lockedState,index){const eng=data.engines[index];window.chrome.webview.postMessage(JSON.stringify({type:'lock',index:index,engine:eng.name,locked:lockedState}));}
 window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
 </script></body></html>
 """;
@@ -895,8 +896,9 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
                 }
                 else if (type == "lock")
                 {
-                    isLocked = true;
                     var lockIdx = (int?)json?["index"] ?? currentIndex;
+                    bool lockedVal = json?["locked"]?.GetValue<bool>() ?? true;
+                    isLocked = lockedVal;
                     currentIndex = lockIdx;
                     isCustomSelected = currentIndex >= builtInNames.Length;
                     if (removeBtn is not null)
