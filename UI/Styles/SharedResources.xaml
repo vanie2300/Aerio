@@ -7,6 +7,7 @@
     <ResourceDictionary Source="ComboBoxStyles.xaml" />
     <ResourceDictionary Source="MenuStyles.xaml" />
     <ResourceDictionary Source="ScrollBarStyles.xaml" />
+    <ResourceDictionary Source="InputStyles.xaml" />
   </ResourceDictionary.MergedDictionaries>
 
   <!-- Implicit dark tooltip: replaces the stock light system chrome. -->
