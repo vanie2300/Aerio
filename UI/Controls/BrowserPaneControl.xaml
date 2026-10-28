@@ -82,11 +82,11 @@
               Background="{DynamicResource AppBg}"
               IsHitTestVisible="False"
               Focusable="False" />
-      <StackPanel Width="620"
-                  x:Name="StartHero"
+      <StackPanel x:Name="StartHero"
+                  MaxWidth="680"
                   HorizontalAlignment="Center"
                   VerticalAlignment="Center"
-                  Margin="0,0,0,40"
+                  Margin="28,20,28,44"
                   Opacity="0"
                   RenderTransformOrigin="0.5,0.5">
         <StackPanel.RenderTransform>
@@ -106,91 +106,223 @@
             </BeginStoryboard>
           </EventTrigger>
         </StackPanel.Triggers>
-        <TextBlock Text="Tabloid"
+        <Border HorizontalAlignment="Center"
+                Background="{DynamicResource SurfaceRaised}"
+                BorderBrush="{DynamicResource Stroke}"
+                BorderThickness="1"
+                CornerRadius="22"
+                Padding="14,6"
+                Margin="0,0,0,22">
+          <StackPanel Orientation="Horizontal">
+            <Border Width="20"
+                    Height="20"
+                    CornerRadius="10"
+                    Background="{DynamicResource Accent}"
+                    VerticalAlignment="Center">
+              <TextBlock Text="T"
+                         Foreground="White"
+                         FontSize="12"
+                         FontWeight="Bold"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Text="TABLOID  /  PRIVATE BROWSING"
+                       Foreground="{DynamicResource InkSecondary}"
+                       FontSize="10"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       Margin="9,0,0,0" />
+          </StackPanel>
+        </Border>
+        <TextBlock Text="A calmer way to browse."
                    FontFamily="./Assets/Fonts/#Font208, Segoe UI"
                    Foreground="{DynamicResource Text}"
-                   FontSize="55"
+                   FontSize="38"
                    FontWeight="SemiBold"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
                    HorizontalAlignment="Center"
-                   Margin="0,0,0,4">
+                   Margin="0,0,0,8">
           <TextBlock.Effect>
-            <DropShadowEffect ShadowDepth="0" BlurRadius="12" Opacity="0.3" Color="#724DDF" />
+            <DropShadowEffect ShadowDepth="0" BlurRadius="18" Opacity="0.2" Color="#724DDF" />
           </TextBlock.Effect>
         </TextBlock>
-        <TextBlock Text="Private local search"
+        <TextBlock Text="Search privately, or type a web address to get going."
                    Foreground="{DynamicResource Muted}"
                    FontSize="13"
+                   TextAlignment="Center"
                    HorizontalAlignment="Center"
-                   Margin="0,0,0,18" />
-        <Grid Height="40">
-          <Border Background="{DynamicResource ChromeAlt}"
-                  CornerRadius="8"
-                  Margin="0" />
-          <Border x:Name="SearchBorder"
-                  Background="{DynamicResource ChromeBg}"
-                  BorderBrush="{DynamicResource Stroke}"
-                  BorderThickness="1"
-                  CornerRadius="8"
-                  PreviewMouseDown="StartSearchSurface_PreviewMouseDown">
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-              </Grid.ColumnDefinitions>
+                   Margin="0,0,0,26" />
+        <Border x:Name="SearchBorder"
+                Background="{DynamicResource ChromeBg}"
+                BorderBrush="{DynamicResource Stroke}"
+                BorderThickness="1"
+                CornerRadius="13"
+                Padding="8"
+                PreviewMouseDown="StartSearchSurface_PreviewMouseDown">
+          <Grid MinHeight="44">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border Width="32"
+                    Height="32"
+                    CornerRadius="9"
+                    Background="{DynamicResource SurfaceRaised}"
+                    VerticalAlignment="Center"
+                    Margin="2,0,10,0">
               <TextBlock Text="&#xE721;"
                          FontFamily="Segoe MDL2 Assets"
-                         Foreground="{DynamicResource Muted}"
-                         Margin="14,0,9,0"
+                         Foreground="{DynamicResource Accent}"
+                         FontSize="14"
+                         HorizontalAlignment="Center"
                          VerticalAlignment="Center" />
+            </Border>
+            <Grid Grid.Column="1" VerticalAlignment="Center">
               <TextBox x:Name="StartSearchBox"
-                       Grid.Column="1"
                        Background="Transparent"
                        BorderThickness="0"
                        Foreground="{DynamicResource Text}"
                        CaretBrush="{DynamicResource Accent}"
                        FontSize="14"
-                       Padding="0,9,10,0"
+                       Padding="0,8,10,8"
                        GotKeyboardFocus="StartSearchBox_GotKeyboardFocus"
                        LostKeyboardFocus="StartSearchBox_LostKeyboardFocus"
                        PreviewKeyDown="StartSearchBox_PreviewKeyDown" />
-              <Button Grid.Column="2"
-                      Content="&#xE721;"
-                      Click="StartSearchGo_Click"
-                      Style="{StaticResource IconButton}"
-                      Background="Transparent"
-                      BorderThickness="0"
-                      Width="34"
-                      Height="30"
-                      Margin="0,5,5,5"
-                      ToolTip="Search or open address" />
+              <TextBlock Text="Search or enter an address..."
+                         Foreground="{DynamicResource Muted}"
+                         FontSize="13"
+                         VerticalAlignment="Center"
+                         IsHitTestVisible="False"
+                         Margin="0,0,8,0">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Text, ElementName=StartSearchBox}" Value="">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
             </Grid>
-          </Border>
-        </Grid>
-        <UniformGrid Columns="4"
-                     x:Name="QuickLinksPanel"
-                     Margin="0,14,0,0">
-          <Button Content="DuckDuckGo"
-                  Click="QuickDuckDuckGo_Click"
-                  Style="{StaticResource MicroButton}"
-                  Height="32"
-                  Margin="0,0,8,0" />
-          <Button Content="Startpage"
-                  Click="QuickStartpage_Click"
-                  Style="{StaticResource MicroButton}"
-                  Height="32"
-                  Margin="0,0,8,0" />
-          <Button Content="GitHub"
-                  Click="QuickGitHub_Click"
-                  Style="{StaticResource MicroButton}"
-                  Height="32"
-                  Margin="0,0,8,0" />
-          <Button Content="HN"
-                  Click="QuickHackerNews_Click"
-                  Style="{StaticResource MicroButton}"
-                  Height="32" />
-        </UniformGrid>
+            <Border Grid.Column="2"
+                    BorderBrush="{DynamicResource Stroke}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="7,3"
+                    VerticalAlignment="Center"
+                    Margin="0,0,8,0">
+              <TextBlock Text="ENTER"
+                         Foreground="{DynamicResource Muted}"
+                         FontSize="9"
+                         FontWeight="SemiBold" />
+            </Border>
+            <Button Grid.Column="3"
+                    Content="&#xE721;"
+                    Click="StartSearchGo_Click"
+                    Style="{StaticResource IconButton}"
+                    Background="{DynamicResource Accent}"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Width="34"
+                    Height="34"
+                    ToolTip="Search or open address" />
+          </Grid>
+        </Border>
+        <StackPanel x:Name="QuickLinksPanel" Margin="0,30,0,0">
+          <TextBlock Text="QUICK ACCESS"
+                     Foreground="{DynamicResource Muted}"
+                     FontSize="10"
+                     FontWeight="SemiBold"
+                     Margin="2,0,0,11" />
+          <WrapPanel>
+            <Button Click="QuickDuckDuckGo_Click"
+                    Style="{StaticResource MicroButton}"
+                    Background="{DynamicResource SurfaceBg}"
+                    BorderBrush="{DynamicResource Stroke}"
+                    Padding="13,11"
+                    Width="158"
+                    Height="70"
+                    Margin="0,0,9,9">
+              <StackPanel Orientation="Horizontal">
+                <Border Width="34" Height="34" CornerRadius="10" Background="#263D62">
+                  <TextBlock Text="D" Foreground="#A9C6FF" FontSize="16" FontWeight="Bold"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel VerticalAlignment="Center" Margin="10,0,0,0">
+                  <TextBlock Text="DuckDuckGo" Foreground="{DynamicResource Text}" FontSize="12" FontWeight="SemiBold" />
+                  <TextBlock Text="Private search" Foreground="{DynamicResource Muted}" FontSize="10" Margin="0,3,0,0" />
+                </StackPanel>
+              </StackPanel>
+            </Button>
+            <Button Click="QuickStartpage_Click"
+                    Style="{StaticResource MicroButton}"
+                    Background="{DynamicResource SurfaceBg}"
+                    BorderBrush="{DynamicResource Stroke}"
+                    Padding="13,11"
+                    Width="158"
+                    Height="70"
+                    Margin="0,0,9,9">
+              <StackPanel Orientation="Horizontal">
+                <Border Width="34" Height="34" CornerRadius="10" Background="#283D35">
+                  <TextBlock Text="S" Foreground="#8FE0B2" FontSize="16" FontWeight="Bold"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel VerticalAlignment="Center" Margin="10,0,0,0">
+                  <TextBlock Text="Startpage" Foreground="{DynamicResource Text}" FontSize="12" FontWeight="SemiBold" />
+                  <TextBlock Text="Private search" Foreground="{DynamicResource Muted}" FontSize="10" Margin="0,3,0,0" />
+                </StackPanel>
+              </StackPanel>
+            </Button>
+            <Button Click="QuickGitHub_Click"
+                    Style="{StaticResource MicroButton}"
+                    Background="{DynamicResource SurfaceBg}"
+                    BorderBrush="{DynamicResource Stroke}"
+                    Padding="13,11"
+                    Width="158"
+                    Height="70"
+                    Margin="0,0,9,9">
+              <StackPanel Orientation="Horizontal">
+                <Border Width="34" Height="34" CornerRadius="10" Background="#34323F">
+                  <TextBlock Text="&#xE943;" FontFamily="Segoe MDL2 Assets" Foreground="#D2C7F8" FontSize="15"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel VerticalAlignment="Center" Margin="10,0,0,0">
+                  <TextBlock Text="GitHub" Foreground="{DynamicResource Text}" FontSize="12" FontWeight="SemiBold" />
+                  <TextBlock Text="Explore projects" Foreground="{DynamicResource Muted}" FontSize="10" Margin="0,3,0,0" />
+                </StackPanel>
+              </StackPanel>
+            </Button>
+            <Button Click="QuickHackerNews_Click"
+                    Style="{StaticResource MicroButton}"
+                    Background="{DynamicResource SurfaceBg}"
+                    BorderBrush="{DynamicResource Stroke}"
+                    Padding="13,11"
+                    Width="158"
+                    Height="70"
+                    Margin="0,0,0,9">
+              <StackPanel Orientation="Horizontal">
+                <Border Width="34" Height="34" CornerRadius="10" Background="#4A342B">
+                  <TextBlock Text="Y" Foreground="#F3B184" FontSize="16" FontWeight="Bold"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel VerticalAlignment="Center" Margin="10,0,0,0">
+                  <TextBlock Text="Hacker News" Foreground="{DynamicResource Text}" FontSize="12" FontWeight="SemiBold" />
+                  <TextBlock Text="The latest stories" Foreground="{DynamicResource Muted}" FontSize="10" Margin="0,3,0,0" />
+                </StackPanel>
+              </StackPanel>
+            </Button>
+          </WrapPanel>
+        </StackPanel>
+        <TextBlock Text="Your tabs and browsing data stay on this device."
+                   Foreground="{DynamicResource Muted}"
+                   FontSize="10.5"
+                   HorizontalAlignment="Center"
+                   Margin="0,18,0,0" />
       </StackPanel>
     </Grid>
 

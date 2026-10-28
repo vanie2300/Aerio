@@ -452,11 +452,11 @@ public partial class MainWindow
         {
             Text = customBgPath is not null ? Path.GetFileName(customBgPath) : "No image selected",
             Foreground = GetBrush("InkSecondary"),
-            FontSize = 11.5,
+            FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(10, 0, 0, 0),
+            Margin = new Thickness(12, 0, 0, 0),
             TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 230
+            MaxWidth = 285
         };
 
         var customBgBadge = new Border
@@ -478,13 +478,13 @@ public partial class MainWindow
 
         var bgPreview = new Border
         {
-            Height = 120,
-            CornerRadius = new CornerRadius(8),
+            Height = 145,
+            CornerRadius = new CornerRadius(10),
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 12, 0, 0),
             HorizontalAlignment = HorizontalAlignment.Left,
-            Width = 200
+            Width = 245
         };
         if (customBgPath is not null)
         {
@@ -501,7 +501,7 @@ public partial class MainWindow
         }
         var bgOpacity = SettingsSliderRow("Background opacity",
             "Brightness of the background image from 0% (invisible) to 100% (fully opaque).",
-            settings.BackgroundOpacity, 0.0, 1.0, v => $"{(int)Math.Round(v * 100)}%", controlWidth: 170);
+            settings.BackgroundOpacity, 0.0, 1.0, v => $"{(int)Math.Round(v * 100)}%", controlWidth: 250);
         bgOpacity.Input.AutoToolTipPlacement = AutoToolTipPlacement.TopLeft;
         bgOpacity.Input.ValueChanged += (_, _) =>
         {
@@ -554,6 +554,12 @@ public partial class MainWindow
         uploadLine.Children.Add(customBgName);
         uploadLine.Children.Add(customBgBadge);
 
+        var backgroundOptions = SettingsRow2(
+            "Custom image",
+            "Choose an image for the new-tab page.",
+            StackOf(uploadLine, bgPreview));
+        backgroundOptions.Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed;
+
         var sleep = NumericStepper(settings.TabSleepMinutes, 1, 60);
         var quickLinks = SettingsToggleRow("Quick links",
             "Show shortcuts below the search box.",
@@ -584,14 +590,12 @@ public partial class MainWindow
             : new Dictionary<string, string>();
 
         var blocklist = Multiline(string.Join(Environment.NewLine, settings.TrackerBlocklist));
-        blocklist.MinHeight = 140;
-        blocklist.Background = GetBrush("FieldBg");
-        blocklist.BorderBrush = GetBrush("StrokeStrong");
+        blocklist.MinHeight = 170;
+        blocklist.FontSize = 13.5;
 
         var allowlist = Multiline(string.Join(Environment.NewLine, settings.TrackerAllowlist));
-        allowlist.MinHeight = 110;
-        allowlist.Background = GetBrush("FieldBg");
-        allowlist.BorderBrush = GetBrush("StrokeStrong");
+        allowlist.MinHeight = 140;
+        allowlist.FontSize = 13.5;
 
         var blocklistPanel = new Border
         {
@@ -599,8 +603,8 @@ public partial class MainWindow
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(15, 13, 15, 13),
-            Margin = new Thickness(0, 14, 0, 0)
+            Padding = new Thickness(17, 15, 17, 15),
+            Margin = new Thickness(0, 16, 0, 0)
         };
         var blocklistStack = new StackPanel();
         blocklistStack.Children.Add(new TextBlock
@@ -634,8 +638,8 @@ public partial class MainWindow
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(15, 13, 15, 13),
-            Margin = new Thickness(0, 14, 0, 0)
+            Padding = new Thickness(17, 15, 17, 15),
+            Margin = new Thickness(0, 16, 0, 0)
         };
         var allowlistStack = new StackPanel();
         allowlistStack.Children.Add(new TextBlock
@@ -662,9 +666,9 @@ public partial class MainWindow
 
         var aiProviderCombo = new ComboBox
         {
-            Height = 35,
-            MinWidth = 400,
-            HorizontalAlignment = HorizontalAlignment.Left
+            Height = 42,
+            FontSize = 14,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
         aiProviderCombo.ItemsSource = BrowserSettings.AiProviderPresets.Keys.ToList();
         aiProviderCombo.SelectedItem = BrowserSettings.AiProviderPresets.Keys.Contains(settings.AiProvider)
@@ -674,9 +678,9 @@ public partial class MainWindow
         {
             IsEditable = true,
             Text = settings.AiModel,
-            Height = 35,
-            MinWidth = 565,
-            HorizontalAlignment = HorizontalAlignment.Left
+            Height = 42,
+            FontSize = 14,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
         aiModelCombo.SelectionChanged += (_, _) =>
         {
@@ -686,9 +690,9 @@ public partial class MainWindow
 
         var aiApiKeyBox = new PasswordBox
         {
-            Height = 35,
-            Width = 565,
-            HorizontalAlignment = HorizontalAlignment.Left,
+            Height = 42,
+            FontSize = 14,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Background = GetBrush("FieldBg"),
             Foreground = GetBrush("Text"),
             BorderBrush = GetBrush("StrokeStrong"),
@@ -705,9 +709,17 @@ public partial class MainWindow
             TextWrapping = TextWrapping.Wrap
         };
 
+        var aiConnectionFeedback = new TextBlock
+        {
+            FontSize = 12.5,
+            Foreground = GetBrush("Muted"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 8, 0, 0),
+            Visibility = Visibility.Collapsed
+        };
         CancellationTokenSource? _modelFetchToken = null;
 
-        async Task FetchModelsAsync(string ep, string key, CancellationToken ct)
+        async Task FetchModelsAsync(string ep, string key, CancellationToken ct, bool showFeedback = false)
         {
             try
             {
@@ -721,15 +733,28 @@ public partial class MainWindow
                     var prev = aiModelCombo.Text;
                     aiModelCombo.ItemsSource = models;
                     aiModelCombo.Text = prev;
-                    StatusBar.StatusText.Text = $"Discovered {models.Count} models";
+                    if (showFeedback)
+                    {
+                        aiConnectionFeedback.Text = $"Connected. Discovered {models.Count} models.";
+                        aiConnectionFeedback.Visibility = Visibility.Visible;
+                    }
                 }
-                else
+                else if (showFeedback)
                 {
-                    StatusBar.StatusText.Text = "Could not reach endpoint — check API key";
+                    aiConnectionFeedback.Text = "No models returned. Check the provider, endpoint and API key.";
+                    aiConnectionFeedback.Visibility = Visibility.Visible;
                 }
             }
             catch (OperationCanceledException) { Log.Debug("Model discovery cancelled"); }
-            catch (Exception ex) { Log.Error(ex, "Model discovery"); }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Model discovery");
+                if (showFeedback && !ct.IsCancellationRequested)
+                {
+                    aiConnectionFeedback.Text = "Unable to retrieve models. Verify the connection and credentials.";
+                    aiConnectionFeedback.Visibility = Visibility.Visible;
+                }
+            }
         }
 
         async void DebounceFetchModels()
@@ -757,56 +782,59 @@ public partial class MainWindow
             _modelFetchToken?.Cancel();
             _modelFetchToken?.Dispose();
             _modelFetchToken = new CancellationTokenSource();
+            var testToken = _modelFetchToken.Token;
+            aiConnectionFeedback.Text = "Checking available models…";
+            aiConnectionFeedback.Visibility = Visibility.Visible;
             var op = Dispatcher.InvokeAsync(() =>
-                FetchModelsAsync(ep, aiApiKeyBox.Password, _modelFetchToken.Token));
+                FetchModelsAsync(ep, aiApiKeyBox.Password, testToken, showFeedback: true));
             FireAndForget(op.Task.Unwrap(), "TestConnection");
         };
-        DebounceFetchModels();
+        // Defer automatic discovery until AI Settings is selected. It should
+        // never overwrite the browser-wide status bar while opening Settings.
 
         var aiSystemPrompt = Multiline(settings.AiSystemPrompt);
-        aiSystemPrompt.MinHeight = 114;
-        aiSystemPrompt.MaxWidth = 630;
-        aiSystemPrompt.HorizontalAlignment = HorizontalAlignment.Left;
-        aiSystemPrompt.Background = GetBrush("FieldBg");
-        aiSystemPrompt.BorderBrush = GetBrush("StrokeStrong");
+        aiSystemPrompt.MinHeight = 145;
+        aiSystemPrompt.FontSize = 14;
+        // Stretch to the shared page width instead of capping this editor at 630px.
+        aiSystemPrompt.HorizontalAlignment = HorizontalAlignment.Stretch;
         var aiMaxTokens = SettingsSliderRow("Max tokens",
             "Maximum number of output tokens per response.",
-            settings.AiMaxTokens, 256, 16384, v => ((int)v).ToString("N0"), controlWidth: 235);
+            settings.AiMaxTokens, 256, 16384, v => ((int)v).ToString("N0"), controlWidth: 290);
         var aiTemperature = SettingsSliderRow("Temperature",
             "Controls response variability, depending on model support.",
-            settings.AiTemperature, 0.0, 2.0, v => v.ToString("0.0"), controlWidth: 235);
+            settings.AiTemperature, 0.0, 2.0, v => v.ToString("0.0"), controlWidth: 290);
         var aiMaxOpenTabs = SettingsSliderRow("Maximum open tabs",
             "The maximum number of AI-owned tabs open per task (oldest is closed when exceeded).",
-            settings.AiPolicy?.MaxOpenTabs ?? AiBrowserPolicy.Default.MaxOpenTabs, 1, 50, v => ((int)v).ToString(), controlWidth: 235);
+            settings.AiPolicy?.MaxOpenTabs ?? AiBrowserPolicy.Default.MaxOpenTabs, 1, 50, v => ((int)v).ToString(), controlWidth: 290);
 
         void Save()
         {
             var saved = new BrowserSettings(
                 SearchEngine: searchCtrl.GetEngine(),
-                ClearDataOnExit: clearOnExit.IsChecked == true,
+                ClearDataOnExit: clearOnExit.Toggle.IsChecked == true,
                 TabSleepMinutes: ClampInt(sleep.GetValue(), 1, 60, BrowserSettings.Default.TabSleepMinutes),
                 Accent: accent.GetValue(),
                 Theme: theme.GetValue(),
-                ShowQuickLinks: quickLinks.IsChecked == true,
+                ShowQuickLinks: quickLinks.Toggle.IsChecked == true,
                 Background: background.GetValue() == "Custom" && customBgPath is not null
                     ? customBgPath
                     : background.GetValue() == "Custom" && savedCustomBgPath is not null
                         ? savedCustomBgPath
                         : "Default",
                 BackgroundOpacity: bgOpacity.GetValue(),
-                BlockTrackers: blockTrackers.IsChecked == true,
-                EnableAdBlock: adBlock.IsChecked == true,
+                BlockTrackers: blockTrackers.Toggle.IsChecked == true,
+                EnableAdBlock: adBlock.Toggle.IsChecked == true,
                 TrackerBlocklist: ParseDomains(blocklist.Text, BrowserSettings.Default.TrackerBlocklist),
                 TrackerAllowlist: ParseDomains(allowlist.Text, []),
                 SitePermissions: _dataStore.Settings.SitePermissions,
-                EnableAutofill: enableAutofill.IsChecked == true,
-                EnablePasswordSave: enablePasswordSave.IsChecked == true,
-                EnableDevTools: enableDevTools.IsChecked == true,
-                ForceDarkPage: forceDark.IsChecked == true,
+                EnableAutofill: enableAutofill.Toggle.IsChecked == true,
+                EnablePasswordSave: enablePasswordSave.Toggle.IsChecked == true,
+                EnableDevTools: enableDevTools.Toggle.IsChecked == true,
+                ForceDarkPage: forceDark.Toggle.IsChecked == true,
                 Extensions: _dataStore.Settings.Extensions,
                 CustomEngines: searchCtrl.GetCustomEngines(),
                 Shortcuts: shortcutOverrides is { Count: > 0 } ? new Dictionary<string, string>(shortcutOverrides) : null,
-                AiEnabled: aiEnabled.IsChecked == true,
+                AiEnabled: aiEnabled.Toggle.IsChecked == true,
                 AiSidebarOpen: _dataStore.Settings.AiSidebarOpen,
                 AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
                 AiEndpoint: BrowserSettings.GetProviderEndpoint(aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud"),
@@ -853,6 +881,7 @@ public partial class MainWindow
             btn.Click += (_, _) =>
             {
                 var isCustom = string.Equals(btn.Tag?.ToString(), "Custom", StringComparison.Ordinal);
+                backgroundOptions.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
                 uploadLine.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
                 bgPreview.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
                 bgOpacity.Control.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
@@ -888,22 +917,22 @@ public partial class MainWindow
             }
         }
 
-        quickLinks.Checked += (_, _) => Save();
-        quickLinks.Unchecked += (_, _) => Save();
-        blockTrackers.Checked += (_, _) => Save();
-        blockTrackers.Unchecked += (_, _) => Save();
-        adBlock.Checked += (_, _) => Save();
-        adBlock.Unchecked += (_, _) => Save();
-        clearOnExit.Checked += (_, _) => Save();
-        clearOnExit.Unchecked += (_, _) => Save();
-        enableAutofill.Checked += (_, _) => Save();
-        enableAutofill.Unchecked += (_, _) => Save();
-        enablePasswordSave.Checked += (_, _) => Save();
-        enablePasswordSave.Unchecked += (_, _) => Save();
-        enableDevTools.Checked += (_, _) => Save();
-        enableDevTools.Unchecked += (_, _) => Save();
-        forceDark.Checked += (_, _) => Save();
-        forceDark.Unchecked += (_, _) => Save();
+        quickLinks.Toggle.Checked += (_, _) => Save();
+        quickLinks.Toggle.Unchecked += (_, _) => Save();
+        blockTrackers.Toggle.Checked += (_, _) => Save();
+        blockTrackers.Toggle.Unchecked += (_, _) => Save();
+        adBlock.Toggle.Checked += (_, _) => Save();
+        adBlock.Toggle.Unchecked += (_, _) => Save();
+        clearOnExit.Toggle.Checked += (_, _) => Save();
+        clearOnExit.Toggle.Unchecked += (_, _) => Save();
+        enableAutofill.Toggle.Checked += (_, _) => Save();
+        enableAutofill.Toggle.Unchecked += (_, _) => Save();
+        enablePasswordSave.Toggle.Checked += (_, _) => Save();
+        enablePasswordSave.Toggle.Unchecked += (_, _) => Save();
+        enableDevTools.Toggle.Checked += (_, _) => Save();
+        enableDevTools.Toggle.Unchecked += (_, _) => Save();
+        forceDark.Toggle.Checked += (_, _) => Save();
+        forceDark.Toggle.Unchecked += (_, _) => Save();
 
         blocklist.LostFocus += (_, _) => Save();
         allowlist.LostFocus += (_, _) => Save();
@@ -920,18 +949,25 @@ public partial class MainWindow
             StatusBar.StatusText.Text = "Allowlist cleared";
         };
 
-        aiEnabled.Checked += (_, _) => Save();
-        aiEnabled.Unchecked += (_, _) => Save();
-        aiApiKeyBox.LostFocus += (_, _) => { Save(); DebounceFetchModels(); };
+        aiEnabled.Toggle.Checked += (_, _) => Save();
+        aiEnabled.Toggle.Unchecked += (_, _) => Save();
+        aiApiKeyBox.LostFocus += (_, _) =>
+        {
+            Save();
+            aiConnectionFeedback.Visibility = Visibility.Collapsed;
+            DebounceFetchModels();
+        };
         aiProviderCombo.SelectionChanged += (_, _) =>
         {
             if (aiProviderCombo.SelectedItem is string s)
             {
-                var storedKey = BrowserSettings.GetApiKey(settings, s);
-                if (!string.IsNullOrEmpty(storedKey))
-                    aiApiKeyBox.Password = storedKey;
+                // Always replace the field, including when the new provider has
+                // no saved key; otherwise the previous provider's key leaks
+                // into the new provider when Save() runs below.
+                aiApiKeyBox.Password = BrowserSettings.GetApiKey(_dataStore.Settings, s);
             }
             Save();
+            aiConnectionFeedback.Visibility = Visibility.Collapsed;
             DebounceFetchModels();
         };
         aiSystemPrompt.LostFocus += (_, _) => Save();
@@ -967,26 +1003,26 @@ public partial class MainWindow
         {
             ["Appearance"] = ("Appearance", "Choose how Tabloid looks and feels.",
             [
-                PrefSection("Browser theme", "Applies to the browser interface and settings.",
-                    SettingsRow2("Color mode", null, theme.Control)),
-                PrefSection("Accent color", "Used for selected tabs, active controls, and focus states.",
-                    SettingsRow2("Highlight color", null, accent.Control)),
+                // Keep related appearance controls together instead of creating
+                // a separate section for every setting.
+                PrefSection("Browser appearance", "Choose how the browser interface looks.",
+                    SettingsRow2("Color mode", "Switch between the dark and light browser themes.", theme.Control),
+                    SettingsRow2("Accent color", "Used for selected tabs, active controls, and focus states.", accent.Control)),
                 PrefSection("New tab page", "Customize what you see when you open a tab.",
                     SettingsRow2("Background", "Use a simple background or your own image.", background.Control),
-                    uploadLine,
-                    bgPreview,
+                    backgroundOptions,
                     bgOpacity.Control,
-                    quickLinks)
+                    quickLinks.Row)
             ]),
             ["Engine"] = ("Search engine", "Select the search provider used in the address bar.",
             [
-                PrefSection("Default search engine", "Browse available providers.", Centered(searchCtrl.Control, 660))
+                PrefSection("Default search engine", "Choose which provider the address bar uses for searches.", searchCtrl.Control)
             ]),
             ["Tabs"] = ("Tabs & memory", "Manage tabs and reduce resource use.",
             [
                 PrefSection("Memory saver", "Free up memory when tabs are not being used.",
                     SettingsRow2("Hibernate after",
-                        "Minutes of inactivity before Tabloid unloads a background tab. Opening a hibernated tab reloads its contents.",
+                        "Minutes of inactivity before Tabloid unloads a background tab.",
                         sleep.Control),
                     SettingsNote("About hibernation",
                         "Some pages may need to reload before you can resume working. Hibernated tabs restore their last URL and scroll position."))
@@ -994,18 +1030,18 @@ public partial class MainWindow
             ["Privacy && Security"] = ("Privacy & security", "Control tracking protection and browsing permissions.",
             [
                 PrefSection("Tracking protection", "Built-in controls for ads and common tracking domains.",
-                    blockTrackers,
-                    adBlock),
+                    blockTrackers.Row,
+                    adBlock.Row),
                 PrefSection("Exceptions", "Manage domains blocked or allowed by the built-in filter.",
                     blocklistPanel,
                     allowlistPanel),
                 PrefSection("Passwords & forms", null,
-                    enableAutofill,
-                    enablePasswordSave)
+                    enableAutofill.Row,
+                    enablePasswordSave.Row)
             ]),
             ["Data"] = ("Browsing data", "Manage history, local files, and session information.",
             [
-                PrefSection("Data retention", null, clearOnExit),
+                PrefSection("Data retention", null, clearOnExit.Row),
                 PrefSection("Clear data", "Choose which data types to remove.",
                     SettingsRow2("Clear local browsing data",
                         "Review data categories before clearing them.",
@@ -1024,22 +1060,22 @@ public partial class MainWindow
             ["Advanced"] = ("Advanced", "Developer settings and keyboard shortcuts.",
             [
                 PrefSection("Developer settings", null,
-                    enableDevTools,
-                    forceDark),
+                    enableDevTools.Row,
+                    forceDark.Row),
                 PrefSection("Keyboard shortcuts", "Common browser commands.",
                     BuildShortcutRows(shortcutOverrides, () => onChange()))
             ]),
             ["AI"] = ("AI assistant", "Configure the assistant available in the browser sidebar.",
             [
-                PrefSection("Assistant", null, aiEnabled),
+                PrefSection("Assistant", null, aiEnabled.Row),
                 PrefSection("Connection", "Select a service and enter its credentials.",
                     FieldLabelRow("Provider", aiProviderCombo),
                     FieldLabelRow("Model", aiModelCombo),
                     FieldLabelRow("API key", StackOf(aiApiKeyBox, aiApiKeyHint)),
-                    testConnectionBtn),
+                    StackOf(testConnectionBtn, aiConnectionFeedback)),
                 PrefSection("Assistant instructions", null,
                     FieldLabelRow("System prompt", aiSystemPrompt)),
-                PrefSection("Generation", "Advanced response settings.",
+                PrefSection("Response settings", "Adjust how the assistant generates its answers.",
                     aiMaxTokens.Control,
                     aiTemperature.Control,
                     aiMaxOpenTabs.Control)
@@ -1051,12 +1087,12 @@ public partial class MainWindow
         {
             ("Appearance", "Appearance", "\xE790", "General"),
             ("Engine", "Search engine", "\xE774", null),
-            ("Tabs", "Tabs & memory", "\xE90D", null),
+            ("Tabs", "Tabs & memory", "\xE7C4", null),
             ("Privacy && Security", "Privacy & security", "\xE72E", "Privacy"),
-            ("Data", "Browsing data", "\xE752", null),
-            ("Extensions", "Extensions", "\xE7B9", "Tools"),
-            ("AI", "AI assistant", "\xE745", null),
-            ("Advanced", "Advanced", "\xE71A", null)
+            ("Data", "Browsing data", "\xE81C", null),
+            ("Extensions", "Extensions", "\xE7B8", "Tools"),
+            ("AI", "AI assistant", "\xE99A", null),
+            ("Advanced", "Advanced", "\xE713", null)
         };
 
         var initialCategory = navItems[0].Key;
@@ -1070,20 +1106,24 @@ public partial class MainWindow
         }
         string selectedCategory = initialCategory;
 
+        // Primary level: page title. The description is deliberately quieter
+        // than section headings and setting labels.
         var headingTitle = new TextBlock
         {
-            FontSize = 27,
+            FontSize = 28,
             FontWeight = FontWeights.SemiBold,
             Foreground = GetBrush("Text"),
+            TextWrapping = TextWrapping.Wrap,
             LayoutTransform = new ScaleTransform(1, 1)
         };
         var headingSubtitle = new TextBlock
         {
-            FontSize = 12.5,
-            Foreground = GetBrush("Muted"),
-            Margin = new Thickness(0, 7, 0, 0)
+            FontSize = 14,
+            Foreground = GetBrush("InkSecondary"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 9, 0, 0)
         };
-        var headingPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 25) };
+        var headingPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 0) };
         headingPanel.Children.Add(headingTitle);
         headingPanel.Children.Add(headingSubtitle);
         var headingBorder = new Border
@@ -1091,30 +1131,72 @@ public partial class MainWindow
             Child = headingPanel,
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(0, 0, 0, 1),
-            Margin = new Thickness(0, 0, 0, 5),
-            Padding = new Thickness(0, 0, 0, 25)
+            Margin = new Thickness(0, 0, 0, 0),
+            Padding = new Thickness(0, 0, 0, 28)
         };
 
         var contentHost = new StackPanel();
         var contentScroll = new ScrollViewer
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = contentHost
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
         var navButtons = new List<Button>();
         var navIndicators = new List<Border>();
         var navLabels = new List<FrameworkElement>();
+        var navIcons = new List<TextBlock>();
+        var navRowGrids = new List<Grid>();
 
-        var navStack = new StackPanel();
-        navStack.Children.Add(new TextBlock
+        // Sidebar-only template: force the ContentPresenter to stretch.
+        // An application-level Button template may otherwise CENTER the
+        // icon/text stack based on its varying text width.
+        var navigationButtonTemplate = new ControlTemplate(typeof(Button));
+        var navigationBorder = new FrameworkElementFactory(typeof(Border));
+        navigationBorder.Name = "SidebarNavBackground";
+        navigationBorder.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+        navigationBorder.SetValue(Border.SnapsToDevicePixelsProperty, true);
+        navigationBorder.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        navigationBorder.SetValue(Border.BorderBrushProperty, Brushes.Transparent);
+        navigationBorder.SetBinding(Border.BackgroundProperty,
+            new System.Windows.Data.Binding(nameof(Button.Background))
+            {
+                RelativeSource = new System.Windows.Data.RelativeSource(
+                    System.Windows.Data.RelativeSourceMode.TemplatedParent)
+            });
+        navigationBorder.SetBinding(Border.PaddingProperty,
+            new System.Windows.Data.Binding(nameof(Button.Padding))
+            {
+                RelativeSource = new System.Windows.Data.RelativeSource(
+                    System.Windows.Data.RelativeSourceMode.TemplatedParent)
+            });
+        var navigationContent = new FrameworkElementFactory(typeof(ContentPresenter));
+        navigationContent.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
+        navigationContent.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        navigationBorder.AppendChild(navigationContent);
+        navigationButtonTemplate.VisualTree = navigationBorder;
+        // Keep a visible focus indication for keyboard users after replacing
+        // the default button template.
+        var navigationFocus = new Trigger
+        {
+            Property = UIElement.IsKeyboardFocusedProperty,
+            Value = true
+        };
+        navigationFocus.Setters.Add(new Setter(
+            Border.BorderBrushProperty, GetBrush("Accent"), "SidebarNavBackground"));
+        navigationButtonTemplate.Triggers.Add(navigationFocus);
+
+        var navStack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
+        // Keep navigation compact: the main settings pane, not the sidebar,
+        // should carry the larger reading typography.
+        var sidebarTitle = new TextBlock
         {
             Text = "Settings",
-            FontSize = 18,
+            FontSize = 19,
             FontWeight = FontWeights.SemiBold,
             Foreground = GetBrush("Text"),
-            Margin = new Thickness(12, 0, 12, 21)
-        });
+            Margin = new Thickness(12, 0, 12, 17)
+        };
+        navStack.Children.Add(sidebarTitle);
 
         string? lastCaption = null;
         for (int i = 0; i < navItems.Length; i++)
@@ -1127,10 +1209,11 @@ public partial class MainWindow
                 navStack.Children.Add(new TextBlock
                 {
                     Text = caption.ToUpperInvariant(),
-                    FontSize = 10,
+                    FontSize = 10.5,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = GetBrush("Muted"),
-                    Margin = new Thickness(12, 23, 12, 7)
+                    Tag = "SettingsNavigationCaption",
+                    Margin = new Thickness(12, 19, 12, 6)
                 });
             }
             lastCaption = caption;
@@ -1138,31 +1221,45 @@ public partial class MainWindow
             var indicator = new Border
             {
                 Width = 2,
-                Height = 17,
+                Height = 18,
                 CornerRadius = new CornerRadius(2),
                 Background = GetBrush("Accent"),
-                HorizontalAlignment = HorizontalAlignment.Left,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                Opacity = 0,
-                Margin = new Thickness(-11, 0, 9, 0)
+                Opacity = 0
             };
 
             var iconText = new TextBlock
             {
                 Text = icon,
                 FontFamily = new FontFamily("Segoe MDL2 Assets"),
-                FontSize = 15,
+                FontSize = 17,
+                Foreground = GetBrush("Muted"),
+                Width = 22,
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
             var labelText = new TextBlock
             {
                 Text = label,
-                FontSize = 12.5,
+                FontSize = 13.5,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(11, 0, 0, 0)
+                HorizontalAlignment = HorizontalAlignment.Left,
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
 
-            var linkContent = new StackPanel { Orientation = Orientation.Horizontal };
+            // The columns never depend on the length of the label.
+            // [selection mark] [gap] [icon] [gap] [label]
+            var linkContent = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+            linkContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
+            linkContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+            linkContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
+            linkContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+            linkContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(indicator, 0);
+            Grid.SetColumn(iconText, 2);
+            Grid.SetColumn(labelText, 4);
             linkContent.Children.Add(indicator);
             linkContent.Children.Add(iconText);
             linkContent.Children.Add(labelText);
@@ -1170,17 +1267,31 @@ public partial class MainWindow
             var link = new Button
             {
                 Content = linkContent,
-                Height = 36,
-                Padding = new Thickness(11, 0, 11, 0),
-                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Template = navigationButtonTemplate,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Height = 40,
+                Padding = new Thickness(12, 0, 12, 0),
                 Cursor = Cursors.Hand,
+                ToolTip = label,
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0)
+            };
+            link.MouseEnter += (_, _) =>
+            {
+                if (selectedCategory != captured)
+                    link.Background = GetBrush("SurfaceRaised");
+            };
+            link.MouseLeave += (_, _) =>
+            {
+                link.Background = selectedCategory == captured ? GetAccentTintBrush() : Brushes.Transparent;
             };
             link.Click += (_, _) => SelectCategory(captured);
             navButtons.Add(link);
             navIndicators.Add(indicator);
             navLabels.Add(labelText);
+            navIcons.Add(iconText);
+            navRowGrids.Add(linkContent);
             navStack.Children.Add(link);
         }
 
@@ -1188,31 +1299,66 @@ public partial class MainWindow
         {
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(0, 1, 0, 0),
-            Margin = new Thickness(10, 42, 10, 0),
-            Padding = new Thickness(2, 18, 2, 0),
+            // Shared 12px horizontal inset — same rule as the title and
+            // category captions above.
+            Margin = new Thickness(12, 25, 12, 0),
+            Padding = new Thickness(0, 14, 0, 0),
             Child = new StackPanel
             {
                 Children =
                 {
-                    new TextBlock { Text = "Tabloid browser", FontSize = 11, Foreground = GetBrush("InkSecondary") },
-                    new TextBlock { Text = "Preferences", FontSize = 11, Foreground = GetBrush("Muted"), Margin = new Thickness(0, 2, 0, 0) }
+                    new TextBlock { Text = "Tabloid Browser", FontSize = 11, Foreground = GetBrush("Muted") }
                 }
             }
         });
 
+        var sidebarScroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = navStack,
+            Padding = new Thickness(12, 27, 12, 18)
+        };
         var sidebarBorder = new Border
         {
             Background = GetBrush("SidebarBg"),
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(0, 0, 1, 0),
-            Child = new ScrollViewer
-            {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                Content = navStack,
-                Padding = new Thickness(17, 30, 13, 25)
-            }
+            Child = sidebarScroll
         };
+
+        void AddSections(StackPanel host, IEnumerable<FrameworkElement> sections)
+        {
+            host.Children.Clear();
+            var index = 0;
+            foreach (var section in sections)
+            {
+                var offset = new TranslateTransform(0, 7);
+                section.Opacity = 0;
+                section.RenderTransform = offset;
+                // The page header already draws the first separator.
+                // Avoid a duplicated line above the first settings section.
+                if (section is Border sectionBorder && index == 0)
+                    sectionBorder.BorderThickness = new Thickness(0);
+
+                host.Children.Add(section);
+
+                var delay = TimeSpan.FromMilliseconds(index * 28);
+                var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(190))
+                {
+                    BeginTime = delay,
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                var slideIn = new DoubleAnimation(7, 0, TimeSpan.FromMilliseconds(210))
+                {
+                    BeginTime = delay,
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                section.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+                offset.BeginAnimation(TranslateTransform.YProperty, slideIn);
+                index++;
+            }
+        }
 
         void SelectCategory(string category)
         {
@@ -1221,11 +1367,9 @@ public partial class MainWindow
             headingTitle.Text = title;
             headingSubtitle.Text = subtitle;
 
-            contentHost.Children.Clear();
-            foreach (var section in sections)
-            {
-                contentHost.Children.Add(section);
-            }
+            AddSections(contentHost, sections);
+            if (category == "AI")
+                DebounceFetchModels();
 
             var fadeIn = new DoubleAnimation(0, 1, Motion.Fast)
             {
@@ -1241,6 +1385,9 @@ public partial class MainWindow
                 navIndicators[i].BeginAnimation(OpacityProperty,
                     new DoubleAnimation(isSelected ? 1.0 : 0.0, TimeSpan.FromSeconds(0.12)));
                 navButtons[i].Foreground = isSelected ? GetBrush("Text") : GetBrush("InkSecondary");
+                if (navLabels[i] is TextBlock navLabel)
+                    navLabel.FontWeight = isSelected ? FontWeights.SemiBold : FontWeights.Normal;
+                navIcons[i].Foreground = isSelected ? GetBrush("Accent") : GetBrush("Muted");
             }
         }
 
@@ -1268,15 +1415,42 @@ public partial class MainWindow
 
         var contentFrame = new Grid { Margin = new Thickness(0) };
         contentFrame.Children.Add(contentScroll);
-        contentScroll.Padding = new Thickness(42, 40, 48, 72);
+        contentScroll.Padding = new Thickness(36, 44, 36, 72);
         contentScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
 
-        var contentHostWrapper = new Grid { MaxWidth = 940, HorizontalAlignment = HorizontalAlignment.Left };
+        const double maxSettingsContentWidth = 820;
+        var contentHostWrapper = new Grid
+        {
+            MaxWidth = maxSettingsContentWidth,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
         var contentStack = new StackPanel();
         contentStack.Children.Add(headingBorder);
         contentStack.Children.Add(contentHost);
         contentHostWrapper.Children.Add(contentStack);
         contentScroll.Content = contentHostWrapper;
+
+        // ScrollViewer can measure its contents at their natural width.
+        // Bind the page to the actual viewport so every category occupies
+        // the same 720px column (or the available space on small windows).
+        void UpdateSettingsContentWidth()
+        {
+            var available = contentScroll.ViewportWidth;
+            if (available <= 0 || double.IsNaN(available) || double.IsInfinity(available))
+                available = contentScroll.ActualWidth -
+                    contentScroll.Padding.Left - contentScroll.Padding.Right;
+            var target = Math.Max(0, Math.Min(maxSettingsContentWidth, available));
+            if (double.IsNaN(contentHostWrapper.Width) || Math.Abs(contentHostWrapper.Width - target) > 0.5)
+                contentHostWrapper.Width = target;
+        }
+
+        contentScroll.Loaded += (_, _) => UpdateSettingsContentWidth();
+        contentScroll.SizeChanged += (_, _) => UpdateSettingsContentWidth();
+        contentScroll.ScrollChanged += (_, e) =>
+        {
+            if (Math.Abs(e.ViewportWidthChange) > 0.5)
+                UpdateSettingsContentWidth();
+        };
 
         Grid.SetColumn(contentFrame, 1);
         root.Children.Add(contentFrame);
@@ -1327,20 +1501,28 @@ public partial class MainWindow
         {
             var compact = width < 860;
             root.ColumnDefinitions[0].Width = new GridLength(compact ? 62 : 224);
+            sidebarTitle.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            sidebarScroll.Padding = compact
+                ? new Thickness(7, 18, 7, 18)
+                : new Thickness(12, 27, 12, 18);
+            foreach (var button in navButtons)
+                button.Padding = compact ? new Thickness(4, 0, 4, 0) : new Thickness(12, 0, 12, 0);
             foreach (var label in navLabels)
                 label.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-            foreach (var indicator in navIndicators)
+            foreach (var row in navRowGrids)
             {
-                indicator.Margin = compact ? new Thickness(-7, 0, 7, 0) : new Thickness(-11, 0, 9, 0);
-                indicator.Height = compact ? 14 : 17;
+                row.ColumnDefinitions[1].Width = new GridLength(compact ? 9 : 12);
+                row.ColumnDefinitions[3].Width = new GridLength(compact ? 0 : 10);
             }
+            foreach (var indicator in navIndicators)
+                indicator.Height = compact ? 16 : 18;
             foreach (var child in navStack.Children)
             {
-                if (child is TextBlock { FontSize: <= 10 } caption) caption.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+                if (child is TextBlock caption && Equals(caption.Tag, "SettingsNavigationCaption"))
+                    caption.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
             }
-            var bottomPanel = (navStack.Children[^1] as Border)?.Child as StackPanel;
-            if (bottomPanel is not null)
-                bottomPanel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            if (navStack.Children[^1] is Border footer)
+                footer.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         }
         root.SizeChanged += (_, e) => ApplyResponsiveWidth(e.NewSize.Width);
         ApplyResponsiveWidth(root.ActualWidth > 0 ? root.ActualWidth : 940);
@@ -1357,14 +1539,14 @@ public partial class MainWindow
 
     private FrameworkElement FieldLabelRow(string label, FrameworkElement control)
     {
-        var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 15) };
+        var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
         stack.Children.Add(new TextBlock
         {
             Text = label,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = GetBrush("InkSecondary"),
-            Margin = new Thickness(0, 0, 0, 7)
+            FontSize = 13.5,
+            FontWeight = FontWeights.Medium,
+            Foreground = GetBrush("Text"),
+            Margin = new Thickness(0, 0, 0, 9)
         });
         stack.Children.Add(control);
         return stack;
@@ -1379,14 +1561,24 @@ public partial class MainWindow
 
     private Brush GetAccentTintBrush()
     {
+        // A restrained tint lets the label and thin purple indicator lead.
         if (GetBrush("Accent") is SolidColorBrush solid)
-            return new SolidColorBrush(Color.FromArgb(33, solid.Color.R, solid.Color.G, solid.Color.B));
+            return new SolidColorBrush(Color.FromArgb(0x15, solid.Color.R, solid.Color.G, solid.Color.B));
         return GetBrush("SurfaceRaised");
     }
 
     // ───────────────────────── Reference-style settings components ─────────────────────────
 
-    /// <summary>Reference .pref-section: 190px label column + rows column, hairline top border.</summary>
+    /// <summary>Quiet row separator; section boundaries use a stronger top rule.</summary>
+    private Border SectionDivider() => new Border
+    {
+        Height = 1,
+        Background = GetBrush("SubtleStroke"),
+        Opacity = 0.70,
+        Margin = new Thickness(0, 4, 0, 4)
+    };
+
+    /// <summary>Settings section with a shared full-width heading and aligned rows.</summary>
     private FrameworkElement PrefSection(string title, string? description, params object[] children)
     {
         bool dangerTitle = children.Contains("dangerTitle");
@@ -1396,7 +1588,7 @@ public partial class MainWindow
         head.Children.Add(new TextBlock
         {
             Text = title,
-            FontSize = 13,
+            FontSize = 17,
             FontWeight = FontWeights.SemiBold,
             Foreground = dangerTitle ? GetBrush("Danger") : GetBrush("Text"),
             TextWrapping = TextWrapping.Wrap
@@ -1406,46 +1598,57 @@ public partial class MainWindow
             head.Children.Add(new TextBlock
             {
                 Text = description,
-                FontSize = 12,
-                Foreground = GetBrush("Muted"),
-                Margin = new Thickness(0, 7, 0, 0),
-                MaxWidth = 183,
+                FontSize = 13,
+                Foreground = GetBrush("InkSecondary"),
+                Margin = new Thickness(0, 6, 0, 0),
+                MaxWidth = 790,
                 TextWrapping = TextWrapping.Wrap
             });
         }
 
-        var rows = new StackPanel();
-        bool first = true;
-        foreach (var child in items)
+        // This gap separates the group label from its individual controls.
+        var rows = new StackPanel { Margin = new Thickness(0, 20, 0, 0) };
+        var separators = new List<Border>();
+        for (int i = 0; i < items.Length; i++)
         {
-            if (!first)
+            if (i > 0)
             {
-                rows.Children.Add(new Border
-                {
-                    Height = 1,
-                    Background = GetBrush("SubtleStroke"),
-                    Margin = new Thickness(0, 2, 0, 2)
-                });
+                var divider = SectionDivider();
+                separators.Add(divider);
+                rows.Children.Add(divider);
             }
-            first = false;
-            rows.Children.Add(child);
+            rows.Children.Add(items[i]);
         }
 
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        Grid.SetColumn(head, 0);
-        grid.Children.Add(head);
-        Grid.SetColumn(rows, 1);
-        grid.Children.Add(rows);
+        // Hidden conditional rows must not leave orphaned dividers behind.
+        void UpdateSeparators()
+        {
+            bool hasPreviousVisibleRow = false;
+            for (int i = 0; i < items.Length; i++)
+            {
+                var visible = items[i].Visibility == Visibility.Visible;
+                if (i > 0)
+                    separators[i - 1].Visibility = visible && hasPreviousVisibleRow
+                        ? Visibility.Visible : Visibility.Collapsed;
+                if (visible)
+                    hasPreviousVisibleRow = true;
+            }
+        }
+        foreach (var item in items)
+            item.IsVisibleChanged += (_, _) => UpdateSeparators();
+        UpdateSeparators();
+
+        var content = new StackPanel();
+        content.Children.Add(head);
+        content.Children.Add(rows);
 
         var border = new Border
         {
-            Child = grid,
+            Child = content,
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(0, 1, 0, 0),
-            Padding = new Thickness(0, 26, 0, 30),
-            Margin = new Thickness(0, 0, 0, 2)
+            Padding = new Thickness(0, 32, 0, 36),
+            Margin = new Thickness(0)
         };
         return border;
     }
@@ -1453,37 +1656,81 @@ public partial class MainWindow
     /// <summary>Reference .setting: name+desc left, control right, vertically centered.</summary>
     private FrameworkElement SettingsRow2(string name, string? desc, FrameworkElement control)
     {
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var text = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinWidth = 0
+        };
         text.Children.Add(new TextBlock
         {
             Text = name,
-            FontSize = 13,
-            FontWeight = FontWeights.Medium,
+            FontSize = 14.5,
+            FontWeight = FontWeights.SemiBold,
             Foreground = GetBrush("Text"),
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            TextAlignment = TextAlignment.Left
         });
         if (!string.IsNullOrEmpty(desc))
         {
             text.Children.Add(new TextBlock
             {
                 Text = desc,
-                FontSize = 11.5,
-                Foreground = GetBrush("Muted"),
-                Margin = new Thickness(0, 4, 0, 0),
-                MaxWidth = 500,
-                TextWrapping = TextWrapping.Wrap
+                FontSize = 12.5,
+                Foreground = GetBrush("InkSecondary"),
+                Margin = new Thickness(0, 6, 0, 0),
+                MaxWidth = 560,
+                TextWrapping = TextWrapping.Wrap,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                TextAlignment = TextAlignment.Left
             });
         }
 
-        var grid = new Grid { MinHeight = 44 };
+        var grid = new Grid { MinHeight = 56 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(text, 0);
         grid.Children.Add(text);
         control.VerticalAlignment = VerticalAlignment.Center;
-        control.Margin = new Thickness(22, 6, 0, 6);
+        control.Margin = new Thickness(24, 8, 0, 8);
         Grid.SetColumn(control, 1);
         grid.Children.Add(control);
+
+        bool? lastStackedLayout = null;
+        void ApplyResponsiveLayout(double width)
+        {
+            var stacked = width < 560;
+            if (lastStackedLayout == stacked) return;
+            lastStackedLayout = stacked;
+            grid.RowDefinitions.Clear();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            if (stacked)
+            {
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                Grid.SetRow(text, 0);
+                Grid.SetColumnSpan(text, 2);
+                Grid.SetRow(control, 1);
+                Grid.SetColumn(control, 0);
+                Grid.SetColumnSpan(control, 2);
+                control.Margin = new Thickness(0, 12, 0, 8);
+                control.HorizontalAlignment = HorizontalAlignment.Left;
+            }
+            else
+            {
+                Grid.SetRow(text, 0);
+                Grid.SetColumnSpan(text, 1);
+                Grid.SetRow(control, 0);
+                Grid.SetColumn(control, 1);
+                Grid.SetColumnSpan(control, 1);
+                control.Margin = new Thickness(24, 8, 0, 8);
+                control.HorizontalAlignment = HorizontalAlignment.Right;
+            }
+        }
+
+        grid.SizeChanged += (_, e) => ApplyResponsiveLayout(e.NewSize.Width);
+        ApplyResponsiveLayout(560);
         return grid;
     }
 
@@ -1499,13 +1746,12 @@ public partial class MainWindow
         return toggle;
     }
 
-    /// <summary>.setting row whose control is a reference switch.</summary>
-    private ToggleButton SettingsToggleRow(string name, string? desc, bool isChecked)
+    /// <summary>.setting row whose control is a reference switch. Returns the row and the toggle for wiring.</summary>
+    private (FrameworkElement Row, ToggleButton Toggle) SettingsToggleRow(string name, string? desc, bool isChecked)
     {
         var toggle = SettingsSwitch(isChecked);
         var row = SettingsRow2(name, desc, toggle);
-        toggle.Tag = row;
-        return toggle;
+        return (row, toggle);
     }
 
     /// <summary>Reference .segmented control.</summary>
@@ -1535,13 +1781,19 @@ public partial class MainWindow
             }
         }
 
-        foreach (var value in values)
+        for (int i = 0; i < values.Length; i++)
         {
+            var value = values[i];
             var button = new Button
             {
                 Content = value,
                 Tag = value,
-                Style = FindResource("SegmentButton") as Style
+                Style = FindResource("SegmentButton") as Style,
+                MinHeight = 36,
+                MinWidth = 72,
+                FontSize = 13,
+                // Reference .segmented gap between segments.
+                Margin = i < values.Length - 1 ? new Thickness(0, 0, 2, 0) : new Thickness(0)
             };
             button.Click += (_, _) =>
             {
@@ -1563,64 +1815,51 @@ public partial class MainWindow
         var buttons = new List<Button>();
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
 
+        // Single source of truth for the selection ring, opacity, and check glyph.
         void Refresh()
         {
             foreach (var button in buttons)
             {
                 var isSelected = string.Equals(button.Tag?.ToString(), selectedValue, StringComparison.Ordinal);
                 button.Opacity = isSelected ? 1 : 0.75;
+                button.BorderBrush = isSelected ? GetBrush("StrokeStrong") : Brushes.Transparent;
+                if ((button.Content as Border)?.Child is TextBlock check)
+                    check.Visibility = isSelected ? Visibility.Visible : Visibility.Collapsed;
             }
         }
 
-        foreach (var name in names)
+        for (int i = 0; i < names.Length; i++)
         {
+            var name = names[i];
             var swatch = new Border
             {
-                Width = 22,
-                Height = 22,
-                CornerRadius = new CornerRadius(11),
+                Width = 27,
+                Height = 27,
+                CornerRadius = new CornerRadius(14),
                 Background = AccentSwatch(name),
                 Child = new TextBlock
                 {
                     Text = "\uE73E",
                     FontFamily = new FontFamily("Segoe MDL2 Assets"),
-                    FontSize = 10,
+                    FontSize = 12,
                     Foreground = Brushes.White,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Visibility = string.Equals(name, selectedValue, StringComparison.Ordinal)
-                        ? Visibility.Visible : Visibility.Collapsed
+                    Visibility = Visibility.Collapsed
                 }
             };
             var button = new Button
             {
                 Content = swatch,
                 Tag = name,
-                Width = 33,
-                Height = 33,
-                Padding = new Thickness(4),
-                BorderThickness = new Thickness(1),
-                BorderBrush = string.Equals(name, selectedValue, StringComparison.Ordinal)
-                    ? GetBrush("StrokeStrong") : Brushes.Transparent,
-                Background = Brushes.Transparent,
-                Cursor = Cursors.Hand
+                Style = FindResource("ColorDotButton") as Style,
+                // Reference .color-options gap between swatches.
+                Margin = i < names.Length - 1 ? new Thickness(0, 0, 12, 0) : new Thickness(0)
             };
             button.Click += (_, _) =>
             {
                 selectedValue = name;
                 Refresh();
-                // Re-render check marks
-                int idx = 0;
-                foreach (var b in buttons)
-                {
-                    var inner = (b.Content as Border)?.Child as TextBlock;
-                    if (inner is not null)
-                        inner.Visibility = string.Equals(b.Tag?.ToString(), selectedValue, StringComparison.Ordinal)
-                            ? Visibility.Visible : Visibility.Collapsed;
-                    b.BorderBrush = string.Equals(b.Tag?.ToString(), selectedValue, StringComparison.Ordinal)
-                        ? GetBrush("StrokeStrong") : Brushes.Transparent;
-                    idx++;
-                }
             };
             buttons.Add(button);
             panel.Children.Add(button);
@@ -1636,16 +1875,18 @@ public partial class MainWindow
         var button = new Button
         {
             Content = text,
-            MinHeight = 32,
-            Padding = new Thickness(12, 6, 12, 6),
-            FontSize = 12,
+            Style = FindResource("SettingsActionButton") as Style,
+            MinHeight = 38,
+            Padding = new Thickness(14, 8, 14, 8),
+            FontSize = 13,
             FontWeight = FontWeights.Medium,
             HorizontalAlignment = HorizontalAlignment.Left,
             Cursor = Cursors.Hand
         };
+
         if (destructive)
         {
-            button.Background = Brushes.Transparent;
+            button.Background = GetBrush("SurfaceBg");
             button.Foreground = GetBrush("Danger");
             button.BorderBrush = GetBrush("Danger");
             button.Opacity = 0.9;
@@ -1656,6 +1897,13 @@ public partial class MainWindow
             button.Foreground = GetBrush("InkSecondary");
             button.BorderBrush = GetBrush("Stroke");
         }
+        else
+        {
+            button.Background = GetBrush("SurfaceRaised");
+            button.Foreground = GetBrush("Text");
+            button.BorderBrush = GetBrush("Stroke");
+        }
+
         return button;
     }
 
@@ -1667,9 +1915,9 @@ public partial class MainWindow
         var valueLabel = new TextBlock
         {
             Text = format(value),
-            FontSize = 12,
+            FontSize = 13.5,
             Foreground = GetBrush("InkSecondary"),
-            MinWidth = 46,
+            MinWidth = 52,
             TextAlignment = TextAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -1683,8 +1931,16 @@ public partial class MainWindow
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        var line = new StackPanel { Orientation = Orientation.Horizontal };
+        // A Grid gives the slider the remaining available width; horizontal
+        // StackPanel would measure it at its minimum/natural size instead.
+        var line = new Grid { MinWidth = 0 };
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        slider.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Grid.SetColumn(slider, 0);
         line.Children.Add(slider);
+        valueLabel.Margin = new Thickness(12, 0, 0, 0);
+        Grid.SetColumn(valueLabel, 1);
         line.Children.Add(valueLabel);
 
         void Update() => valueLabel.Text = format(slider.Value);
@@ -1701,29 +1957,29 @@ public partial class MainWindow
     /// <summary>Reference .muted-panel inline note.</summary>
     private FrameworkElement SettingsNote(string title, string desc)
     {
-        var stack = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
+        var stack = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
         stack.Children.Add(new TextBlock
         {
             Text = title,
-            FontSize = 13,
+            FontSize = 13.5,
             FontWeight = FontWeights.SemiBold,
-            Foreground = GetBrush("InkSecondary")
+            Foreground = GetBrush("Text")
         });
         stack.Children.Add(new TextBlock
         {
             Text = desc,
-            FontSize = 11.5,
-            Foreground = GetBrush("Muted"),
-            Margin = new Thickness(0, 5, 0, 0),
+            FontSize = 12.5,
+            Foreground = GetBrush("InkSecondary"),
+            Margin = new Thickness(0, 7, 0, 0),
             TextWrapping = TextWrapping.Wrap
         });
         return new Border
         {
-            Background = GetBrush("FieldBg"),
+            Background = GetBrush("SurfaceBg"),
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(7),
-            Padding = new Thickness(14, 12, 16, 14),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(20, 18, 20, 18),
             Child = stack
         };
     }
@@ -2198,22 +2454,39 @@ public partial class MainWindow
         return parts.Count == 0 ? "All permissions ask first" : string.Join("  -  ", parts);
     }
 
-    private TextBlock EmptyText(string text)
+    /// <summary>Reference .empty-state: dashed panel for empty or failed lists.</summary>
+    private FrameworkElement EmptyText(string text)
     {
-        return new TextBlock
+        var label = new TextBlock
         {
             Text = text,
             Foreground = GetBrush("Muted"),
-            FontSize = 14,
-            Margin = new Thickness(0, 8, 0, 0)
+            FontSize = 12,
+            LineHeight = 12 * 1.6,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16, 0, 16, 0)
         };
+        var grid = new Grid { MinHeight = 72 };
+        grid.Children.Add(new System.Windows.Shapes.Rectangle
+        {
+            Stroke = GetBrush("StrokeStrong"),
+            StrokeThickness = 1,
+            StrokeDashArray = new DoubleCollection { 2, 2 },
+            RadiusX = 8,
+            RadiusY = 8,
+            Fill = Brushes.Transparent
+        });
+        grid.Children.Add(label);
+        return grid;
     }
 
     private UIElement BuildExtensionsContent(BrowserSettings settings)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
 
-        var ublockToggle = ToggleRow("uBlock Origin",
+        var (ublockRow, ublockToggle) = SettingsToggleRow("uBlock Origin",
             "Built-in ad blocker. Installed and updated automatically from the Chrome Web Store.",
             _dataStore.Settings.UblockEnabled);
         ublockToggle.Checked += async (_, _) =>
@@ -2232,9 +2505,10 @@ public partial class MainWindow
             }
             StatusBar.StatusText.Text = "uBlock Origin disabled";
         };
-        stack.Children.Add(ublockToggle);
+        stack.Children.Add(ublockRow);
 
-        var loadBtn = MatteButton("Load unpacked", async (_, _) =>
+        var loadBtn = SettingsButton("Load unpacked");
+        loadBtn.Click += async (_, _) =>
         {
             var dialog = new OpenFolderDialog
             {
@@ -2272,16 +2546,17 @@ public partial class MainWindow
                     StatusBar.StatusText.Text = $"Failed to load extension: {ex.Message}";
                 }
             }
-        });
+        };
 
         var buttonRow = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 0)
+            Orientation = Orientation.Horizontal
         };
         buttonRow.Children.Add(loadBtn);
 
-        var crxBtn = MatteButton("Install from CRX...", async (_, _) =>
+        var crxBtn = SettingsButton("Install from CRX...");
+        crxBtn.Margin = new Thickness(8, 0, 0, 0);
+        crxBtn.Click += async (_, _) =>
         {
             try
             {
@@ -2300,18 +2575,21 @@ public partial class MainWindow
             {
                 Log.Error(ex, "Error occurred");
             }
-        }, new Thickness(8, 0, 0, 0));
+        };
 
         buttonRow.Children.Add(crxBtn);
-        stack.Children.Add(buttonRow);
+        stack.Children.Add(SectionDivider());
+        stack.Children.Add(SettingsRow2("Add extension",
+            "Load an unpacked extension folder or install a .crx file.",
+            buttonRow));
 
         var storeLink = new TextBlock
         {
             Text = "Get more extensions from Chrome Web Store",
             Foreground = GetBrush("Accent"),
-            FontSize = 12,
+            FontSize = 13.5,
             Cursor = Cursors.Hand,
-            Margin = new Thickness(0, 8, 0, 12),
+            Margin = new Thickness(0, 12, 0, 16),
             TextDecorations = TextDecorations.Underline
         };
         storeLink.MouseDown += async (_, _) =>
@@ -2330,6 +2608,7 @@ public partial class MainWindow
             }
             catch (Exception ex) { Log.Error(ex, "Error occurred"); }
         };
+        stack.Children.Add(SectionDivider());
         stack.Children.Add(storeLink);
 
         var dropZone = new Border
@@ -2345,7 +2624,7 @@ public partial class MainWindow
             {
                 Text = "Drop .crx file here to install",
                 Foreground = GetBrush("Muted"),
-                FontSize = 13,
+                FontSize = 14,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             }
@@ -2407,53 +2686,19 @@ public partial class MainWindow
 
         if (settings.Extensions.Count == 0)
         {
-            stack.Children.Add(EmptyText("No extensions loaded."));
+            stack.Children.Add(SectionDivider());
+            stack.Children.Add(EmptyText("No additional extensions installed."));
             return stack;
         }
 
         foreach (var ext in settings.Extensions)
         {
-            var row = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 8, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            var nameBlock = new TextBlock
-            {
-                Text = ext.Name,
-                Foreground = GetBrush("Text"),
-                FontSize = 14,
-                VerticalAlignment = VerticalAlignment.Center,
-                Width = 200,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            };
-
-            var builtInBadge = ext.IsBuiltIn ? new Border
-            {
-                Child = new TextBlock
-                {
-                    Text = "Built-in",
-                    Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
-                    FontSize = 10,
-                    Padding = new Thickness(4, 1, 4, 1)
-                },
-                Background = GetBrush("Accent"),
-                CornerRadius = new CornerRadius(3),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(4, 0, 0, 0)
-            } : null;
-
-            var toggle = new CheckBox
-            {
-                IsChecked = ext.Enabled,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(8, 0, 8, 0),
-                IsEnabled = !ext.IsBuiltIn
-            };
-
+            stack.Children.Add(SectionDivider());
             var capturedExt = ext;
+
+            var toggle = SettingsSwitch(ext.Enabled);
+            toggle.IsEnabled = !ext.IsBuiltIn;
+            toggle.VerticalAlignment = VerticalAlignment.Center;
             toggle.Checked += async (_, _) =>
             {
                 try
@@ -2479,31 +2724,9 @@ public partial class MainWindow
                 }
             };
 
-            var removeBtn = MatteButton("Remove", async (_, _) =>
-            {
-                try
-                {
-                    await RemoveExtensionAsync(capturedExt);
-                    var filtered = _dataStore.Settings.Extensions.Where(e => e.Id != capturedExt.Id).ToList();
-                    _dataStore.SaveSettings(_dataStore.Settings with { Extensions = filtered });
-                    if (_activeTab is not null) RenderNativeSurface(_activeTab, forceRebuild: true);
-                }
-                catch (Exception ex)
-                {
-                    StatusBar.StatusText.Text = $"Failed to remove extension: {ex.Message}";
-                }
-            });
-
-            removeBtn.IsEnabled = !ext.IsBuiltIn;
-
-            row.Children.Add(nameBlock);
-            if (builtInBadge is not null)
-            {
-                row.Children.Add(builtInBadge);
-            }
-            row.Children.Add(toggle);
-
-            var manageBtn = MatteButton("Manage", async (_, _) =>
+            var manageBtn = SettingsButton("Manage", ghost: true);
+            manageBtn.Margin = new Thickness(10, 0, 0, 0);
+            manageBtn.Click += async (_, _) =>
             {
                 try
                 {
@@ -2518,11 +2741,38 @@ public partial class MainWindow
                     }
                 }
                 catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-            });
-            row.Children.Add(manageBtn);
+            };
 
-            row.Children.Add(removeBtn);
-            stack.Children.Add(row);
+            var removeBtn = SettingsButton("Remove", ghost: true);
+            removeBtn.Margin = new Thickness(8, 0, 0, 0);
+            removeBtn.IsEnabled = !ext.IsBuiltIn;
+            removeBtn.Click += async (_, _) =>
+            {
+                try
+                {
+                    await RemoveExtensionAsync(capturedExt);
+                    var filtered = _dataStore.Settings.Extensions.Where(e => e.Id != capturedExt.Id).ToList();
+                    _dataStore.SaveSettings(_dataStore.Settings with { Extensions = filtered });
+                    if (_activeTab is not null) RenderNativeSurface(_activeTab, forceRebuild: true);
+                }
+                catch (Exception ex)
+                {
+                    StatusBar.StatusText.Text = $"Failed to remove extension: {ex.Message}";
+                }
+            };
+
+            var controls = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            controls.Children.Add(toggle);
+            controls.Children.Add(manageBtn);
+            controls.Children.Add(removeBtn);
+
+            stack.Children.Add(SettingsRow2(ext.Name,
+                ext.IsBuiltIn ? "Built-in extension — updated automatically." : "Loaded from a local folder.",
+                controls));
         }
 
         return stack;
@@ -2731,7 +2981,7 @@ public partial class MainWindow
             {
                 Text = label,
                 Foreground = GetBrush("Text"),
-                FontSize = 13,
+                FontSize = 14.5,
                 VerticalAlignment = VerticalAlignment.Center
             };
             Grid.SetColumn(labelText, 0);
@@ -2741,9 +2991,10 @@ public partial class MainWindow
             var shortcutBtn = new Button
             {
                 Content = current,
-                Padding = new Thickness(10, 4, 10, 4),
-                MinWidth = 100,
-                FontSize = 11,
+                Padding = new Thickness(12, 7, 12, 7),
+                MinWidth = 118,
+                MinHeight = 35,
+                FontSize = 12.5,
                 Cursor = System.Windows.Input.Cursors.Hand
             };
 
@@ -2824,17 +3075,6 @@ public partial class MainWindow
         var settings = _dataStore.Settings;
         var toolsEnabled = settings.AiToolsEnabled ?? new Dictionary<string, bool>();
 
-        var stack = new StackPanel();
-
-        var subtitle = new TextBlock
-        {
-            Text = "Enable or disable individual tools that the AI agent can use.",
-            Foreground = GetBrush("Muted"),
-            FontSize = 13,
-            Margin = new Thickness(0, 2, 0, 16)
-        };
-        stack.Children.Add(subtitle);
-
         var toolDefs = new (string Id, string Name, string Description)[]
         {
             ("search", "Search", "Search the web for information"),
@@ -2849,77 +3089,27 @@ public partial class MainWindow
             ("scroll", "Scroll Page", "Scroll the page up or down"),
         };
 
-        var toolToggles = new Dictionary<string, CheckBox>();
-
+        var toolToggles = new Dictionary<string, ToggleButton>();
+        var toolRows = new List<object>();
         foreach (var (id, name, description) in toolDefs)
         {
             var isEnabled = !toolsEnabled.TryGetValue(id, out var enabled) || enabled;
-            var toggle = new CheckBox
-            {
-                IsChecked = isEnabled,
-                Foreground = GetBrush("Text"),
-                FontSize = 14,
-                Content = name,
-                Margin = new Thickness(0, 0, 0, 2)
-            };
+            var (row, toggle) = SettingsToggleRow(name, description, isEnabled);
             toolToggles[id] = toggle;
-
-            var desc = new TextBlock
-            {
-                Text = description,
-                Foreground = GetBrush("Muted"),
-                FontSize = 12,
-                Margin = new Thickness(24, 0, 0, 8)
-            };
-
-            stack.Children.Add(toggle);
-            stack.Children.Add(desc);
+            toolRows.Add(row);
         }
 
-        stack.Children.Add(new Separator
-        {
-            Background = GetBrush("Stroke"),
-            Margin = new Thickness(0, 16, 0, 16)
-        });
-
-        var settingsHeader = new TextBlock
-        {
-            Text = "Agent Settings",
-            Foreground = GetBrush("Text"),
-            FontSize = 20,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 8)
-        };
-        stack.Children.Add(settingsHeader);
-
-        var maxIter = SliderRow("Max iterations",
+        var maxIter = SettingsSliderRow("Max iterations",
             "Maximum number of tool-calling iterations per request.",
-            settings.AiMaxIterations, 1, 20);
+            settings.AiMaxIterations, 1, 20, v => ((int)v).ToString());
 
-        var maxOpenTabs = SliderRow("Max open tabs",
+        var maxOpenTabs = SettingsSliderRow("Max open tabs",
             "Maximum AI-owned tabs the agent can keep open per task (oldest is closed when exceeded).",
-            settings.AiPolicy?.MaxOpenTabs ?? AiBrowserPolicy.Default.MaxOpenTabs, 1, 50);
+            settings.AiPolicy?.MaxOpenTabs ?? AiBrowserPolicy.Default.MaxOpenTabs, 1, 50, v => ((int)v).ToString());
 
-        var confirmSensitive = ToggleRow(
-            "Confirm sensitive actions",
+        var (confirmRow, confirmSensitive) = SettingsToggleRow("Confirm sensitive actions",
             "Ask for confirmation before navigating or opening tabs when page context is active.",
             settings.AiPageContextConfirmation);
-
-        stack.Children.Add(maxIter.Control);
-        stack.Children.Add(maxOpenTabs.Control);
-        stack.Children.Add(SettingRow("Search engine", "The AI's web search tool uses your browser's selected search engine.", new TextBlock
-        {
-            Text = settings.SearchEngine,
-            Foreground = GetBrush("Text"),
-            VerticalAlignment = VerticalAlignment.Center
-        }));
-        stack.Children.Add(confirmSensitive);
-
-        stack.Children.Add(new Separator
-        {
-            Background = GetBrush("Stroke"),
-            Margin = new Thickness(0, 16, 0, 16)
-        });
 
         var resetBtn = MatteButton("Reset to defaults", (_, _) =>
         {
@@ -2930,8 +3120,41 @@ public partial class MainWindow
             confirmSensitive.IsChecked = true;
             SaveAiSettings();
         });
-        resetBtn.HorizontalAlignment = HorizontalAlignment.Left;
-        stack.Children.Add(resetBtn);
+
+        var searchEngineRow = SettingsRow2("Search engine",
+            "The AI's web search tool uses your browser's selected search engine.",
+            new TextBlock
+            {
+                Text = settings.SearchEngine,
+                Foreground = GetBrush("Text"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+        var sections = new FrameworkElement[]
+        {
+            PrefSection("Agent tools", "Enable or disable individual tools that the AI agent can use.", toolRows.ToArray()),
+            PrefSection("Agent settings", null,
+                maxIter.Control,
+                maxOpenTabs.Control,
+                searchEngineRow,
+                confirmRow,
+                SettingsRow2("Reset to defaults",
+                    "Restore all agent tools and limits to their defaults.",
+                    resetBtn))
+        };
+
+        var content = new StackPanel();
+        for (int i = 0; i < sections.Length; i++)
+        {
+            // Reference: the first section on a page has no top border and
+            // tighter top padding.
+            if (sections[i] is Border sectionBorder)
+            {
+                sectionBorder.BorderThickness = i == 0 ? new Thickness(0) : new Thickness(0, 1, 0, 0);
+                sectionBorder.Padding = i == 0 ? new Thickness(0, 5, 0, 30) : new Thickness(0, 26, 0, 30);
+            }
+            content.Children.Add(sections[i]);
+        }
 
         void SaveAiSettings()
         {
@@ -2959,17 +3182,15 @@ public partial class MainWindow
         }
 
         foreach (var toggle in toolToggles.Values)
+        {
             toggle.Checked += (_, _) => SaveAiSettings();
-        foreach (var toggle in toolToggles.Values)
             toggle.Unchecked += (_, _) => SaveAiSettings();
+        }
         maxIter.Input.LostFocus += (_, _) => SaveAiSettings();
         maxOpenTabs.Input.LostFocus += (_, _) => SaveAiSettings();
         confirmSensitive.Checked += (_, _) => SaveAiSettings();
         confirmSensitive.Unchecked += (_, _) => SaveAiSettings();
 
-        return BuildPageShell(tab, "AI Management", stack);
+        return BuildPageShell(tab, "AI Management", content);
     }
 }
-
-
-

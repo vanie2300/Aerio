@@ -314,13 +314,17 @@ public class AiToolExecutor
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(selected.Url))
+                return "Failed to open search result: missing URL.";
+
             // Reuse the AI's current tab if it already owns one; only open a new tab
             // when none exists yet. Prevents searches from piling up tabs.
             var focus = _getActiveTab();
             if (focus is null || focus.Owner != TabOwner.AI)
             {
-                await _openTab(null!, selected.Title, ct);
+                await _openTab(selected.Url, selected.Title, ct);
             }
+
             return await _getPageContent(selected.Url, 0, 32000, ct);
         }
         catch

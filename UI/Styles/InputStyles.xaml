@@ -168,7 +168,9 @@
       <Setter.Value>
         <ControlTemplate TargetType="Slider">
           <Grid VerticalAlignment="Center">
-            <Track x:Name="PART_Track">
+            <Track x:Name="PART_Track"
+                   Height="24"
+                   VerticalAlignment="Center">
               <Track.DecreaseRepeatButton>
                 <RepeatButton Command="{x:Static Slider.DecreaseLarge}" Focusable="False" IsTabStop="False">
                   <RepeatButton.Template>
@@ -268,7 +270,11 @@
                   CornerRadius="11"
                   BorderBrush="{DynamicResource StrokeStrong}"
                   BorderThickness="1"
-                  Background="{DynamicResource SurfaceRaised}">
+                  Background="{DynamicResource SurfaceRaised}"
+                  RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+              <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Border.RenderTransform>
             <Ellipse x:Name="Thumb"
                      Width="15"
                      Height="15"
@@ -306,6 +312,240 @@
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Track" Property="Opacity" Value="0.9" />
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Track"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1.06" Duration="0:0:0.1" />
+                    <DoubleAnimation Storyboard.TargetName="Track"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1.06" Duration="0:0:0.1" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Track"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1" Duration="0:0:0.14" />
+                    <DoubleAnimation Storyboard.TargetName="Track"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1" Duration="0:0:0.14" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Track"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="0.94" Duration="0:0:0.06" />
+                    <DoubleAnimation Storyboard.TargetName="Track"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="0.94" Duration="0:0:0.06" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Track"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1" Duration="0:0:0.12" />
+                    <DoubleAnimation Storyboard.TargetName="Track"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1" Duration="0:0:0.12" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.45" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ══════════════════ Color dot (accent picker) ══════════════════ -->
+  <Style x:Key="ColorDotButton" TargetType="Button">
+    <Setter Property="Width" Value="33" />
+    <Setter Property="Height" Value="33" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Ring"
+                  CornerRadius="17"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+              <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Border.RenderTransform>
+            <ContentPresenter HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Margin="{TemplateBinding Padding}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource StrokeStrong}" />
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Ring"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1.08" Duration="0:0:0.12" />
+                    <DoubleAnimation Storyboard.TargetName="Ring"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1.08" Duration="0:0:0.12" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Ring"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1" Duration="0:0:0.16" />
+                    <DoubleAnimation Storyboard.TargetName="Ring"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1" Duration="0:0:0.16" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Ring"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="0.92" Duration="0:0:0.06" />
+                    <DoubleAnimation Storyboard.TargetName="Ring"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="0.92" Duration="0:0:0.06" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Ring"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1" Duration="0:0:0.12" />
+                    <DoubleAnimation Storyboard.TargetName="Ring"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1" Duration="0:0:0.12" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.45" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ══════════════════ Settings action buttons ══════════════════ -->
+  <Style x:Key="SettingsActionButton" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource InkSecondary}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="MinWidth" Value="84" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Root"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="6"
+                  RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+              <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Border.RenderTransform>
+            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                              Margin="{TemplateBinding Padding}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource StrokeStrong}" />
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Root"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1.025" Duration="0:0:0.11" />
+                    <DoubleAnimation Storyboard.TargetName="Root"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1.025" Duration="0:0:0.11" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Root"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1" Duration="0:0:0.15" />
+                    <DoubleAnimation Storyboard.TargetName="Root"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1" Duration="0:0:0.15" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Root"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="0.98" Duration="0:0:0.06" />
+                    <DoubleAnimation Storyboard.TargetName="Root"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="0.98" Duration="0:0:0.06" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Root"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1" Duration="0:0:0.12" />
+                    <DoubleAnimation Storyboard.TargetName="Root"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1" Duration="0:0:0.12" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Root" Property="Background" Value="{DynamicResource ButtonPressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.45" />
@@ -331,12 +571,66 @@
           <Border x:Name="SegRoot"
                   Background="{TemplateBinding Background}"
                   CornerRadius="4"
-                  Padding="{TemplateBinding Padding}">
+                  Padding="{TemplateBinding Padding}"
+                  RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+              <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Border.RenderTransform>
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter Property="Foreground" Value="{DynamicResource Text}" />
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="SegRoot"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1.035" Duration="0:0:0.1" />
+                    <DoubleAnimation Storyboard.TargetName="SegRoot"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1.035" Duration="0:0:0.1" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="SegRoot"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1" Duration="0:0:0.14" />
+                    <DoubleAnimation Storyboard.TargetName="SegRoot"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1" Duration="0:0:0.14" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="SegRoot"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="0.97" Duration="0:0:0.06" />
+                    <DoubleAnimation Storyboard.TargetName="SegRoot"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="0.97" Duration="0:0:0.06" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="SegRoot"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                     To="1" Duration="0:0:0.12" />
+                    <DoubleAnimation Storyboard.TargetName="SegRoot"
+                                     Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                     To="1" Duration="0:0:0.12" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.45" />

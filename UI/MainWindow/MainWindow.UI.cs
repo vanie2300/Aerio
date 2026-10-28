@@ -1741,11 +1741,18 @@ public partial class MainWindow
     }
 
 private bool _isClosing;
+private bool _allowClose;
 private Task? _deferredCloseTask;
 
 private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
         try { _aiCts?.Cancel(); } catch (Exception ex) { Log.Debug(ex, "AI cancellation on close failed"); }
+
+        if (_allowClose)
+        {
+            DisposeWebViewsAndExit();
+            return;
+        }
 
         if (_isClosing)
         {
@@ -1770,7 +1777,11 @@ private async Task DeferredCloseAsync()
         try { await SaveStateBeforeCloseAsync(); }
         catch (Exception ex) { Log.Error(ex, "Save state on close failed"); }
 
-        try { await Dispatcher.InvokeAsync(Close); }
+        try
+        {
+            _allowClose = true;
+            await Dispatcher.InvokeAsync(Close);
+        }
         catch (Exception ex) { Log.Error(ex, "Dispatcher.Close failed during shutdown"); Environment.Exit(1); }
     }
 
@@ -2065,4 +2076,3 @@ private void DisposeWebViewsAndExit()
         catch (Exception ex) { Log.Error(ex, "ShowSiteDataPopup failed"); }
     }
 }
-

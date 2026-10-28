@@ -193,10 +193,13 @@ public partial class MainWindow
     {
         var text = Input(Math.Clamp(value, min, max).ToString());
         text.HorizontalContentAlignment = HorizontalAlignment.Center;
+        text.Height = 34;
+        text.Width = 68;
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         int current = value;
@@ -206,26 +209,37 @@ public partial class MainWindow
             text.Text = current.ToString();
         }
 
-        var decrement = MatteButton("-", (_, _) => setValue(ClampInt(text.Text, min, max, current) - 1));
-        decrement.MinWidth = 34;
-        decrement.Width = 34;
-        decrement.Height = 32;
-        decrement.Margin = new Thickness(0, 0, 6, 0);
+        // Reference .number-picker: 31x34 buttons, 68px field, 5px gaps.
+        var decrement = new Button { Content = "-", Width = 31, Height = 34, Padding = new Thickness(0) };
+        decrement.Click += (_, _) => setValue(ClampInt(text.Text, min, max, current) - 1);
 
-        var increment = MatteButton("+", (_, _) => setValue(ClampInt(text.Text, min, max, current) + 1));
-        increment.MinWidth = 34;
-        increment.Width = 34;
-        increment.Height = 32;
-        increment.Margin = new Thickness(6, 0, 0, 0);
+        var increment = new Button { Content = "+", Width = 31, Height = 34, Padding = new Thickness(0) };
+        increment.Click += (_, _) => setValue(ClampInt(text.Text, min, max, current) + 1);
+
+        var unit = new TextBlock
+        {
+            Text = "min",
+            Foreground = GetBrush("Muted"),
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(7, 0, 0, 0)
+        };
 
         text.LostFocus += (_, _) => setValue(ClampInt(text.Text, min, max, current));
         text.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsDigit);
 
+        decrement.Margin = new Thickness(0, 0, 5, 0);
+        text.Margin = new Thickness(0, 0, 5, 0);
+        increment.Margin = new Thickness(0, 0, 0, 0);
+
+        Grid.SetColumn(decrement, 0);
         Grid.SetColumn(text, 1);
         Grid.SetColumn(increment, 2);
+        Grid.SetColumn(unit, 3);
         grid.Children.Add(decrement);
         grid.Children.Add(text);
         grid.Children.Add(increment);
+        grid.Children.Add(unit);
 
         return (grid, () => text.Text);
     }
@@ -317,7 +331,7 @@ public partial class MainWindow
         {
             Content = text,
             MinWidth = 92,
-            Height = 30,
+            Height = 32,
             Padding = new Thickness(12, 0, 12, 0),
             Margin = margin ?? new Thickness(0),
             Style = FindResource("MicroButton") as Style
@@ -404,30 +418,33 @@ public partial class MainWindow
 
     private TextBox Input(string value)
     {
+        // Reference .field: 35px tall, field background, strong stroke.
         return new TextBox
         {
             Text = value,
-            Height = 32,
-            Background = GetBrush("InputBg"),
+            Height = 35,
+            Background = GetBrush("FieldBg"),
             Foreground = GetBrush("Text"),
-            BorderBrush = GetBrush("Stroke"),
-            Padding = new Thickness(10, 0, 10, 0)
+            BorderBrush = GetBrush("StrokeStrong"),
+            FontSize = 12.5,
+            Padding = new Thickness(11, 0, 11, 0)
         };
     }
 
     private TextBox Multiline(string value)
     {
+        // Reference .area: field background, strong stroke.
         return new TextBox
         {
             Text = value,
-            MinHeight = 88,
+            MinHeight = 94,
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Background = GetBrush("InputBg"),
+            Background = GetBrush("FieldBg"),
             Foreground = GetBrush("Text"),
-            BorderBrush = GetBrush("Stroke"),
-            Padding = new Thickness(8)
+            BorderBrush = GetBrush("StrokeStrong"),
+            Padding = new Thickness(12, 8, 12, 8)
         };
     }
 
@@ -583,26 +600,30 @@ public partial class MainWindow
 <html><head><meta charset='utf-8'><style>
 /* ─── design tokens ─────────────────────────────────────────── */
 :root{
-  --card-w:212px; --card-h:146px; --card-radius:16px;
-  --hero-scale:1.16; --side-scale:.7;
-  --side-offset:160px; --hidden-offset:320px;
-  --stage-pad:38px;
-  --stage-h:calc(var(--card-h)*var(--hero-scale) + var(--stage-pad)*2);
+  --card-w:252px; --card-h:168px; --card-radius:11px;
+  --hero-scale:1; --side-scale:.79;
+  --side-offset:188px; --hidden-offset:330px;
+  --stage-pad:22px;
+  --stage-h:250px;
   --ease:cubic-bezier(.32,.72,.24,1);
   --dur-slow:540ms; --dur-fast:200ms;
-  --bg-card:#202226;
-  --line:rgba(255,255,255,.09);
-  --line-strong:rgba(255,255,255,.18);
-  --text:#f2f2f2; --text-dim:#a9afb8; --muted:#8b9099;
-  --ok:#34d399;
+  --accent:#9877e8;
+  --bg-card:#191a20;
+  --bg-card-raised:#202127;
+  --bg-field:#17181e;
+  --line:#2b2d35;
+  --line-strong:#3d3e49;
+  --text:#f0f0f3; --text-dim:#b8b8c3; --muted:#858691;
 }
 /* ─── base ──────────────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%}
 body{background:transparent;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden;user-select:none;color:var(--text)}
 .carousel{width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
-/* ─── card band: fixed-height area reserved for the cards ───── */
-.stage{position:relative;flex:0 0 var(--stage-h);width:100%;overflow:hidden}
+/* ─── stage ─────────────────────────────────────────────────── */
+.stage{position:relative;flex:0 0 var(--stage-h);width:100%;overflow:hidden;
+  border:1px solid var(--line);border-radius:8px;background:var(--bg-field);
+  background-image:radial-gradient(ellipse at 50% 72%, rgba(152,119,232,.055), transparent 68%)}
 .cards{position:absolute;inset:0}
 /* ─── cards ─────────────────────────────────────────────────── */
 .card{position:absolute;left:50%;top:50%;
@@ -615,68 +636,71 @@ body{background:transparent;font-family:system-ui,-apple-system,'Segoe UI',sans-
   will-change:transform,opacity}
 .card.no-trans{transition:none!important}
 .card.hero{z-index:3;opacity:1;border-color:var(--line-strong);
+  background:var(--bg-card-raised);
   transform:translate(-50%,-50%) scale(var(--hero-scale));
-  box-shadow:0 10px 26px rgba(0,0,0,.42)}
-.card.prev,.card.next{z-index:1;opacity:.5;
-  box-shadow:0 8px 20px rgba(0,0,0,.3)}
+  box-shadow:0 8px 25px rgba(0,0,0,.19)}
+.card.prev,.card.next{z-index:1;opacity:.63;
+  box-shadow:0 2px 10px rgba(0,0,0,.1)}
 .card.prev{transform:translate(-50%,-50%) translateX(calc(-1*var(--side-offset))) scale(var(--side-scale))}
 .card.next{transform:translate(-50%,-50%) translateX(var(--side-offset)) scale(var(--side-scale))}
 .card.hidden{z-index:0;opacity:0;pointer-events:none;box-shadow:none}
 .card.hidden.from-left{transform:translate(-50%,-50%) translateX(calc(-1*var(--hidden-offset))) scale(var(--side-scale))}
 .card.hidden.from-right{transform:translate(-50%,-50%) translateX(var(--hidden-offset)) scale(var(--side-scale))}
 .card.selectable{cursor:pointer}
-.card.selectable:hover{opacity:.72;border-color:var(--line-strong)}
+.card.selectable:hover{opacity:.85;background:var(--bg-card-raised)}
+.card.hero.selectable:hover{border-color:var(--accent)}
 /* ─── card content ──────────────────────────────────────────── */
-.card-inner{position:relative;width:100%;padding:14px 16px 12px;text-align:center}
-.logo-badge{position:relative;width:52px;height:52px;border-radius:50%;margin:0 auto 7px;
+.card-inner{position:relative;width:100%;padding:16px 15px 14px;text-align:center}
+.logo-badge{position:relative;width:54px;height:54px;border-radius:50%;margin:0 auto 10px;
   display:flex;align-items:center;justify-content:center;overflow:hidden;
-  box-shadow:0 4px 14px rgba(0,0,0,.35)}
+  background:var(--bg-field);border:1px solid var(--line-strong)}
 .logo-badge img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
-.logo-letter{font-size:20px;font-weight:700;color:#fff}
-.name{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:5px;
+.logo-letter{font-size:24px;font-weight:750;color:#fff}
+.name{font-size:16px;font-weight:660;letter-spacing:-.3px;color:var(--text);margin-bottom:5px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.accent{display:block;width:38px;height:2.5px;border-radius:2px;margin:0 auto 5px}
-.desc{font-size:10.5px;line-height:1.35;color:var(--muted);
+.accent{display:block;width:38px;height:2.5px;border-radius:2px;margin:0 auto 7px}
+.desc{font-size:12px;line-height:1.5;color:var(--muted);
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .card:not(.hero) .desc,.card:not(.hero) .accent{display:none}
-/* ─── hero status chip ───────────────────────────────────────── */
+/* ─── default status chip ────────────────────────────────────── */
 .status{display:none}
 .card.hero .status{display:flex}
-.status{position:absolute;top:12px;left:12px;align-items:center;gap:5px;
-  font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
-  color:#101010;background:var(--ok);padding:3px 9px;border-radius:999px}
-.status::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
-/* ─── lock toggle: floating pill under the selected card ─────── */
+.status{position:absolute;top:12px;left:13px;align-items:center;
+  font-size:10px;font-weight:650;letter-spacing:.03em;
+  color:var(--accent);background:rgba(152,119,232,.12);
+  border:1px solid rgba(152,119,232,.4);
+  padding:4px 7px;border-radius:5px}
+/* ─── lock toggle: ghost pill under the selected card ────────── */
 .lock-toggle{position:absolute;left:50%;z-index:5;
-  bottom:calc((var(--stage-pad) - 26px)/2);
+  bottom:calc((var(--stage-pad) - 24px)/2);
   transform:translateX(-50%);
   display:flex;align-items:center;justify-content:center;gap:6px;
-  height:26px;padding:0 12px;border-radius:999px;white-space:nowrap;
+  height:24px;padding:0 11px;border-radius:999px;white-space:nowrap;
   font-size:11px;font-weight:600;letter-spacing:.3px;
-  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.26);
-  color:var(--text);cursor:pointer;
-  box-shadow:0 4px 12px rgba(0,0,0,.4);
+  background:var(--bg-field);border:1px solid var(--line-strong);
+  color:var(--text-dim);cursor:pointer;
   transition:background var(--dur-fast) ease,border-color var(--dur-fast) ease,
              color var(--dur-fast) ease}
-.lock-toggle:hover{background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.42)}
-.lock-toggle.locked{background:var(--ok);border-color:var(--ok);color:#0d0d0d}
-.lock-toggle.locked:hover{background:#2ec393;border-color:#2ec393}
+.lock-toggle:hover{background:#23242c;color:var(--text)}
+.lock-toggle.locked{background:rgba(152,119,232,.14);border-color:var(--accent);color:var(--accent)}
+.lock-toggle.locked:hover{background:rgba(152,119,232,.24)}
 .lock-toggle svg{flex:0 0 auto}
 /* ─── navigation ────────────────────────────────────────────── */
-.nav{display:flex;align-items:center;justify-content:center;gap:14px;
-  flex:0 0 auto;padding:10px 0 4px}
-.nav-btn{width:36px;height:36px;border-radius:10px;padding:0;
-  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.24);
-  color:#fff;cursor:pointer;
+.nav{display:flex;align-items:center;justify-content:center;gap:17px;
+  flex:0 0 auto;padding:15px 0 2px}
+.nav-btn{width:32px;height:32px;border-radius:7px;padding:0;
+  background:var(--bg-field);border:1px solid var(--line-strong);
+  color:var(--text-dim);cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  transition:background var(--dur-fast) ease,border-color var(--dur-fast) ease}
-.nav-btn:hover:not(:disabled){background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.42)}
+  transition:background var(--dur-fast) ease,border-color var(--dur-fast) ease,color var(--dur-fast) ease}
+.nav-btn:hover:not(:disabled){background:#23242c;color:var(--text)}
 .nav-btn:disabled{opacity:.35;cursor:default}
-.dots{display:flex;align-items:center;gap:6px}
-.dot{width:6px;height:6px;border-radius:999px;padding:0;
-  background:rgba(255,255,255,.3);border:none;cursor:pointer;
+.dots{display:flex;align-items:center;gap:7px;min-width:84px;justify-content:center}
+.dot{width:7px;height:7px;border-radius:999px;padding:0;
+  background:var(--line-strong);border:none;cursor:pointer;
   transition:width var(--dur-slow) var(--ease),background var(--dur-fast) ease}
-.dot.active{width:18px;background:var(--ok)}
+.dot.active{width:19px;background:var(--accent)}
+.dot:hover:not(.active){background:var(--muted)}
 .dot:disabled{cursor:default}
 /* ─── a11y + motion ─────────────────────────────────────────── */
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -730,7 +754,7 @@ function cardHtml(e){
     ? '<div class="logo-badge" style="background:'+clr+'"><span class="logo-letter">'+esc(e.letter)+'</span><img src="https://assets.local/'+e.icon+'" alt="" onerror="this.remove()"></div>'
     : '<div class="logo-badge" style="background:'+clr+'"><span class="logo-letter">'+esc(e.letter)+'</span></div>';
   return '<div class="card-inner">'
-    +'<span class="status">Active</span>'
+    +'<span class="status">Default</span>'
     +badge
     +'<div class="name">'+esc(e.name)+'</div>'
     +'<span class="accent" style="background:'+clr+'"></span>'
@@ -856,8 +880,8 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
         }
         wv = new Microsoft.Web.WebView2.Wpf.WebView2
         {
-            Width = 470,
-            Height = 316,
+            Width = 660,
+            Height = 330,
             DefaultBackgroundColor = System.Drawing.Color.Transparent,
             HorizontalAlignment = HorizontalAlignment.Center
         };

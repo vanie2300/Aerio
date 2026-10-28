@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Xunit;
 using TabloidBrowser;
@@ -71,6 +72,64 @@ public class AiToolExecutorSimulationTests
     {
         var tools = AiToolDefinitions.GetAllTools();
         Assert.Contains(tools, t => t.Name == toolName);
+    }
+
+    [Fact]
+    public async Task SearchAndRead_OpensSelectedResultUrl_WhenNoAiTabIsFocused()
+    {
+        var opened = new List<(string Url, string Title)>();
+        var authorizer = new AiAuthorizer(AiBrowserPolicy.Default, () => new BrowserTab { Owner = TabOwner.User });
+        var executor = new AiToolExecutor(
+            new WebSearchService(),
+            authorizer,
+            new PageInteractionService(DummyJs, DummyNav),
+            (url, offset, limit, ct) => Task.FromResult<string?>($"Page content for {url}"),
+            (url, ct) => Task.FromResult<string?>($"Title: Test | URL: {url}"),
+            (url, ct) => Task.FromResult<string?>($"- link1: {url}/link1"),
+            async (url, title, ct) => { await Task.CompletedTask; },
+            async (url, title, ct) => { opened.Add((url, title)); await Task.CompletedTask; },
+            () => null,
+            () => null,
+            async (title, url, ct) => { return $"Closed: {title}"; }
+        );
+
+        var method = typeof(AiToolExecutor).GetMethod("OpenAndReadArticleAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var result = await (Task<string?>)method.Invoke(executor, [new SearchResult("Example article", "https://example.com/article", "snippet"), CancellationToken.None])!;
+
+        Assert.Equal("Page content for https://example.com/article", result);
+        Assert.Single(opened);
+        Assert.Equal("https://example.com/article", opened[0].Url);
+        Assert.Equal("Example article", opened[0].Title);
+    }
+
+    [Fact]
+    public async Task OpenAndReadArticle_HandlesEmptyUrl_WhenAiTabIsFocused()
+    {
+        var opened = new List<(string Url, string Title)>();
+        var authorizer = new AiAuthorizer(AiBrowserPolicy.Default, () => new BrowserTab { Owner = TabOwner.AI });
+        var executor = new AiToolExecutor(
+            new WebSearchService(),
+            authorizer,
+            new PageInteractionService(DummyJs, DummyNav),
+            (url, offset, limit, ct) => Task.FromResult<string?>($"Page content for {url}"),
+            (url, ct) => Task.FromResult<string?>($"Title: Test | URL: {url}"),
+            (url, ct) => Task.FromResult<string?>($"- link1: {url}/link1"),
+            async (url, title, ct) => { opened.Add((url, title)); await Task.CompletedTask; },
+            async (url, title, ct) => { opened.Add((url, title)); await Task.CompletedTask; },
+            () => new BrowserTab { Owner = TabOwner.AI },
+            () => new BrowserTab { Owner = TabOwner.AI },
+            async (title, url, ct) => { return $"Closed: {title}"; }
+        );
+
+        var method = typeof(AiToolExecutor).GetMethod("OpenAndReadArticleAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var result = await (Task<string?>)method.Invoke(executor, [new SearchResult("Example article", "", "snippet"), CancellationToken.None])!;
+
+        Assert.Equal("Failed to open search result: missing URL.", result);
+        Assert.Empty(opened);
     }
 
     [Fact]

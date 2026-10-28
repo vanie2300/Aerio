@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -51,6 +52,37 @@ public partial class MainWindow
 
     private BrowserTab? _splitPrimaryTab;
     private BrowserTab? _splitSecondaryTab;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MemoryStatusEx
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhysical;
+        public ulong AvailablePhysical;
+        public ulong TotalPageFile;
+        public ulong AvailablePageFile;
+        public ulong TotalVirtual;
+        public ulong AvailableVirtual;
+        public ulong AvailableExtendedVirtual;
+    }
+
+    [DllImport("kernel32.dll", EntryPoint = "GlobalMemoryStatusEx", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx buffer);
+
+    private static bool IsUnderMemoryPressure()
+    {
+        var status = new MemoryStatusEx { Length = (uint)Marshal.SizeOf<MemoryStatusEx>() };
+        if (!GlobalMemoryStatusEx(ref status))
+        {
+            Log.Error(new Win32Exception(Marshal.GetLastWin32Error()), "Unable to read system memory status");
+            return false;
+        }
+
+        var pressureThreshold = Math.Max(1024UL * 1024 * 1024, status.TotalPhysical / 12);
+        return status.AvailablePhysical < pressureThreshold;
+    }
 
     private async Task RestoreSessionOrOpenStartAsync()
     {
@@ -509,6 +541,7 @@ public partial class MainWindow
         {
             var active = _activeTab;
             var sleepMinutes = _dataStore.Settings.TabSleepMinutes;
+            var underMemoryPressure = IsUnderMemoryPressure();
             List<BrowserTab> snapshot;
 
             await _tabOperationLock.WaitAsync();
@@ -518,8 +551,11 @@ public partial class MainWindow
                     tab != active &&
                     tab.Kind == BrowserTabKind.Web &&
                     !tab.IsSleeping &&
+                    !tab.IsPlayingAudio &&
                     !(tab.IsAiOwned && tab.AiState != AiTaskState.Idle) &&
-                    !(IsSplitActive && IsSplitTab(tab))).ToList();
+                    !(IsSplitActive && IsSplitTab(tab)))
+                    .OrderBy(tab => tab.LastActiveUtc)
+                    .ToList();
             }
             finally { _tabOperationLock.Release(); }
 
@@ -527,10 +563,21 @@ public partial class MainWindow
             {
                 try
                 {
-                    if (DateTimeOffset.UtcNow - tab.LastActiveUtc < TimeSpan.FromMinutes(sleepMinutes))
+                    underMemoryPressure = IsUnderMemoryPressure();
+                    if (!underMemoryPressure &&
+                        DateTimeOffset.UtcNow - tab.LastActiveUtc < TimeSpan.FromMinutes(sleepMinutes))
+                    {
                         continue;
+                    }
 
                     await HibernateTabAsync(tab);
+
+                    if (underMemoryPressure && IsUnderMemoryPressure() &&
+                        tab.SuspendedForSleep && tab.IsSleeping)
+                    {
+                        await DiscardSuspendedTabAsync(tab);
+                        underMemoryPressure = IsUnderMemoryPressure();
+                    }
                 }
                 catch (Exception ex) { Log.Error(ex, "Error occurred"); }
             }
@@ -539,7 +586,12 @@ public partial class MainWindow
             await _tabOperationLock.WaitAsync();
             try
             {
-                suspendedSnapshot = _tabs.Where(tab => tab.IsSleeping && tab.SuspendedForSleep).ToList();
+                suspendedSnapshot = _tabs
+                    .Where(tab => tab.IsSleeping && tab.SuspendedForSleep &&
+                                  tab != _activeTab &&
+                                  !(IsSplitActive && IsSplitTab(tab)))
+                    .OrderBy(tab => tab.SuspendedAtUtc)
+                    .ToList();
             }
             finally { _tabOperationLock.Release(); }
 
@@ -547,11 +599,17 @@ public partial class MainWindow
             {
                 try
                 {
+                    underMemoryPressure = IsUnderMemoryPressure();
                     var suspendedAt = tab.SuspendedAtUtc;
-                    if (suspendedAt is null || DateTimeOffset.UtcNow - suspendedAt < DiscardSuspendedAfter)
+                    var expired = suspendedAt is not null &&
+                                  DateTimeOffset.UtcNow - suspendedAt >= DiscardSuspendedAfter;
+                    if (!expired && !underMemoryPressure)
+                    {
                         continue;
+                    }
 
                     await DiscardSuspendedTabAsync(tab);
+                    underMemoryPressure = IsUnderMemoryPressure();
                 }
                 catch (Exception ex) { Log.Error(ex, "Error occurred"); }
             }
@@ -1152,6 +1210,4 @@ public partial class MainWindow
         }
     }
 }
-
-
 
