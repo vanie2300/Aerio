@@ -41,12 +41,35 @@ jobs:
             exit $LASTEXITCODE
           }
 
+      - name: Verify Windows app files
+        shell: pwsh
+        run: |
+          $requiredFiles = @(
+            "release\Aerio-win-x64\Aerio.exe",
+            "release\Aerio-win-x64\readability.min.js",
+            "release\Aerio-win-x64\Assets\the app icon.ico"
+          )
+          foreach ($file in $requiredFiles) {
+            if (-not (Test-Path $file)) {
+              Write-Error "Required release file is missing: $file"
+              exit 1
+            }
+          }
+
       - name: Package portable ZIP
         shell: pwsh
         run: |
           Compress-Archive `
             -Path release\Aerio-win-x64\* `
             -DestinationPath Aerio-win-x64.zip
+
+      - name: Upload Windows app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aerio-Windows-x64
+          path: release\Aerio-win-x64\*
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2

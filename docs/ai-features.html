@@ -28,12 +28,11 @@
             <div class="section">
                 <h2>Setup</h2>
                 <ol>
-                    <li>Open Settings (menu gear or <code>tabloid://settings</code>)</li>
-                    <li>Go to the <strong>AI</strong> tab</li>
-                    <li>Toggle <strong>Enable AI</strong></li>
-                    <li>Select a <strong>Provider</strong> (or use Custom for any OpenAI-compatible API)</li>
-                    <li>Enter your <strong>API key</strong> if required</li>
-                    <li>Select a <strong>Model</strong> (auto-discovered from the endpoint)</li>
+                    <li>Open Settings (or navigate to the legacy-compatible <code>tabloid://settings</code> page)</li>
+                    <li>Open the <strong>AI assistant</strong> settings section and enable the assistant</li>
+                    <li>Choose <strong>Ollama Cloud</strong> or <strong>NVIDIA NIM</strong></li>
+                    <li>Enter the API key for the selected provider</li>
+                    <li>Use <strong>Test connection</strong> to discover models, then select or enter a model name</li>
                 </ol>
                 <p>Press <kbd>Ctrl+Shift+A</kbd> or click the AI icon in the toolbar to open the sidebar.</p>
             </div>
@@ -42,40 +41,40 @@
                 <h2>Providers</h2>
                 <table>
                     <tr><th>Provider</th><th>Endpoint</th><th>API Key</th><th>Notes</th></tr>
-                    <tr><td>Ollama</td><td><code>http://localhost:11434/v1</code></td><td>Not required</td><td>Local, runs on your machine</td></tr>
-                    <tr><td>OpenAI</td><td><code>https://api.openai.com/v1</code></td><td>Required</td><td>GPT-4o, GPT-4o-mini, etc.</td></tr>
-                    <tr><td>Groq</td><td><code>https://api.groq.com/openai/v1</code></td><td>Required</td><td>Fast inference, Llama/Mixtral models</td></tr>
-                    <tr><td>OpenRouter</td><td><code>https://openrouter.ai/api/v1</code></td><td>Required</td><td>Access to many models</td></tr>
-                    <tr><td>Custom</td><td>(user-defined)</td><td>Varies</td><td>Any OpenAI-compatible API</td></tr>
+                    <tr><td>Ollama Cloud</td><td><code>https://ollama.com</code></td><td>Required</td><td>Ollama-hosted cloud models</td></tr>
+                    <tr><td>NVIDIA NIM</td><td><code>https://integrate.api.nvidia.com/v1</code></td><td>Required</td><td>NVIDIA-hosted models using an OpenAI-compatible API</td></tr>
                 </table>
+                <p>These are the providers currently selectable in Aerio. The provider endpoints are presets; arbitrary provider endpoints are not configurable in the settings UI.</p>
             </div>
 
             <div class="section">
                 <h2>Agent Tools</h2>
-                <p>The AI can use tools to search the web, read pages, and navigate. The agent loop runs up to 10 iterations per message.</p>
+                <p>The AI can use the enabled tools below. The default maximum is 10 tool-calling iterations per message and can be changed in the AI agent settings.</p>
 
                 <table>
                     <tr><th>Tool</th><th>Parameters</th><th>Description</th></tr>
-                    <tr><td><code>web_search</code></td><td><code>query</code> (string)</td><td>Search the web via DuckDuckGo Lite or SearXNG</td></tr>
+                    <tr><td><code>search</code></td><td><code>query</code> (string)</td><td>Search the web using the browser's selected search engine where supported; unavailable engines fall back to DuckDuckGo, then Bing if needed</td></tr>
                     <tr><td><code>search_and_read</code></td><td><code>query</code> (string), <code>result_index</code> (int, default 0)</td><td>Search, navigate to a result, and read its content</td></tr>
-                    <tr><td><code>search_followup</code></td><td><code>query</code> (string)</td><td>Get related search suggestions</td></tr>
-                    <tr><td><code>get_page_content</code></td><td>(none)</td><td>Read the current page's text content (max 8000 chars)</td></tr>
-                    <tr><td><code>get_page_metadata</code></td><td><code>url</code> (string, optional)</td><td>Get page title, description, headings</td></tr>
-                    <tr><td><code>extract_page_links</code></td><td><code>source</code> (string, optional)</td><td>Extract all hyperlinks from a page</td></tr>
-                    <tr><td><code>navigate_to</code></td><td><code>url</code> (string)</td><td>Navigate the current tab to a URL and read it</td></tr>
-                    <tr><td><code>open_tab</code></td><td><code>url</code> (string), <code>title</code> (string)</td><td>Open a URL in a new background tab</td></tr>
+                    <tr><td><code>read_page</code></td><td><code>offset</code>, <code>limit</code> (optional integers)</td><td>Read the current page text, headings, and links</td></tr>
+                    <tr><td><code>navigate</code></td><td><code>url</code> (string)</td><td>Navigate an AI-owned tab to a URL and read it</td></tr>
+                    <tr><td><code>open_tab</code></td><td><code>url</code> (string), <code>title</code> (optional string)</td><td>Open a URL in a background tab managed by the AI</td></tr>
+                    <tr><td><code>click</code></td><td><code>selector</code> (string)</td><td>Click an element in the focused page</td></tr>
+                    <tr><td><code>fill</code></td><td><code>selector</code>, <code>value</code> (strings)</td><td>Fill a page input field</td></tr>
+                    <tr><td><code>list_elements</code></td><td>None</td><td>List interactive elements on the focused page</td></tr>
+                    <tr><td><code>scroll</code></td><td><code>direction</code> (string), <code>amount</code> (optional integer)</td><td>Scroll the focused page</td></tr>
+                    <tr><td><code>close_tab</code></td><td><code>title</code> or <code>url</code> (optional)</td><td>Close an AI-owned tab</td></tr>
                 </table>
             </div>
 
             <div class="section">
-                <h2>Web Search Backends</h2>
+                <h2>AI Web Search</h2>
                 <table>
                     <tr><th>Backend</th><th>API Key</th><th>Description</th></tr>
-                    <tr><td>DuckDuckGo Lite</td><td>Not required</td><td>Default. Scrapes lite.duckduckgo.com</td></tr>
-                    <tr><td>SearXNG</td><td>Not required</td><td>Self-hosted or public instance. Set endpoint URL.</td></tr>
-                    <tr><td>Custom</td><td>Varies</td><td>Generic JSON API. Expects <code>results[].title/url/content</code>.</td></tr>
+                    <tr><td>DuckDuckGo</td><td>Not required</td><td>Default search backend; the browser's DuckDuckGo search selection maps here</td></tr>
+                    <tr><td>SearXNG</td><td>Not required</td><td>Used when the browser search selection maps to SearXNG</td></tr>
+                    <tr><td>Bing fallback</td><td>Not required</td><td>Used if the selected backend returns no results</td></tr>
                 </table>
-                <p>Rate limited to 1 request per second.</p>
+                <p>AI search uses the browser's selected search engine when supported. Other engines fall back to DuckDuckGo. Requests are rate limited to one per second.</p>
             </div>
 
             <div class="section">

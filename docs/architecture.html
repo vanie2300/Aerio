@@ -38,8 +38,11 @@
 
             <div class="section">
                 <h2>Project Structure</h2>
-<pre><code>TabloidBrowser/
+<pre><code>Aerio repository (legacy project name: TabloidBrowser)
 ├── TabloidBrowser.csproj
+├── TabloidBrowser.Tests/                xUnit test project
+├── .github/workflows/                   CI and tagged-release automation
+├── docs/                                Project documentation
 ├── UI/
 │   ├── App.xaml(.cs)                 Entry point, exception handlers
 │   ├── MainWindow.xaml(.cs)          Constructor, startup, core logic
@@ -50,6 +53,7 @@
 │   │   ├── MainWindow.Permissions.cs Site permission management
 │   │   ├── MainWindow.Tabs.cs        Tab lifecycle
 │   │   ├── MainWindow.UI.cs          Menus, bookmarks, settings UI
+│   │   ├── MainWindow.Updates.cs     GitHub release update checks
 │   │   └── MainWindow.WebView2.cs    WebView2 init and events
 │   ├── Controls/                     Reusable XAML controls
 │   ├── NativePages/                  WPF-rendered internal pages
@@ -57,7 +61,7 @@
 │   └── Assets/                       Icons, images, fonts
 ├── Processes/
 │   ├── AI/                           AI services
-│   │   ├── AiService.cs              OpenAI-compatible API client
+│   │   ├── AiService.cs              AI provider API client
 │   │   ├── AiTools.cs                Tool calling models
 │   │   ├── AiToolDefinitions.cs      Tool definitions + executor
 │   │   ├── WebSearchService.cs       Web search backends
@@ -65,13 +69,16 @@
 │   ├── Models/                       Data models
 │   └── Services/                     Business logic
 │       ├── BrowserDataStore.cs       Settings, bookmarks, history
+│       ├── AerioUpdateService.cs      GitHub release metadata
+│       ├── AddressSuggestionService.cs Address-bar suggestions
+│       ├── SearchKeywordService.cs   Search keywords
 │       ├── AdBlockEngine.cs          Ad/tracker blocking
 │       └── MediaService.cs           Media detection</code></pre>
             </div>
 
             <div class="section">
                 <h2>Main Window (Partial Classes)</h2>
-                <p>The <code>MainWindow</code> class is split across 7 files using C# partial classes:</p>
+                <p>The <code>MainWindow</code> class is split across eight concern-specific partial files in addition to its main XAML/code-behind files:</p>
                 <table>
                     <tr><th>File</th><th>Responsibility</th><th>Key Methods</th></tr>
                     <tr><td><code>.cs</code></td><td>Constructor, startup</td><td><code>MainWindow()</code>, <code>OnLoaded</code>, <code>ApplySettings</code></td></tr>
@@ -81,21 +88,23 @@
                     <tr><td><code>.Permissions.cs</code></td><td>Site permissions</td><td><code>PermissionRequested</code>, <code>BuildPermissionPopup</code></td></tr>
                     <tr><td><code>.Tabs.cs</code></td><td>Tab management</td><td><code>AddWebTabAsync</code>, <code>ActivateTabAsync</code>, <code>CloseTabAsync</code></td></tr>
                     <tr><td><code>.UI.cs</code></td><td>Settings, menus</td><td><code>BuildSettingsPage</code>, <code>FindInPage</code></td></tr>
+                    <tr><td><code>.Updates.cs</code></td><td>GitHub update checks</td><td>Check latest release and open release page</td></tr>
                     <tr><td><code>.WebView2.cs</code></td><td>WebView2 events</td><td><code>InitializeEnvironmentAsync</code>, <code>EnsureWebViewAsync</code></td></tr>
                 </table>
             </div>
 
             <div class="section">
                 <h2>Native Pages</h2>
-                <p>Internal pages are rendered as WPF elements (not WebView2). Built in <code>PageBuilders.cs</code>:</p>
+                <p>Internal pages are rendered as WPF elements (not WebView2). The active internal routes use the legacy <code>tabloid://</code> scheme:</p>
                 <table>
                     <tr><th>URI</th><th>Tab Kind</th><th>Description</th></tr>
                     <tr><td>(blank)</td><td><code>Start</code></td><td>Start page with search and particles</td></tr>
                     <tr><td><code>tabloid://bookmarks</code></td><td><code>Bookmarks</code></td><td>Bookmark manager</td></tr>
                     <tr><td><code>tabloid://history</code></td><td><code>History</code></td><td>Browsing history</td></tr>
                     <tr><td><code>tabloid://downloads</code></td><td><code>Downloads</code></td><td>Download history</td></tr>
-                    <tr><td><code>tabloid://settings</code></td><td><code>Settings</code></td><td>Settings page (8 categories)</td></tr>
+                    <tr><td><code>tabloid://settings</code></td><td><code>Settings</code></td><td>Settings sections</td></tr>
                 </table>
+                <p>The scheme is retained for compatibility despite the Aerio product rebrand.</p>
             </div>
 
             <div class="section">
@@ -109,11 +118,11 @@
 
             <div class="section">
                 <h2>AI Architecture</h2>
-<pre><code>User input → AiSend_Click
-    → AgentLoopAsync (max 10 iterations)
-        → AiService.CompleteWithToolsAsync (API call)
+<pre><code>User input → AI sidebar / MainWindow.AI.cs
+    → AgentLoopAsync (configured iteration limit; default 10)
+        → AiService streaming completion (provider API call)
         → If tool_calls: AiToolExecutor.ExecuteToolAsync
-            → WebSearchService / GetPageContent / NavigateToUrl
+            → WebSearchService / page interaction / AI-owned tabs
         → Add tool results to messages
         → Loop back to API call
     → Display final response in sidebar</code></pre>
@@ -139,7 +148,7 @@
                     <tr><td><code>downloads.json</code></td><td><code>List&lt;DownloadItem&gt;</code></td><td>100 items</td></tr>
                     <tr><td><code>session.json</code></td><td><code>BrowserSession</code></td><td>Tab state</td></tr>
                 </table>
-                <p>All writes use atomic operations (write to <code>.tmp</code>, then <code>File.Move</code>).</p>
+                <p>Browser data is stored under <code>%LOCALAPPDATA%\TabloidBrowser\Data</code>; the folder name is retained for compatibility. Settings and session writes use a temporary file followed by a replace/move operation.</p>
             </div>
 
             <div class="footer">

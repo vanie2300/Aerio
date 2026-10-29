@@ -29,16 +29,16 @@
                 <h2>Prerequisites</h2>
                 <table>
                     <tr><th>Tool</th><th>Version</th></tr>
-                    <tr><td>Visual Studio</td><td>2022 (17.8+)</td></tr>
-                    <tr><td>.NET SDK</td><td>8.0+</td></tr>
+                    <tr><td>.NET SDK</td><td>8.0 or newer</td></tr>
                     <tr><td>Windows</td><td>10 (19041+) or 11</td></tr>
+                    <tr><td>Microsoft Edge WebView2 Runtime</td><td>Required to run the browser</td></tr>
                 </table>
             </div>
 
             <div class="section">
                 <h2>Setup</h2>
-<pre><code>git clone https://github.com/your-username/TabloidBrowser.git
-cd TabloidBrowser
+<pre><code>git clone https://github.com/vanie2300/Aerio.git
+cd Aerio
 dotnet restore
 dotnet build</code></pre>
             </div>
@@ -67,8 +67,9 @@ dotnet build</code></pre>
             <div class="section">
                 <h2>Testing</h2>
                 <ul>
-                    <li>No formal test framework — manual testing is expected</li>
-                    <li>Test on clean profile: delete <code>%LOCALAPPDATA%\TabloidBrowser\</code></li>
+                    <li>Run the xUnit suite with <code>dotnet test TabloidBrowser.Tests\TabloidBrowser.Tests.csproj</code></li>
+                    <li>Test UI changes manually in Aerio on Windows, including light and dark themes where relevant</li>
+                    <li>Use a separate Windows profile or back up user data before testing clean-profile behavior</li>
                     <li>Key scenarios: new install, upgrade from older version, settings persistence</li>
                 </ul>
             </div>
@@ -77,7 +78,7 @@ dotnet build</code></pre>
                 <h2>Pull Request Process</h2>
                 <ol>
                     <li>Fork and create a feature branch</li>
-                    <li>Build and run manually</li>
+                    <li>Run the test suite and build the application</li>
                     <li>Test on Windows 10 or 11</li>
                     <li>Update docs if adding features or changing settings</li>
                     <li>Open PR with description of changes</li>
@@ -89,7 +90,7 @@ dotnet build</code></pre>
                 <ul>
                     <li>WebView2 must be installed on user's machine (not bundled)</li>
                     <li>Some features may not work on older Windows builds</li>
-                    <li>AI features require running LLM backend (Ollama, OpenAI, etc.)</li>
+                    <li>AI features require credentials for a supported cloud provider (Ollama Cloud or NVIDIA NIM)</li>
                 </ul>
             </div>
 

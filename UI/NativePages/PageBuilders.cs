@@ -1319,6 +1319,18 @@ public partial class MainWindow
             RenderNativeSurface(tab, forceRebuild: true);
         };
 
+        var installedVersion = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+        var updateStatus = new TextBlock
+        {
+            Text = $"Installed version: v{installedVersion}",
+            Foreground = GetBrush("Muted"),
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        var checkForUpdates = SettingsButton("Check for updates");
+        checkForUpdates.Click += async (_, _) => await CheckForAerioUpdatesAsync(checkForUpdates, updateStatus);
+
         // ── Pages: each category is a list of reference-style pref-sections ──
         var pages = new Dictionary<string, (string Title, string Subtitle, FrameworkElement[] Sections)>
         {
@@ -1394,6 +1406,8 @@ public partial class MainWindow
                 PrefSection("Developer settings", null,
                     enableDevTools.Row,
                     forceDark.Row),
+                PrefSection("Updates", "Check GitHub for a newer Aerio release. Updates are installed manually from the release ZIP.",
+                    StackOf(checkForUpdates, updateStatus)),
                 PrefSection("Keyboard shortcuts", "Common browser commands.",
                     BuildShortcutRows(shortcutOverrides, () => onChange()))
             ]),

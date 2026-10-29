@@ -23,7 +23,7 @@
         </nav>
         <main>
             <h1>Settings Reference</h1>
-            <p class="subtitle">All settings stored in <code>%LOCALAPPDATA%\TabloidBrowser\Data\settings.json</code>.</p>
+            <p class="subtitle">Settings are persisted in <code>%LOCALAPPDATA%\TabloidBrowser\Data\settings.json</code>. This reference lists common options and defaults; the data folder name is retained for compatibility.</p>
 
             <div class="section">
                 <h2>Appearance</h2>
@@ -34,6 +34,15 @@
                     <tr><td><code>Background</code></td><td><span class="badge badge-string">string</span></td><td><code>"Default"</code></td><td>Start page background: "Default" or image file path</td></tr>
                     <tr><td><code>BackgroundOpacity</code></td><td><span class="badge badge-number">double</span></td><td><code>1.0</code></td><td>Background image opacity (0.0 - 1.0)</td></tr>
                     <tr><td><code>ShowQuickLinks</code></td><td><span class="badge badge-bool">bool</span></td><td><code>true</code></td><td>Show quick links on start page</td></tr>
+                    <tr><td><code>AutoHideBrowserChrome</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Auto-hide browser controls; changing this setting requires a restart</td></tr>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>New-tab shortcuts</h2>
+                <table>
+                    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+                    <tr><td><code>NewTabShortcuts</code></td><td><span class="badge badge-type">list</span></td><td>Google, YouTube, GitHub, Reddit, Gmail</td><td>Shortcut tiles shown on the new-tab page; edit, add, remove, and reorder tiles in the shortcut manager</td></tr>
                 </table>
             </div>
 
@@ -83,7 +92,7 @@
                 <h2>Advanced</h2>
                 <table>
                     <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
-                    <tr><td><code>EnableDevTools</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Enable F12 developer tools</td></tr>
+                    <tr><td><code>EnableDevTools</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Allow WebView2 developer tools</td></tr>
                     <tr><td><code>ForceDarkPage</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>CSS invert filter for dark pages</td></tr>
                     <tr><td><code>Shortcuts</code></td><td><span class="badge badge-type">dict</span></td><td><code>null</code></td><td>Custom keyboard shortcuts (action → key binding)</td></tr>
                 </table>
@@ -94,15 +103,17 @@
                 <table>
                     <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
                     <tr><td><code>AiEnabled</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Enable AI chat sidebar</td></tr>
-                    <tr><td><code>AiProvider</code></td><td><span class="badge badge-string">string</span></td><td><code>"Ollama"</code></td><td>Provider: Ollama, OpenAI, Groq, OpenRouter, Custom</td></tr>
-                    <tr><td><code>AiEndpoint</code></td><td><span class="badge badge-string">string</span></td><td><code>"http://localhost:11434/v1"</code></td><td>API endpoint URL</td></tr>
-                    <tr><td><code>AiModel</code></td><td><span class="badge badge-string">string</span></td><td><code>""</code></td><td>Model name (auto-discovered)</td></tr>
-                    <tr><td><code>AiApiKey</code></td><td><span class="badge badge-string">string</span></td><td><code>""</code></td><td>API key (encrypted with DPAPI on disk)</td></tr>
+                    <tr><td><code>AiProvider</code></td><td><span class="badge badge-string">string</span></td><td><code>"Ollama Cloud"</code></td><td>Ollama Cloud or NVIDIA NIM</td></tr>
+                    <tr><td><code>AiEndpoint</code></td><td><span class="badge badge-string">string</span></td><td><code>"https://ollama.com"</code></td><td>Endpoint selected for the provider</td></tr>
+                    <tr><td><code>AiModel</code></td><td><span class="badge badge-string">string</span></td><td><code>""</code></td><td>Model name; available models can be discovered from the provider</td></tr>
+                    <tr><td><code>AiApiKey</code> / <code>AiApiKeys</code></td><td><span class="badge badge-string">string / map</span></td><td><code>""</code> / <code>{}</code></td><td>Provider API keys are stored encrypted with Windows DPAPI</td></tr>
                     <tr><td><code>AiSystemPrompt</code></td><td><span class="badge badge-string">string</span></td><td><code>"You are a helpful assistant..."</code></td><td>System prompt for the AI</td></tr>
                     <tr><td><code>AiMaxTokens</code></td><td><span class="badge badge-number">int</span></td><td><code>2048</code></td><td>Max tokens per response (256 - 16384)</td></tr>
                     <tr><td><code>AiTemperature</code></td><td><span class="badge badge-number">double</span></td><td><code>0.7</code></td><td>Temperature (0.0 - 2.0)</td></tr>
+                    <tr><td><code>AiMaxIterations</code></td><td><span class="badge badge-number">int</span></td><td><code>10</code></td><td>Maximum agent tool-calling iterations per request</td></tr>
+                    <tr><td><code>AiPageContextConfirmation</code></td><td><span class="badge badge-bool">bool</span></td><td><code>true</code></td><td>Confirm navigation/open-tab actions when page context is active</td></tr>
                 </table>
-                <p>See <a href="ai-features.html">AI Features</a> for provider setup details.</p>
+                <p>Agent tool toggles and limits are managed in the AI settings page. See <a href="ai-features.html">AI Features</a> for provider setup details.</p>
             </div>
 
             <div class="section">
@@ -116,8 +127,8 @@
   "BlockTrackers": true,
   "EnableAdBlock": true,
   "AiEnabled": false,
-  "AiProvider": "Ollama",
-  "AiEndpoint": "http://localhost:11434/v1"
+  "AiProvider": "Ollama Cloud",
+  "AiEndpoint": "https://ollama.com"
 }</code></pre>
             </div>
 
