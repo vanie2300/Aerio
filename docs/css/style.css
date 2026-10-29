@@ -42,16 +42,6 @@ nav {
     overflow-y: auto;
 }
 
-nav .brand {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 24px;
-    display: block;
-}
-
-nav .brand span { color: var(--accent); }
-
 nav ul { list-style: none; }
 
 nav li a {
@@ -62,6 +52,16 @@ nav li a {
     font-size: 14px;
     transition: all 0.15s;
 }
+
+nav .brand {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 24px;
+    display: block;
+}
+
+nav .brand span { color: var(--accent); }
 
 nav li a:hover,
 nav li a.active {

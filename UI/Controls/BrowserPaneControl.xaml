@@ -108,14 +108,14 @@
                     CornerRadius="11"
                     Background="{DynamicResource Accent}"
                     VerticalAlignment="Center">
-              <TextBlock Text="T"
+              <TextBlock Text="A"
                          Foreground="White"
                          FontSize="13"
                          FontWeight="Bold"
                          HorizontalAlignment="Center"
                          VerticalAlignment="Center" />
             </Border>
-            <TextBlock Text="TABLOID  ·  YOUR BROWSER, YOUR SPACE"
+            <TextBlock Text="AERIO  ·  YOUR BROWSER, YOUR SPACE"
                        Foreground="{DynamicResource Text}"
                        FontSize="10"
                        FontWeight="SemiBold"
