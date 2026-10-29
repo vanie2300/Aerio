@@ -1353,7 +1353,23 @@ public partial class MainWindow
             Margin = new Thickness(0, 8, 0, 0)
         };
         var checkForUpdates = SettingsButton("Check for updates");
-        checkForUpdates.Click += async (_, _) => await CheckForAerioUpdatesAsync(checkForUpdates, updateStatus);
+        var downloadUpdate = SettingsButton("Download installer");
+        downloadUpdate.Margin = new Thickness(0, 8, 0, 0);
+        downloadUpdate.Visibility = Visibility.Collapsed;
+        AerioRelease? availableRelease = null;
+        checkForUpdates.Click += async (_, _) =>
+            availableRelease = await CheckForAerioUpdatesAsync(checkForUpdates, downloadUpdate, updateStatus);
+        downloadUpdate.Click += async (_, _) =>
+        {
+            if (availableRelease is not null)
+            {
+                await DownloadAerioUpdateAsync(
+                    availableRelease,
+                    checkForUpdates,
+                    downloadUpdate,
+                    updateStatus);
+            }
+        };
 
         // ── Pages: each category is a list of reference-style pref-sections ──
         var pages = new Dictionary<string, (string Title, string Subtitle, FrameworkElement[] Sections)>
@@ -1429,8 +1445,8 @@ public partial class MainWindow
                 PrefSection("Developer settings", null,
                     enableDevTools.Row,
                     forceDark.Row),
-                PrefSection("Updates", "Check GitHub for a newer Aerio release. Updates are installed manually from the release ZIP.",
-                    StackOf(checkForUpdates, updateStatus)),
+                PrefSection("Updates", "Check for updates and download the installer without opening GitHub.",
+                    StackOf(checkForUpdates, downloadUpdate, updateStatus)),
                 PrefSection("Keyboard shortcuts", "Common browser commands.",
                     BuildShortcutRows(shortcutOverrides, () => onChange()))
             ]),

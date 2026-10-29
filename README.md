@@ -133,7 +133,7 @@ Pushing a version tag such as `v1.4.1` directly also runs the Windows release wo
 
 To install, download and run `Aerio-Setup-win-x64.exe`. It installs Aerio and the bundled Microsoft Edge WebView2 Evergreen Runtime, creates a Start Menu shortcut, and offers an optional desktop shortcut. Administrator permission is required to install the runtime. Alternatively, download and extract `Aerio-win-x64.zip` and run `Aerio.exe` from the extracted folder; the portable ZIP requires WebView2 Runtime to be installed separately.
 
-In Aerio, open **Settings → Advanced → Updates → Check for updates** to check for a newer release. If one is available, Aerio opens its GitHub release page; download and replace the portable app files manually after closing Aerio.
+In Aerio, open **Settings → Advanced → Updates → Check for updates** to check for a newer release. If one is available, choose **Download installer** to download and optionally run the Windows installer without opening GitHub.
 
 ## Contributing
 
