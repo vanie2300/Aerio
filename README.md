@@ -127,9 +127,9 @@ Or run from PowerShell:
 
 ## Releases
 
-Pushes to `main` or `dev` and pull requests targeting `main` run CI: it tests the project, publishes the self-contained Windows x64 app, builds the Windows installer, and uploads both as Actions artifacts. Open the successful workflow run to download `Aerio-Windows-x64` (portable app folder) or `Aerio-Installer-win-x64` (setup executable).
+Every push to `main` runs tests, builds the standalone Windows installer and portable app, and automatically creates a GitHub Release with a new patch version (for example, `v1.4.0` becomes `v1.4.1`). The release includes `Aerio-Setup-win-x64.exe` and `Aerio-win-x64.zip`. The version is incremented from the highest existing `vMAJOR.MINOR.PATCH` tag. Pushes to `dev` and pull requests targeting `main` build and upload Actions artifacts without publishing a release.
 
-Pushing a version tag such as `v1.4.1` runs the Windows release workflow. It runs the test suite, publishes a self-contained x64 build, creates the installer, uploads the complete app folder as the `Aerio-Windows-x64` workflow artifact, and attaches both `Aerio-Setup-win-x64.exe` and `Aerio-win-x64.zip` to the GitHub release.
+Pushing a version tag such as `v1.4.1` directly also runs the Windows release workflow. It runs the test suite, publishes the self-contained x64 build, creates the installer, uploads the complete app folder as the `Aerio-Windows-x64` workflow artifact, and attaches both the setup executable and portable ZIP to the GitHub release.
 
 To install, download and run `Aerio-Setup-win-x64.exe`. It installs Aerio and the bundled Microsoft Edge WebView2 Evergreen Runtime, creates a Start Menu shortcut, and offers an optional desktop shortcut. Administrator permission is required to install the runtime. Alternatively, download and extract `Aerio-win-x64.zip` and run `Aerio.exe` from the extracted folder; the portable ZIP requires WebView2 Runtime to be installed separately.
 

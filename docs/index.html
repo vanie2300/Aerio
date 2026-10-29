@@ -44,7 +44,7 @@ dotnet run</code></pre>
 
             <div class="section">
                 <h2>Windows Releases</h2>
-                <p>Pushes to <code>main</code> or <code>dev</code> and pull requests targeting <code>main</code> run CI, which builds and tests Aerio, then uploads the portable Windows x64 app and installer as the <code>Aerio-Windows-x64</code> and <code>Aerio-Installer-win-x64</code> Actions artifacts.</p>
+                <p>Every push to <code>main</code> runs tests, builds Aerio, increments the patch version from the latest <code>vMAJOR.MINOR.PATCH</code> tag, and automatically publishes a GitHub Release with the setup installer and portable ZIP. For example, after <code>v1.4.0</code>, the next main push publishes <code>v1.4.1</code>. Pushes to <code>dev</code> and pull requests targeting <code>main</code> build Actions artifacts without publishing releases.</p>
                 <p>When a version tag is pushed, GitHub Actions creates a release with <code>Aerio-Setup-win-x64.exe</code> and <code>Aerio-win-x64.zip</code>. The setup executable installs Aerio and the bundled WebView2 Runtime (administrator permission is required). The portable ZIP requires WebView2 Runtime to already be installed.</p>
                 <p>To check for a newer release from within Aerio, use <strong>Settings → Advanced → Updates</strong>. The check opens the GitHub release page when an update is available; installation is manual.</p>
             </div>

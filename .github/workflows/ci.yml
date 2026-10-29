@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -18,6 +21,44 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Calculate automatic release version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: release_version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tags = await github.paginate(github.rest.repos.listTags, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            const existing = tags.find(({ name, commit }) =>
+              commit.sha === context.sha && /^v\d+\.\d+\.\d+$/.test(name));
+            if (existing) {
+              const version = existing.name.slice(1);
+              core.setOutput('version', version);
+              core.setOutput('tag', existing.name);
+              return;
+            }
+            let latest = { major: 1, minor: 4, patch: 0 };
+            for (const { name } of tags) {
+              const match = /^v(\d+)\.(\d+)\.(\d+)$/.exec(name);
+              if (!match) continue;
+              const version = {
+                major: Number(match[1]),
+                minor: Number(match[2]),
+                patch: Number(match[3])
+              };
+              if (version.major > latest.major ||
+                  (version.major === latest.major && version.minor > latest.minor) ||
+                  (version.major === latest.major && version.minor === latest.minor && version.patch > latest.patch)) {
+                latest = version;
+              }
+            }
+            const version = `${latest.major}.${latest.minor}.${latest.patch + 1}`;
+            core.setOutput('version', version);
+            core.setOutput('tag', `v${version}`);
+
       - name: Restore dependencies
         run: dotnet restore TabloidBrowser.Tests\TabloidBrowser.Tests.csproj
 
@@ -29,7 +70,23 @@ jobs:
         run: dotnet test TabloidBrowser.Tests\TabloidBrowser.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
 
       - name: Publish self-contained Windows app
-        run: dotnet publish TabloidBrowser.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts\Aerio-win-x64
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          $version = $env:RELEASE_VERSION
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = (Select-Xml -Path TabloidBrowser.csproj -XPath "//*[local-name()='Version']").Node.InnerText
+          }
+          dotnet publish TabloidBrowser.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            "-p:Version=$version" `
+            --output artifacts\Aerio-win-x64
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
 
       - name: Download offline WebView2 Runtime installer
         shell: pwsh
@@ -49,8 +106,13 @@ jobs:
 
       - name: Build Windows installer
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
         run: |
-          $version = (Select-Xml -Path TabloidBrowser.csproj -XPath "//*[local-name()='Version']").Node.InnerText
+          $version = $env:RELEASE_VERSION
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = (Select-Xml -Path TabloidBrowser.csproj -XPath "//*[local-name()='Version']").Node.InnerText
+          }
           $sourceDir = (Resolve-Path "artifacts\Aerio-win-x64").Path
           $runtimeInstaller = (Resolve-Path "artifacts\MicrosoftEdgeWebView2RuntimeInstallerX64.exe").Path
           $outputDir = (New-Item -ItemType Directory -Force "artifacts").FullName
@@ -70,6 +132,13 @@ jobs:
             Write-Error "Windows installer was not created."
             exit 1
           }
+
+      - name: Package portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path artifacts\Aerio-win-x64\* `
+            -DestinationPath artifacts\Aerio-win-x64.zip
 
       - name: Verify Windows app files
         shell: pwsh
@@ -101,6 +170,19 @@ jobs:
           path: artifacts\Aerio-Setup-win-x64.exe
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish automatic GitHub release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Aerio v${{ steps.release_version.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/Aerio-Setup-win-x64.exe
+            artifacts/Aerio-win-x64.zip
 
       - name: Upload test results
         if: always()
