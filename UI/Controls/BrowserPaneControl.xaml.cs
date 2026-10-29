@@ -30,10 +30,6 @@ public partial class BrowserPaneControl : UserControl
     public event RoutedEventHandler? NewTabDialogSubmit;
     public event Action<string>? NewTabShortcutSelected;
     public event Func<List<NewTabShortcut>, bool>? NewTabShortcutsChanged;
-    public event RoutedEventHandler? QuickDuckDuckGo;
-    public event RoutedEventHandler? QuickStartpage;
-    public event RoutedEventHandler? QuickGitHub;
-    public event RoutedEventHandler? QuickHackerNews;
 
     private void StartSearchSurface_PreviewMouseDown(object s, MouseButtonEventArgs e) => StartSearchSurfaceMouseDown?.Invoke(s, e);
     private void StartSearchBox_PreviewKeyDown(object s, KeyEventArgs e) => StartSearchKeyDown?.Invoke(s, e);
@@ -370,11 +366,6 @@ public partial class BrowserPaneControl : UserControl
 
         private void ShortcutManagerCancel_Click(object sender, RoutedEventArgs e) =>
             ShortcutManagerDialog.IsOpen = false;
-
-    private void QuickDuckDuckGo_Click(object s, RoutedEventArgs e) => QuickDuckDuckGo?.Invoke(s, e);
-    private void QuickStartpage_Click(object s, RoutedEventArgs e) => QuickStartpage?.Invoke(s, e);
-    private void QuickGitHub_Click(object s, RoutedEventArgs e) => QuickGitHub?.Invoke(s, e);
-    private void QuickHackerNews_Click(object s, RoutedEventArgs e) => QuickHackerNews?.Invoke(s, e);
 
     /// <summary>
     /// Cross-fade for WebView/tab swaps. WebView2 is an HwndHost, so its WPF

@@ -241,10 +241,6 @@ public partial class MainWindow : Window
         BrowserPane.NewTabDialogSubmit += NewTabDialogSubmit_Click;
         BrowserPane.NewTabShortcutSelected += NewTabShortcutSelected;
         BrowserPane.NewTabShortcutsChanged += SaveNewTabShortcuts;
-        BrowserPane.QuickDuckDuckGo += QuickDuckDuckGo_Click;
-        BrowserPane.QuickStartpage += QuickStartpage_Click;
-        BrowserPane.QuickGitHub += QuickGitHub_Click;
-        BrowserPane.QuickHackerNews += QuickHackerNews_Click;
         AiSidebar.AiClearChat += AiClearChat_Click;
         AiSidebar.AiSidebarClose += AiSidebarClose_Click;
         AiSidebar.AiSend += AiSend_Click;
@@ -474,7 +470,6 @@ public partial class MainWindow : Window
     private void ApplySettings()
     {
         ApplyBrowserChromeVisibilitySetting();
-        BrowserPane.QuickLinksPanel.Visibility = _dataStore.Settings.ShowQuickLinks ? Visibility.Visible : Visibility.Collapsed;
         ApplyTheme();
         ApplyBackground();
         UpdatePrivacyIndicator();

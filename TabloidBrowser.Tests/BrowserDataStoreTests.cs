@@ -62,11 +62,19 @@ public class BrowserDataStoreTests : IDisposable
     public void BrowserSettings_AiProviderPresets_ContainsExpectedProviders()
     {
         var presets = BrowserSettings.AiProviderPresets;
-        Assert.Equal(2, presets.Count);
+        Assert.Equal(10, presets.Count);
         Assert.True(presets.ContainsKey("Ollama Cloud"));
         Assert.Equal("https://ollama.com", presets["Ollama Cloud"]);
+        Assert.Equal("http://localhost:11434", presets["Ollama (local)"]);
         Assert.True(presets.ContainsKey("NVIDIA NIM"));
         Assert.Equal("https://integrate.api.nvidia.com/v1", presets["NVIDIA NIM"]);
+        Assert.Equal("https://api.openai.com/v1", presets["OpenAI"]);
+        Assert.Equal("https://openrouter.ai/api/v1", presets["OpenRouter"]);
+        Assert.Equal("https://api.groq.com/openai/v1", presets["Groq"]);
+        Assert.Equal("https://api.deepseek.com/v1", presets["DeepSeek"]);
+        Assert.Equal("https://api.together.xyz/v1", presets["Together AI"]);
+        Assert.Equal("https://api.cerebras.ai/v1", presets["Cerebras"]);
+        Assert.Equal("", presets["OpenAI-compatible (custom)"]);
     }
 
     [Fact]
@@ -74,7 +82,22 @@ public class BrowserDataStoreTests : IDisposable
     {
         Assert.Equal("https://ollama.com", BrowserSettings.GetProviderEndpoint("Ollama Cloud"));
         Assert.Equal("https://integrate.api.nvidia.com/v1", BrowserSettings.GetProviderEndpoint("NVIDIA NIM"));
-        Assert.Equal("https://ollama.com", BrowserSettings.GetProviderEndpoint("Unknown"));
+        Assert.Equal("http://localhost:11434", BrowserSettings.GetProviderEndpoint("Ollama (local)"));
+        Assert.Equal("", BrowserSettings.GetProviderEndpoint("Unknown"));
+    }
+
+    [Fact]
+    public void BrowserSettings_GetApiKey_DoesNotReuseAnotherProvidersKey()
+    {
+        var settings = BrowserSettings.Default with
+        {
+            AiProvider = "OpenAI",
+            AiApiKey = "openai-key",
+            AiApiKeys = new Dictionary<string, string> { ["OpenAI"] = "openai-key" }
+        };
+
+        Assert.Equal("openai-key", BrowserSettings.GetApiKey(settings, "OpenAI"));
+        Assert.Equal("", BrowserSettings.GetApiKey(settings, "Ollama (local)"));
     }
 
     [Fact]

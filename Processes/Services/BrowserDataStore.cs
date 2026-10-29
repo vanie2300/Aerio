@@ -792,11 +792,10 @@ public sealed record BrowserSettings(
 
     public static string GetApiKey(BrowserSettings settings, string? provider)
     {
-        if (!string.IsNullOrWhiteSpace(provider) &&
-            settings.AiApiKeys is { } keys &&
-            keys.TryGetValue(provider, out var stored) &&
-            !string.IsNullOrEmpty(stored))
-            return stored;
+        if (settings.AiApiKeys is { } keys)
+            return !string.IsNullOrWhiteSpace(provider) && keys.TryGetValue(provider, out var stored)
+                ? stored
+                : "";
         return settings.AiApiKey;
     }
 
@@ -813,14 +812,36 @@ public sealed record BrowserSettings(
         return keys;
     }
 
+    public static Dictionary<string, string> SetProviderApiKey(
+        Dictionary<string, string>? existing, string provider, string key)
+    {
+        var keys = existing is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(existing, StringComparer.OrdinalIgnoreCase);
+        keys[provider] = key;
+        return keys;
+    }
+
     public static Dictionary<string, string> AiProviderPresets { get; } = new()
     {
         ["Ollama Cloud"] = "https://ollama.com",
-        ["NVIDIA NIM"] = "https://integrate.api.nvidia.com/v1"
+        ["Ollama (local)"] = "http://localhost:11434",
+        ["NVIDIA NIM"] = "https://integrate.api.nvidia.com/v1",
+        ["OpenAI"] = "https://api.openai.com/v1",
+        ["OpenRouter"] = "https://openrouter.ai/api/v1",
+        ["Groq"] = "https://api.groq.com/openai/v1",
+        ["DeepSeek"] = "https://api.deepseek.com/v1",
+        ["Together AI"] = "https://api.together.xyz/v1",
+        ["Cerebras"] = "https://api.cerebras.ai/v1",
+        ["OpenAI-compatible (custom)"] = ""
     };
 
     public static string GetProviderEndpoint(string provider) =>
-        AiProviderPresets.TryGetValue(provider, out var ep) ? ep : "https://ollama.com";
+        AiProviderPresets.TryGetValue(provider, out var ep) ? ep : "";
+
+    public static bool UsesNativeOllamaApi(string? provider) =>
+        string.Equals(provider, "Ollama Cloud", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(provider, "Ollama (local)", StringComparison.OrdinalIgnoreCase);
 
     public static BrowserSettings Default { get; } = new(
         SearchEngine: "DuckDuckGo",

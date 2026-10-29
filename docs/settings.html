@@ -32,7 +32,6 @@
                     <tr><td><code>Accent</code></td><td><span class="badge badge-string">string</span></td><td><code>"Purple"</code></td><td>Accent color: Blue, Purple, Gray, Green, White</td></tr>
                     <tr><td><code>Background</code></td><td><span class="badge badge-string">string</span></td><td><code>"Default"</code></td><td>Start page background: "Default" or image file path</td></tr>
                     <tr><td><code>BackgroundOpacity</code></td><td><span class="badge badge-number">double</span></td><td><code>1.0</code></td><td>Background image opacity (0.0 - 1.0)</td></tr>
-                    <tr><td><code>ShowQuickLinks</code></td><td><span class="badge badge-bool">bool</span></td><td><code>true</code></td><td>Show quick links on start page</td></tr>
                     <tr><td><code>AutoHideBrowserChrome</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Auto-hide browser controls; changing this setting requires a restart</td></tr>
                 </table>
             </div>
@@ -102,8 +101,8 @@
                 <table>
                     <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
                     <tr><td><code>AiEnabled</code></td><td><span class="badge badge-bool">bool</span></td><td><code>false</code></td><td>Enable AI chat sidebar</td></tr>
-                    <tr><td><code>AiProvider</code></td><td><span class="badge badge-string">string</span></td><td><code>"Ollama Cloud"</code></td><td>Ollama Cloud or NVIDIA NIM</td></tr>
-                    <tr><td><code>AiEndpoint</code></td><td><span class="badge badge-string">string</span></td><td><code>"https://ollama.com"</code></td><td>Endpoint selected for the provider</td></tr>
+                    <tr><td><code>AiProvider</code></td><td><span class="badge badge-string">string</span></td><td><code>"Ollama Cloud"</code></td><td>Built-in provider or OpenAI-compatible custom endpoint</td></tr>
+                    <tr><td><code>AiEndpoint</code></td><td><span class="badge badge-string">string</span></td><td><code>"https://ollama.com"</code></td><td>Editable HTTP(S) API base URL, including local services</td></tr>
                     <tr><td><code>AiModel</code></td><td><span class="badge badge-string">string</span></td><td><code>""</code></td><td>Model name; available models can be discovered from the provider</td></tr>
                     <tr><td><code>AiApiKey</code> / <code>AiApiKeys</code></td><td><span class="badge badge-string">string / map</span></td><td><code>""</code> / <code>{}</code></td><td>Provider API keys are stored encrypted with Windows DPAPI</td></tr>
                     <tr><td><code>AiSystemPrompt</code></td><td><span class="badge badge-string">string</span></td><td><code>"You are a helpful assistant..."</code></td><td>System prompt for the AI</td></tr>

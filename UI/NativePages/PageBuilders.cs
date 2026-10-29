@@ -580,9 +580,6 @@ public partial class MainWindow
         backgroundOptions.Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed;
 
         var sleep = NumericStepper(settings.TabSleepMinutes, 1, 60);
-        var quickLinks = SettingsToggleRow("Quick links",
-            "Show shortcuts below the search box.",
-            settings.ShowQuickLinks);
         var blockTrackers = SettingsToggleRow("Block common trackers",
             "Use a domain blocklist to prevent requests to known tracker domains.",
             settings.BlockTrackers);
@@ -680,7 +677,7 @@ public partial class MainWindow
         allowlistPanel.Child = allowlistStack;
 
         var aiEnabled = SettingsToggleRow("Enable AI assistant",
-            "Show the AI chat sidebar powered by Ollama Cloud or NVIDIA NIM.",
+            "Connect to Ollama, OpenAI, or any OpenAI-compatible local or hosted API.",
             settings.AiEnabled);
 
         var aiProviderCombo = new ComboBox
@@ -690,8 +687,30 @@ public partial class MainWindow
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         aiProviderCombo.ItemsSource = BrowserSettings.AiProviderPresets.Keys.ToList();
-        aiProviderCombo.SelectedItem = BrowserSettings.AiProviderPresets.Keys.Contains(settings.AiProvider)
-            ? settings.AiProvider : "Ollama Cloud";
+        var selectedAiProvider = BrowserSettings.AiProviderPresets.ContainsKey(settings.AiProvider)
+            ? settings.AiProvider : "OpenAI-compatible (custom)";
+        aiProviderCombo.SelectedItem = selectedAiProvider;
+        var providerApiKeys = settings.AiApiKeys is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(settings.AiApiKeys, StringComparer.OrdinalIgnoreCase);
+        if (settings.AiApiKeys is null && !string.IsNullOrWhiteSpace(settings.AiApiKey))
+            providerApiKeys[settings.AiProvider] = settings.AiApiKey;
+        var activeAiProvider = selectedAiProvider;
+
+        var aiEndpointBox = new TextBox
+        {
+            Text = selectedAiProvider == settings.AiProvider ||
+                !BrowserSettings.AiProviderPresets.ContainsKey(settings.AiProvider)
+                ? settings.AiEndpoint
+                : BrowserSettings.GetProviderEndpoint(selectedAiProvider),
+            Height = 42,
+            FontSize = 14,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = GetBrush("FieldBg"),
+            Foreground = GetBrush("Text"),
+            BorderBrush = GetBrush("StrokeStrong"),
+            Padding = new Thickness(10, 8, 10, 0)
+        };
 
         var aiModelCombo = new ComboBox
         {
@@ -770,7 +789,7 @@ public partial class MainWindow
                 Log.Error(ex, "Model discovery");
                 if (showFeedback && !ct.IsCancellationRequested)
                 {
-                    aiConnectionFeedback.Text = "Unable to retrieve models. Verify the connection and credentials.";
+                    aiConnectionFeedback.Text = $"Unable to retrieve models: {ex.Message}";
                     aiConnectionFeedback.Visibility = Visibility.Visible;
                 }
             }
@@ -786,7 +805,7 @@ public partial class MainWindow
             {
                 await Task.Delay(800, ct);
                 ct.ThrowIfCancellationRequested();
-                var ep = BrowserSettings.GetProviderEndpoint(aiProviderCombo.Text);
+                var ep = aiEndpointBox.Text;
                 var op = Dispatcher.InvokeAsync(() =>
                     FetchModelsAsync(ep, aiApiKeyBox.Password, ct));
                 await op.Task.Unwrap();
@@ -797,7 +816,7 @@ public partial class MainWindow
         var testConnectionBtn = SettingsButton("Test connection");
         testConnectionBtn.Click += (_, _) =>
         {
-            var ep = BrowserSettings.GetProviderEndpoint(aiProviderCombo.Text);
+            var ep = aiEndpointBox.Text;
             _modelFetchToken?.Cancel();
             _modelFetchToken?.Dispose();
             _modelFetchToken = new CancellationTokenSource();
@@ -849,7 +868,7 @@ public partial class MainWindow
                 TabSleepMinutes: ClampInt(sleep.GetValue(), 1, 60, BrowserSettings.Default.TabSleepMinutes),
                 Accent: accent.GetValue(),
                 Theme: theme.GetValue(),
-                ShowQuickLinks: quickLinks.Toggle.IsChecked == true,
+                ShowQuickLinks: settings.ShowQuickLinks,
                 Background: background.GetValue() == "Custom" && customBgPath is not null
                     ? customBgPath
                     : background.GetValue() == "Custom" && savedCustomBgPath is not null
@@ -871,13 +890,13 @@ public partial class MainWindow
                 Shortcuts: shortcutOverrides is { Count: > 0 } ? new Dictionary<string, string>(shortcutOverrides) : null,
                 AiEnabled: aiEnabled.Toggle.IsChecked == true,
                 AiSidebarOpen: _dataStore.Settings.AiSidebarOpen,
-                AiProvider: aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
-                AiEndpoint: BrowserSettings.GetProviderEndpoint(aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud"),
+                AiProvider: activeAiProvider,
+                AiEndpoint: aiEndpointBox.Text.Trim(),
                 AiModel: GetComboText(aiModelCombo),
                 AiApiKey: aiApiKeyBox.Password,
-                AiApiKeys: BrowserSettings.StoreProviderApiKey(
-                    _dataStore.Settings.AiApiKeys,
-                    aiProviderCombo.SelectedItem?.ToString() ?? "Ollama Cloud",
+                AiApiKeys: BrowserSettings.SetProviderApiKey(
+                    providerApiKeys,
+                    activeAiProvider,
                     aiApiKeyBox.Password),
                 AiSystemPrompt: aiSystemPrompt.Text?.Trim() ?? "",
                 AiMaxTokens: (int)aiMaxTokens.GetValue(),
@@ -954,8 +973,6 @@ public partial class MainWindow
             }
         }
 
-        quickLinks.Toggle.Checked += (_, _) => Save();
-        quickLinks.Toggle.Unchecked += (_, _) => Save();
         autoHideBrowserChrome.Toggle.Checked += (_, _) =>
         {
             Save();
@@ -1008,14 +1025,21 @@ public partial class MainWindow
             aiConnectionFeedback.Visibility = Visibility.Collapsed;
             DebounceFetchModels();
         };
+        aiEndpointBox.LostFocus += (_, _) =>
+        {
+            Save();
+            DebounceFetchModels();
+        };
         aiProviderCombo.SelectionChanged += (_, _) =>
         {
             if (aiProviderCombo.SelectedItem is string s)
             {
-                // Always replace the field, including when the new provider has
-                // no saved key; otherwise the previous provider's key leaks
-                // into the new provider when Save() runs below.
-                aiApiKeyBox.Password = BrowserSettings.GetApiKey(_dataStore.Settings, s);
+                providerApiKeys = BrowserSettings.SetProviderApiKey(
+                    providerApiKeys, activeAiProvider, aiApiKeyBox.Password);
+                activeAiProvider = s;
+                if (BrowserSettings.AiProviderPresets.TryGetValue(s, out var presetEndpoint))
+                    aiEndpointBox.Text = presetEndpoint;
+                aiApiKeyBox.Password = providerApiKeys.TryGetValue(s, out var savedKey) ? savedKey : "";
             }
             Save();
             aiConnectionFeedback.Visibility = Visibility.Collapsed;
@@ -1345,8 +1369,7 @@ public partial class MainWindow
                 PrefSection("New tab page", "Customize what you see when you open a tab.",
                     SettingsRow2("Background", "Use a simple background or your own image.", background.Control),
                     backgroundOptions,
-                    bgOpacity.Control,
-                    quickLinks.Row)
+                    bgOpacity.Control)
             ]),
             ["Engine"] = ("Search engine", "Choose your default search provider and set quick-search keywords.",
             [
@@ -1416,6 +1439,7 @@ public partial class MainWindow
                 PrefSection("Assistant", null, aiEnabled.Row),
                 PrefSection("Connection", "Select a service and enter its credentials.",
                     FieldLabelRow("Provider", aiProviderCombo),
+                    FieldLabelRow("API endpoint", aiEndpointBox),
                     FieldLabelRow("Model", aiModelCombo),
                     FieldLabelRow("API key", StackOf(aiApiKeyBox, aiApiKeyHint)),
                     StackOf(testConnectionBtn, aiConnectionFeedback)),

@@ -510,8 +510,28 @@ public partial class MainWindow
             BorderBrush = GetBrush("Stroke")
         };
         providerCombo.ItemsSource = BrowserSettings.AiProviderPresets.Keys.ToList();
-        providerCombo.SelectedItem = BrowserSettings.AiProviderPresets.Keys.Contains(settings.AiProvider)
-            ? settings.AiProvider : "Ollama Cloud";
+        var selectedProvider = BrowserSettings.AiProviderPresets.ContainsKey(settings.AiProvider)
+            ? settings.AiProvider : "OpenAI-compatible (custom)";
+        providerCombo.SelectedItem = selectedProvider;
+        var providerApiKeys = settings.AiApiKeys is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(settings.AiApiKeys, StringComparer.OrdinalIgnoreCase);
+        if (settings.AiApiKeys is null && !string.IsNullOrWhiteSpace(settings.AiApiKey))
+            providerApiKeys[settings.AiProvider] = settings.AiApiKey;
+        var activeProvider = selectedProvider;
+
+        var endpointBox = new TextBox
+        {
+            Text = selectedProvider == settings.AiProvider ||
+                !BrowserSettings.AiProviderPresets.ContainsKey(settings.AiProvider)
+                ? settings.AiEndpoint
+                : BrowserSettings.GetProviderEndpoint(selectedProvider),
+            Height = 32,
+            Background = GetBrush("InputBg"),
+            Foreground = GetBrush("Text"),
+            BorderBrush = GetBrush("Stroke"),
+            Padding = new Thickness(8, 5, 8, 0)
+        };
 
         var providerHint = new TextBlock
         {
@@ -557,7 +577,10 @@ public partial class MainWindow
         static string ProviderInfo(string provider) => provider switch
         {
             "NVIDIA NIM" => "NVIDIA's hosted AI. Free keys: build.nvidia.com. Endpoint is pre-filled.",
-            _ => "Ollama's hosted AI. Get a key at ollama.com. Endpoint is pre-filled."
+            "Ollama Cloud" => "Ollama's hosted AI. API key may be required by the service.",
+            "Ollama (local)" => "Connect to a local Ollama server. No API key is needed by default.",
+            "OpenAI" => "OpenAI's API. Enter an API key and choose an available model.",
+            _ => "Any OpenAI-compatible API, including local servers such as LM Studio or vLLM."
         };
 
         var statusLabel = new TextBlock
@@ -587,13 +610,10 @@ public partial class MainWindow
                     modelCombo.Text = prev;
                     statusLabel.Text = $"Discovered {models.Count} models";
                 }
-                else
-                {
-                    statusLabel.Text = "Could not reach endpoint — check API key";
-                }
+                else statusLabel.Text = "Connected, but the server did not return any models. You can enter a model name manually.";
             }
             catch (OperationCanceledException) { Log.Debug("Model discovery cancelled"); }
-            catch (Exception ex) { Log.Error(ex, "Model discovery failed"); statusLabel.Text = "Could not reach endpoint — check API key"; }
+            catch (Exception ex) { Log.Error(ex, "Model discovery failed"); statusLabel.Text = $"Model discovery failed: {ex.Message}"; }
         }
 
         async void DebounceFetchModels()
@@ -607,7 +627,7 @@ public partial class MainWindow
                 await Task.Delay(800, ct);
                 ct.ThrowIfCancellationRequested();
                 var op = Dispatcher.InvokeAsync(() =>
-                    FetchModelsAsync(BrowserSettings.GetProviderEndpoint(providerCombo.Text), apiKeyBox.Password, ct));
+                    FetchModelsAsync(endpointBox.Text, apiKeyBox.Password, ct));
                 await op.Task.Unwrap();
             }
             catch (OperationCanceledException) { Log.Debug("Model fetch debounce cancelled"); }
@@ -618,22 +638,27 @@ public partial class MainWindow
         {
             if (providerCombo.SelectedItem is string s)
             {
+                providerApiKeys = BrowserSettings.SetProviderApiKey(
+                    providerApiKeys, activeProvider, apiKeyBox.Password);
+                activeProvider = s;
                 providerHint.Text = ProviderInfo(s);
-                var storedKey = BrowserSettings.GetApiKey(settings, s);
-                if (!string.IsNullOrEmpty(storedKey))
-                    apiKeyBox.Password = storedKey;
+                if (BrowserSettings.AiProviderPresets.TryGetValue(s, out var presetEndpoint))
+                    endpointBox.Text = presetEndpoint;
+                apiKeyBox.Password = providerApiKeys.TryGetValue(s, out var savedKey) ? savedKey : "";
                 DebounceFetchModels();
             }
         };
 
         apiKeyBox.PasswordChanged += (_, _) => DebounceFetchModels();
+        endpointBox.TextChanged += (_, _) => DebounceFetchModels();
 
-        providerHint.Text = ProviderInfo(providerCombo.SelectedItem?.ToString() ?? "Ollama Cloud");
-        keyHint.Text = "Paste your API key here. It is encrypted and stored only on this PC.";
+        providerHint.Text = ProviderInfo(selectedProvider);
+        keyHint.Text = "API key is optional for local servers. Saved keys are encrypted on this PC.";
         DebounceFetchModels();
 
         stack.Children.Add(SettingRow("Provider", null, providerCombo));
         stack.Children.Add(providerHint);
+        stack.Children.Add(SettingRow("API endpoint", "Base URL, such as http://localhost:11434 or https://api.example.com/v1.", endpointBox));
         stack.Children.Add(SettingRow("API key", "Your provider API key.", apiKeyBox));
         stack.Children.Add(keyHint);
         stack.Children.Add(SettingRow("Model", "Model to use (e.g. moonshotai/kimi-k3). Pick from the list or type any model.", modelCombo));
@@ -662,7 +687,7 @@ public partial class MainWindow
             statusLabel.Text = "Testing...";
             try
             {
-                var ep = BrowserSettings.GetProviderEndpoint(providerCombo.Text);
+                var ep = endpointBox.Text;
                 var key = apiKeyBox.Password;
                 var models = await AiService.FetchModelsAsync(ep, key, providerCombo.Text, CancellationToken.None);
                 if (models.Count > 0)
@@ -674,7 +699,7 @@ public partial class MainWindow
                 }
                 else
                 {
-                    statusLabel.Text = "Could not reach endpoint — check API key";
+                    statusLabel.Text = "Connected, but no models were returned. Enter a model name manually if needed.";
                 }
             }
             catch (Exception ex)
@@ -698,7 +723,7 @@ public partial class MainWindow
         };
         saveBtn.Click += (_, _) =>
         {
-            var ep = BrowserSettings.GetProviderEndpoint(providerCombo.Text);
+            var ep = endpointBox.Text.Trim();
             var model = modelCombo.Text?.Trim() ?? modelCombo.SelectedItem?.ToString() ?? "";
             var key = apiKeyBox.Password;
             var provider = providerCombo.SelectedItem?.ToString() ?? "Ollama Cloud";
@@ -711,8 +736,7 @@ public partial class MainWindow
                 AiEndpoint = ep,
                 AiModel = model,
                 AiApiKey = key,
-                AiApiKeys = BrowserSettings.StoreProviderApiKey(
-                    _dataStore.Settings.AiApiKeys, provider, key)
+                AiApiKeys = BrowserSettings.SetProviderApiKey(providerApiKeys, provider, key)
             });
 
             ApplySettings();

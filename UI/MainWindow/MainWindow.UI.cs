@@ -617,30 +617,6 @@ public partial class MainWindow
         return null;
     }
 
-    private async void QuickDuckDuckGo_Click(object sender, RoutedEventArgs e)
-    {
-        try { await NavigateQuickAsync("https://duckduckgo.com"); }
-        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-    }
-
-    private async void QuickStartpage_Click(object sender, RoutedEventArgs e)
-    {
-        try { await NavigateQuickAsync("https://startpage.com"); }
-        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-    }
-
-    private async void QuickGitHub_Click(object sender, RoutedEventArgs e)
-    {
-        try { await NavigateQuickAsync("https://github.com"); }
-        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-    }
-
-    private async void QuickHackerNews_Click(object sender, RoutedEventArgs e)
-    {
-        try { await NavigateQuickAsync("https://news.ycombinator.com"); }
-        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-    }
-
     private static (ModifierKeys Mods, Key Key) ParseShortcut(string combo)
     {
         var mods = ModifierKeys.None;

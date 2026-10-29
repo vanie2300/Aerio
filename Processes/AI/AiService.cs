@@ -9,10 +9,17 @@ namespace TabloidBrowser;
 
 public sealed class AiService : IDisposable
 {
-    private readonly HttpClient _http = new() { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+    private readonly HttpClient _http;
+    private readonly bool _ownsHttpClient;
 
     private const int MaxRetries = 3;
     private static readonly int[] RetryDelaysMs = [1000, 3000, 8000];
+
+    public AiService(HttpClient? httpClient = null)
+    {
+        _http = httpClient ?? new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        _ownsHttpClient = httpClient is null;
+    }
 
     public string Endpoint { get; set; } = "https://ollama.com";
     public string Provider { get; set; } = "Ollama Cloud";
@@ -27,26 +34,31 @@ public sealed class AiService : IDisposable
     /// chat API (e.g. NVIDIA NIM at /v1/chat/completions). Native Ollama uses
     /// a different request/response shape.
     /// </summary>
-    public bool IsOpenAICompatible =>
-        Provider.Equals("NVIDIA NIM", StringComparison.OrdinalIgnoreCase) ||
-        Provider.Contains("NIM", StringComparison.OrdinalIgnoreCase) ||
-        (Endpoint?.Contains("/v1", StringComparison.OrdinalIgnoreCase) ?? false);
+    public bool IsOpenAICompatible => !BrowserSettings.UsesNativeOllamaApi(Provider);
 
     private string GetBaseUrl()
     {
-        var raw = string.IsNullOrWhiteSpace(Endpoint) ? "https://ollama.com" : Endpoint;
-        return raw.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(Endpoint))
+            throw new InvalidOperationException("Enter an AI API endpoint in Settings > AI.");
+
+        if (!Uri.TryCreate(Endpoint.Trim(), UriKind.Absolute, out var endpoint) ||
+            (endpoint.Scheme != Uri.UriSchemeHttp && endpoint.Scheme != Uri.UriSchemeHttps))
+            throw new InvalidOperationException("The AI API endpoint must be a valid HTTP or HTTPS URL.");
+
+        return endpoint.ToString().TrimEnd('/');
     }
 
     private string GetChatUrl()
     {
         var baseUrl = GetBaseUrl();
-        // For NVIDIA NIM the preset already ends with /v1, so the chat endpoint
-        // is .../v1/chat/completions. Native Ollama uses /api/chat.
         if (IsOpenAICompatible)
-            return baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
-                ? baseUrl + "/chat/completions"
-                : baseUrl + "/v1/chat/completions";
+        {
+            if (baseUrl.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+                return baseUrl;
+            if (baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+                return baseUrl + "/chat/completions";
+            return baseUrl + "/v1/chat/completions";
+        }
         return baseUrl + "/api/chat";
     }
 
@@ -88,7 +100,7 @@ public sealed class AiService : IDisposable
         {
             try
             {
-                return await CompleteNativeOllamaCoreAsync(messages, tools, ct);
+                return await CompleteNativeOllamaCoreAsync(messages, tools, toolChoice, ct);
             }
             catch (Exception ex) when (attempt < MaxRetries && !ct.IsCancellationRequested && IsRetryable(ex))
             {
@@ -98,7 +110,7 @@ public sealed class AiService : IDisposable
             }
         }
 
-        return await CompleteNativeOllamaCoreAsync(messages, tools, ct);
+        return await CompleteNativeOllamaCoreAsync(messages, tools, toolChoice, ct);
     }
 
     public async Task<AiResponse> CompleteStreamingAsync(
@@ -133,7 +145,7 @@ public sealed class AiService : IDisposable
         {
             try
             {
-                return await CompleteNativeOllamaStreamingCoreAsync(messages, onContentDelta, tools, ct);
+                return await CompleteNativeOllamaStreamingCoreAsync(messages, onContentDelta, tools, toolChoice, ct);
             }
             catch (Exception ex) when (attempt < MaxRetries && !ct.IsCancellationRequested && IsRetryable(ex))
             {
@@ -144,45 +156,73 @@ public sealed class AiService : IDisposable
             }
         }
 
-        return await CompleteNativeOllamaStreamingCoreAsync(messages, onContentDelta, tools, ct);
+        return await CompleteNativeOllamaStreamingCoreAsync(messages, onContentDelta, tools, toolChoice, ct);
     }
 
     private static readonly HttpClient _fetchHttp = new() { Timeout = TimeSpan.FromSeconds(10) };
 
-    public static async Task<List<string>> FetchModelsAsync(string endpoint, string apiKey, string provider, CancellationToken ct = default)
+    public static async Task<List<string>> FetchModelsAsync(
+        string endpoint,
+        string apiKey,
+        string provider,
+        CancellationToken ct = default,
+        HttpClient? httpClient = null)
     {
-        try
+        var trimmedEndpoint = endpoint.Trim().TrimEnd('/');
+        if (!Uri.TryCreate(trimmedEndpoint, UriKind.Absolute, out var baseUri) ||
+            (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps))
+            throw new InvalidOperationException("The AI API endpoint must be a valid HTTP or HTTPS URL.");
+
+        var baseUrl = baseUri.ToString().TrimEnd('/');
+        var nativeOllama = BrowserSettings.UsesNativeOllamaApi(provider);
+        var modelsEndpoint = nativeOllama
+            ? baseUrl + "/api/tags"
+            : GetOpenAiModelsUrl(baseUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Get, modelsEndpoint);
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        using var response = await (httpClient ?? _fetchHttp).SendAsync(request, ct);
+        var text = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException(
+                $"Model discovery failed with HTTP {(int)response.StatusCode} ({response.ReasonPhrase}): {GetErrorDetail(text)}",
+                null,
+                response.StatusCode);
+
+        using var doc = JsonDocument.Parse(text);
+        var result = new List<string>();
+        var collectionName = nativeOllama ? "models" : "data";
+        if (!doc.RootElement.TryGetProperty(collectionName, out var models) ||
+            models.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException($"The API response did not contain a '{collectionName}' model list.");
+
+        foreach (var model in models.EnumerateArray())
         {
-            var baseUrl = endpoint.TrimEnd('/');
-            // NVIDIA NIM presets already include /v1, so the models route is just
-            // .../v1/models; bare hosts use .../v1/models (OpenAI-compatible) too.
-            var modelsEndpoint = baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
-                ? baseUrl + "/models"
-                : baseUrl + "/v1/models";
-            using var request = new HttpRequestMessage(HttpMethod.Get, modelsEndpoint);
-            if (!string.IsNullOrWhiteSpace(apiKey))
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            using var response = await _fetchHttp.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-            var text = await response.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(text);
-            var result = new List<string>();
-            foreach (var m in doc.RootElement.GetProperty("data").EnumerateArray())
-            {
-                var id = m.GetProperty("id").GetString();
-                if (!string.IsNullOrWhiteSpace(id))
-                    result.Add(id);
-            }
-            return result;
+            var property = nativeOllama ? "name" : "id";
+            if (model.TryGetProperty(property, out var idElement) &&
+                idElement.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(idElement.GetString()))
+                result.Add(idElement.GetString()!);
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch
-        {
-            return [];
-        }
+        return result;
+    }
+
+    private static string GetOpenAiModelsUrl(string baseUrl)
+    {
+        if (baseUrl.EndsWith("/models", StringComparison.OrdinalIgnoreCase))
+            return baseUrl;
+        if (baseUrl.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+            return baseUrl[..^"/chat/completions".Length] + "/models";
+        if (baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+            return baseUrl + "/models";
+        return baseUrl + "/v1/models";
+    }
+
+    private static string GetErrorDetail(string responseBody)
+    {
+        if (string.IsNullOrWhiteSpace(responseBody))
+            return "The server returned no error details.";
+        return responseBody.Length <= 500 ? responseBody : responseBody[..500];
     }
 
     private object BuildNativeOllamaRequestBody(
@@ -211,7 +251,8 @@ public sealed class AiService : IDisposable
     private object BuildOpenAIRequestBody(
         string model,
         List<ChatMessage> messages,
-        List<AiTool>? tools)
+        List<AiTool>? tools,
+        string? toolChoice)
     {
         var body = new Dictionary<string, object>
         {
@@ -226,7 +267,7 @@ public sealed class AiService : IDisposable
         if (tools is { Count: > 0 })
         {
             body["tools"] = AiToolSchemaBuilder.BuildToolsArray(tools);
-            body["tool_choice"] = "auto";
+            body["tool_choice"] = toolChoice ?? "auto";
         }
 
         AddNimSpecificFields(body);
@@ -273,7 +314,8 @@ public sealed class AiService : IDisposable
     private object BuildOpenAIStreamingRequestBody(
         string model,
         List<ChatMessage> messages,
-        List<AiTool>? tools)
+        List<AiTool>? tools,
+        string? toolChoice)
     {
         var body = new Dictionary<string, object>
         {
@@ -288,7 +330,7 @@ public sealed class AiService : IDisposable
         if (tools is { Count: > 0 })
         {
             body["tools"] = AiToolSchemaBuilder.BuildToolsArray(tools);
-            body["tool_choice"] = "auto";
+            body["tool_choice"] = toolChoice ?? "auto";
         }
 
         AddNimSpecificFields(body);
@@ -299,16 +341,13 @@ public sealed class AiService : IDisposable
     private async Task<AiResponse> CompleteNativeOllamaCoreAsync(
         List<ChatMessage> messages,
         List<AiTool>? tools,
+        string? toolChoice,
         CancellationToken ct)
     {
         if (IsOpenAICompatible)
-            return await CompleteOpenAICoreAsync(messages, tools, ct);
+            return await CompleteOpenAICoreAsync(messages, tools, toolChoice, ct);
 
-        var baseUrl = GetBaseUrl();
         var model = string.IsNullOrWhiteSpace(Model) ? "llama3.2" : Model;
-
-        if (string.IsNullOrWhiteSpace(ApiKey))
-            throw new InvalidOperationException("API key is required for Ollama Cloud. Please enter your API key in Settings > AI.");
 
         var body = BuildNativeOllamaRequestBody(model, messages, tools);
 
@@ -330,12 +369,7 @@ public sealed class AiService : IDisposable
         {
             using var response = await _http.SendAsync(request, ct);
             Debug.WriteLine($"[AiService] Response: {(int)response.StatusCode} {response.ReasonPhrase}");
-            if (!response.IsSuccessStatusCode)
-            {
-                var errBody = await response.Content.ReadAsStringAsync(ct);
-                Debug.WriteLine($"[AiService] Error body: {errBody}");
-                response.EnsureSuccessStatusCode();
-            }
+            await EnsureApiSuccessAsync(response, ct);
 
             var json = await response.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(json);
@@ -397,16 +431,13 @@ public sealed class AiService : IDisposable
         List<ChatMessage> messages,
         Action<string>? onContentDelta,
         List<AiTool>? tools,
+        string? toolChoice,
         CancellationToken ct)
     {
         if (IsOpenAICompatible)
-            return await CompleteOpenAIStreamingCoreAsync(messages, onContentDelta, tools, ct);
+            return await CompleteOpenAIStreamingCoreAsync(messages, onContentDelta, tools, toolChoice, ct);
 
-        var baseUrl = GetBaseUrl();
         var model = string.IsNullOrWhiteSpace(Model) ? "llama3.2" : Model;
-
-        if (string.IsNullOrWhiteSpace(ApiKey))
-            throw new InvalidOperationException("API key is required for Ollama Cloud. Please enter your API key in Settings > AI.");
 
         var body = BuildNativeOllamaStreamingRequestBody(model, messages, tools);
 
@@ -428,12 +459,7 @@ public sealed class AiService : IDisposable
         {
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             Debug.WriteLine($"[AiService] Response: {(int)response.StatusCode} {response.ReasonPhrase}");
-            if (!response.IsSuccessStatusCode)
-            {
-                var errBody = await response.Content.ReadAsStringAsync(ct);
-                Debug.WriteLine($"[AiService] Error body: {errBody}");
-                response.EnsureSuccessStatusCode();
-            }
+            await EnsureApiSuccessAsync(response, ct);
 
             using var stream = await response.Content.ReadAsStreamAsync(ct);
             using var reader = new StreamReader(stream);
@@ -552,16 +578,14 @@ public sealed class AiService : IDisposable
     private async Task<AiResponse> CompleteOpenAICoreAsync(
         List<ChatMessage> messages,
         List<AiTool>? tools,
+        string? toolChoice,
         CancellationToken ct)
     {
         var model = string.IsNullOrWhiteSpace(Model) ? "" : Model;
         if (string.IsNullOrWhiteSpace(model))
             throw new InvalidOperationException("A model is required. Please choose a model in Settings > AI.");
 
-        if (string.IsNullOrWhiteSpace(ApiKey))
-            throw new InvalidOperationException("An API key is required for NVIDIA NIM. Please enter your NVIDIA NIM API key in Settings > AI.");
-
-        var body = BuildOpenAIRequestBody(model, messages, tools);
+        var body = BuildOpenAIRequestBody(model, messages, tools, toolChoice);
 
         var url = GetChatUrl();
         Debug.WriteLine($"[AiService] POST {url} model={model} tools={tools?.Count ?? 0} (non-streaming, OpenAI format)");
@@ -581,12 +605,7 @@ public sealed class AiService : IDisposable
         {
             using var response = await _http.SendAsync(request, ct);
             Debug.WriteLine($"[AiService] Response: {(int)response.StatusCode} {response.ReasonPhrase}");
-            if (!response.IsSuccessStatusCode)
-            {
-                var errBody = await response.Content.ReadAsStringAsync(ct);
-                Debug.WriteLine($"[AiService] Error body: {errBody}");
-                response.EnsureSuccessStatusCode();
-            }
+            await EnsureApiSuccessAsync(response, ct);
 
             var json = await response.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(json);
@@ -663,16 +682,14 @@ public sealed class AiService : IDisposable
         List<ChatMessage> messages,
         Action<string>? onContentDelta,
         List<AiTool>? tools,
+        string? toolChoice,
         CancellationToken ct)
     {
         var model = string.IsNullOrWhiteSpace(Model) ? "" : Model;
         if (string.IsNullOrWhiteSpace(model))
             throw new InvalidOperationException("A model is required. Please choose a model in Settings > AI.");
 
-        if (string.IsNullOrWhiteSpace(ApiKey))
-            throw new InvalidOperationException("An API key is required for NVIDIA NIM. Please enter your NVIDIA NIM API key in Settings > AI.");
-
-        var body = BuildOpenAIStreamingRequestBody(model, messages, tools);
+        var body = BuildOpenAIStreamingRequestBody(model, messages, tools, toolChoice);
 
         var url = GetChatUrl();
         Debug.WriteLine($"[AiService] POST {url} model={model} tools={tools?.Count ?? 0} (OpenAI format)");
@@ -692,12 +709,7 @@ public sealed class AiService : IDisposable
         {
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             Debug.WriteLine($"[AiService] Response: {(int)response.StatusCode} {response.ReasonPhrase}");
-            if (!response.IsSuccessStatusCode)
-            {
-                var errBody = await response.Content.ReadAsStringAsync(ct);
-                Debug.WriteLine($"[AiService] Error body: {errBody}");
-                response.EnsureSuccessStatusCode();
-            }
+            await EnsureApiSuccessAsync(response, ct);
 
             using var stream = await response.Content.ReadAsStreamAsync(ct);
             using var reader = new StreamReader(stream);
@@ -858,28 +870,16 @@ public sealed class AiService : IDisposable
                 if (openAIFormat)
                 {
                     var toolCallsArray = m.ToolCalls.Select(tc =>
-                    {
-                        object? argsObj = null;
-                        if (!string.IsNullOrWhiteSpace(tc.Arguments))
-                        {
-                            try
-                            {
-                                using var argDoc = JsonDocument.Parse(tc.Arguments);
-                                argsObj = argDoc.RootElement.Clone();
-                            }
-                            catch { argsObj = tc.Arguments; }
-                        }
-                        return new
+                        new
                         {
                             id = tc.Id,
                             type = "function",
                             function = new
                             {
                                 name = tc.Name,
-                                arguments = argsObj
+                                arguments = tc.Arguments ?? "{}"
                             }
-                        };
-                    }).ToList();
+                        }).ToList();
                     list.Add(new { role = "assistant", content = m.Content ?? "", tool_calls = toolCallsArray });
                 }
                 else
@@ -941,5 +941,22 @@ public sealed class AiService : IDisposable
             or TaskCanceledException { InnerException: IOException };
     }
 
-    public void Dispose() => _http.Dispose();
+    private static async Task EnsureApiSuccessAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode)
+            return;
+
+        var errorBody = await response.Content.ReadAsStringAsync(ct);
+        Debug.WriteLine($"[AiService] Error body: {errorBody}");
+        throw new HttpRequestException(
+            $"AI API request failed with HTTP {(int)response.StatusCode} ({response.ReasonPhrase}): {GetErrorDetail(errorBody)}",
+            null,
+            response.StatusCode);
+    }
+
+    public void Dispose()
+    {
+        if (_ownsHttpClient)
+            _http.Dispose();
+    }
 }

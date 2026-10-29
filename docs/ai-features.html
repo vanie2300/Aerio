@@ -30,8 +30,9 @@
                 <ol>
                     <li>Open Settings (or navigate to the legacy-compatible <code>tabloid://settings</code> page)</li>
                     <li>Open the <strong>AI assistant</strong> settings section and enable the assistant</li>
-                    <li>Choose <strong>Ollama Cloud</strong> or <strong>NVIDIA NIM</strong></li>
-                    <li>Enter the API key for the selected provider</li>
+                    <li>Choose a provider preset or <strong>OpenAI-compatible (custom)</strong></li>
+                    <li>Set the API endpoint. Local Ollama defaults to <code>http://localhost:11434</code></li>
+                    <li>Enter an API key if the service requires one; local servers commonly do not</li>
                     <li>Use <strong>Test connection</strong> to discover models, then select or enter a model name</li>
                 </ol>
                 <p>Press <kbd>Ctrl+Shift+A</kbd> or click the AI icon in the toolbar to open the sidebar.</p>
@@ -40,11 +41,19 @@
             <div class="section">
                 <h2>Providers</h2>
                 <table>
-                    <tr><th>Provider</th><th>Endpoint</th><th>API Key</th><th>Notes</th></tr>
-                    <tr><td>Ollama Cloud</td><td><code>https://ollama.com</code></td><td>Required</td><td>Ollama-hosted cloud models</td></tr>
-                    <tr><td>NVIDIA NIM</td><td><code>https://integrate.api.nvidia.com/v1</code></td><td>Required</td><td>NVIDIA-hosted models using an OpenAI-compatible API</td></tr>
+                    <tr><th>Provider</th><th>Default endpoint</th><th>API Key</th><th>API format</th></tr>
+                    <tr><td>Ollama Cloud</td><td><code>https://ollama.com</code></td><td>As required by service</td><td>Native Ollama API</td></tr>
+                    <tr><td>Ollama (local)</td><td><code>http://localhost:11434</code></td><td>Usually not required</td><td>Native Ollama API</td></tr>
+                    <tr><td>NVIDIA NIM</td><td><code>https://integrate.api.nvidia.com/v1</code></td><td>As required by service</td><td>OpenAI-compatible Chat Completions API</td></tr>
+                    <tr><td>OpenAI</td><td><code>https://api.openai.com/v1</code></td><td>Required by service</td><td>OpenAI-compatible Chat Completions API</td></tr>
+                    <tr><td>OpenRouter</td><td><code>https://openrouter.ai/api/v1</code></td><td>Required by service</td><td>OpenAI-compatible Chat Completions API</td></tr>
+                    <tr><td>Groq</td><td><code>https://api.groq.com/openai/v1</code></td><td>Required by service</td><td>OpenAI-compatible Chat Completions API</td></tr>
+                    <tr><td>DeepSeek</td><td><code>https://api.deepseek.com/v1</code></td><td>Required by service</td><td>OpenAI-compatible Chat Completions API</td></tr>
+                    <tr><td>Together AI</td><td><code>https://api.together.xyz/v1</code></td><td>Required by service</td><td>OpenAI-compatible Chat Completions API</td></tr>
+                    <tr><td>Cerebras</td><td><code>https://api.cerebras.ai/v1</code></td><td>Required by service</td><td>OpenAI-compatible Chat Completions API</td></tr>
+                    <tr><td>OpenAI-compatible (custom)</td><td>User-configured</td><td>Optional</td><td>Any local or hosted OpenAI-compatible Chat Completions API</td></tr>
                 </table>
-                <p>These are the providers currently selectable in Aerio. The provider endpoints are presets; arbitrary provider endpoints are not configurable in the settings UI.</p>
+                <p>Custom endpoints support compatible services such as LM Studio, llama.cpp, vLLM, OpenRouter, and other OpenAI-compatible gateways. Set the endpoint base URL (or a full <code>/v1/chat/completions</code> URL). Model discovery uses the native Ollama model-list API or the OpenAI-compatible <code>/models</code> API. Services that only expose Anthropic- or Gemini-native APIs are not directly compatible unless they provide an OpenAI-compatible endpoint.</p>
             </div>
 
             <div class="section">

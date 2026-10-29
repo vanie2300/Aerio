@@ -27,7 +27,7 @@ Aerio is a personal Windows browser built with C#, WPF, and Microsoft WebView2.
 - Zoom controls and full-screen mode
 - Configurable keyboard shortcuts
 - Force dark pages
-- AI chat sidebar with Ollama Cloud and NVIDIA NIM support
+- AI chat sidebar for local Ollama, Ollama Cloud, OpenAI, NVIDIA NIM, and custom OpenAI-compatible APIs
 - AI browser tools for search, page reading, navigation, and page interaction
 - Manual GitHub release update checks
 

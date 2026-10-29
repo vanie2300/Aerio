@@ -522,12 +522,4 @@ public partial class MainWindow
 
     private static bool IsSubmitKey(Key key) => key is Key.Enter or Key.Return;
 
-    private async Task NavigateQuickAsync(string url)
-    {
-        var tab = _activeTab;
-        if (tab is not null)
-        {
-            await NavigateWebAsync(tab, url);
-        }
-    }
 }
