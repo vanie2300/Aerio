@@ -7,7 +7,8 @@ namespace TabloidBrowser;
 
 public sealed class WebSearchService : IDisposable
 {
-    private readonly HttpClient _http = CreateHttpClient();
+    private readonly HttpClient _http;
+    private readonly bool _ownsHttpClient;
     private DateTime _lastRequestTime = DateTime.MinValue;
     private readonly SemaphoreSlim _rateSemaphore = new(1, 1);
 
@@ -18,6 +19,12 @@ public sealed class WebSearchService : IDisposable
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
         return client;
+    }
+
+    public WebSearchService(HttpClient? httpClient = null)
+    {
+        _http = httpClient ?? CreateHttpClient();
+        _ownsHttpClient = httpClient is null;
     }
 
     public string Backend { get; set; } = "duckduckgo";
@@ -164,6 +171,10 @@ public sealed class WebSearchService : IDisposable
             var html = await response.Content.ReadAsStringAsync(ct);
             return ParseDuckDuckGoLiteHtml(html);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             Debug.WriteLine($"DuckDuckGo search failed: {ex}");
@@ -210,6 +221,10 @@ public sealed class WebSearchService : IDisposable
 
             var html = await response.Content.ReadAsStringAsync(ct);
             return ParseBingHtml(html);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -327,6 +342,10 @@ public sealed class WebSearchService : IDisposable
 
             return results;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             Debug.WriteLine($"SearXNG search failed: {ex}");
@@ -363,6 +382,10 @@ public sealed class WebSearchService : IDisposable
 
             return suggestions;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             Debug.WriteLine($"Suggestions fetch failed: {ex}");
@@ -372,7 +395,10 @@ public sealed class WebSearchService : IDisposable
 
     public void Dispose()
     {
-        _http.Dispose();
+        if (_ownsHttpClient)
+        {
+            _http.Dispose();
+        }
         _rateSemaphore.Dispose();
     }
 }

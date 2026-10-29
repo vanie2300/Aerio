@@ -81,8 +81,14 @@ public partial class MainWindow
         var stack = new StackPanel();
         var clear = MatteButton("Clear history", (_, _) =>
         {
-            _dataStore.ClearHistory();
-            RenderNativeSurface(tab, forceRebuild: true);
+            if (_dataStore.ClearHistory())
+            {
+                RenderNativeSurface(tab, forceRebuild: true);
+            }
+            else
+            {
+                StatusBar.StatusText.Text = "Couldn't save the cleared history";
+            }
         });
         clear.HorizontalAlignment = HorizontalAlignment.Right;
         clear.Margin = new Thickness(0, 0, 0, 12);
@@ -126,8 +132,14 @@ public partial class MainWindow
                     "Remove",
                     (_, _) =>
                     {
-                        _dataStore.RemoveHistory(item.Url, item.VisitedAt);
-                        PopulateEntries(searchBox.Text?.Trim() ?? "");
+                        if (_dataStore.RemoveHistory(item.Url, item.VisitedAt))
+                        {
+                            PopulateEntries(searchBox.Text?.Trim() ?? "");
+                        }
+                        else
+                        {
+                            StatusBar.StatusText.Text = "Couldn't remove the history item";
+                        }
                     }));
             }
         }
@@ -404,8 +416,14 @@ public partial class MainWindow
         var stack = new StackPanel();
         var clear = MatteButton("Clear list", (_, _) =>
         {
-            _dataStore.ClearDownloads();
-            RenderNativeSurface(tab, forceRebuild: true);
+            if (_dataStore.ClearDownloads())
+            {
+                RenderNativeSurface(tab, forceRebuild: true);
+            }
+            else
+            {
+                StatusBar.StatusText.Text = "Couldn't save the cleared downloads list";
+            }
         });
         clear.HorizontalAlignment = HorizontalAlignment.Right;
         clear.Margin = new Thickness(0, 0, 0, 12);

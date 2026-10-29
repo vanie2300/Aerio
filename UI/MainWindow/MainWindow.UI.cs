@@ -366,25 +366,40 @@ public partial class MainWindow
 
     private async Task ClearBrowsingDataAsync()
     {
+        var profile = _profile ?? _tabs
+            .Select(tab => tab.WebView?.CoreWebView2?.Profile)
+            .FirstOrDefault(candidate => candidate is not null);
+        var profileCleared = false;
         try
         {
-            var profile = _activeTab?.WebView?.CoreWebView2?.Profile;
             if (profile is not null)
             {
                 await profile.ClearBrowsingDataAsync();
+                profileCleared = true;
             }
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex)
         {
-            Log.Error(ex, "Error occurred");
-        }
-        catch (COMException ex)
-        {
-            Log.Error(ex, "Error occurred");
+            Log.Error(ex, "Failed to clear WebView browsing data");
         }
 
-        _dataStore.ClearBrowsingState();
-        StatusBar.StatusText.Text = "Local browsing data cleared";
+        var localDataCleared = _dataStore.ClearBrowsingState();
+        if (localDataCleared && profileCleared)
+        {
+            StatusBar.StatusText.Text = "Browsing data cleared";
+        }
+        else if (!localDataCleared && !profileCleared)
+        {
+            StatusBar.StatusText.Text = "Couldn't clear browsing data";
+        }
+        else if (!localDataCleared)
+        {
+            StatusBar.StatusText.Text = "Site data cleared, but local history and downloads couldn't be cleared";
+        }
+        else
+        {
+            StatusBar.StatusText.Text = "Local history and downloads cleared, but site data couldn't be cleared";
+        }
     }
 
     private void ImportBookmarks()
@@ -1990,18 +2005,29 @@ private void DisposeWebViewsAndExit()
 
             if (_dataStore.Settings.ClearDataOnExit)
             {
-                try
+                var profile = _profile ?? _tabs
+                    .Select(tab => tab.WebView?.CoreWebView2?.Profile)
+                    .FirstOrDefault(candidate => candidate is not null);
+                if (profile is not null)
                 {
-                    var profile = _activeTab?.WebView?.CoreWebView2?.Profile;
-                    if (profile is not null)
+                    try
                     {
                         var clearTask = profile.ClearBrowsingDataAsync();
                         var timedOut = await Task.WhenAny(clearTask, Task.Delay(3000)) != clearTask;
-                        if (timedOut) Log.Debug("ClearBrowsingDataAsync timed out after 3s");
+                        if (timedOut)
+                        {
+                            Log.Debug("ClearBrowsingDataAsync timed out after 3s");
+                        }
+                        else
+                        {
+                            await clearTask;
+                        }
                     }
-                    _dataStore.ClearBrowsingState();
+                    catch (Exception ex) { Log.Error(ex, "Failed to clear WebView browsing data on exit"); }
                 }
-                catch (Exception ex) { Log.Error(ex, "Error occurred"); }
+
+                if (!_dataStore.ClearBrowsingState())
+                    Log.Error(new IOException("Local browsing data could not be cleared on exit."), "ClearDataOnExit failed");
             }
         }
     }

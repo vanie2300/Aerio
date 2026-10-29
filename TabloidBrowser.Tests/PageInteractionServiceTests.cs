@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Xunit;
 
 namespace TabloidBrowser.Tests;
@@ -97,6 +98,19 @@ public class PageInteractionServiceTests
         var json = "[{\"tag\":\"input\",\"type\":\"text\",\"text\":\"\",\"placeholder\":\"Email\",\"name\":\"email\",\"id\":\"email\",\"href\":\"\",\"selector\":\"#email\"}]";
         var (service, _) = CreateService(json);
         var elements = await service.GetInteractiveElementsAsync();
+        Assert.Single(elements);
+        Assert.Equal("input", elements[0].Tag);
+        Assert.Equal("#email", elements[0].Selector);
+    }
+
+    [Fact]
+    public async Task GetInteractiveElementsAsync_DecodesWebViewJsonString()
+    {
+        var elementsJson = """[{"tag":"input","type":"text","text":"","placeholder":"Email","name":"email","id":"email","href":"","selector":"#email"}]""";
+        var (service, _) = CreateService(JsonSerializer.Serialize(elementsJson));
+
+        var elements = await service.GetInteractiveElementsAsync();
+
         Assert.Single(elements);
         Assert.Equal("input", elements[0].Tag);
         Assert.Equal("#email", elements[0].Selector);

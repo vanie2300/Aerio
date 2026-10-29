@@ -178,4 +178,109 @@ public class BrowserDataStoreTests : IDisposable
     {
         Assert.Equal("", BrowserSettings.Default.LastSeenVersion);
     }
+
+    [Fact]
+    public void BrowserDataStore_HistoryAndDownloads_PersistAcrossInstances()
+    {
+        using (var store = new BrowserDataStore(_tempDir))
+        {
+            Assert.True(store.AddHistory("Example", "https://example.com"));
+            Assert.True(store.AddDownload(
+                "example.pdf",
+                Path.Combine(_tempDir, "example.pdf"),
+                "https://example.com/example.pdf"));
+        }
+
+        using var reloadedStore = new BrowserDataStore(_tempDir);
+        Assert.Single(reloadedStore.History);
+        Assert.Equal("https://example.com", reloadedStore.History[0].Url);
+        Assert.Single(reloadedStore.Downloads);
+        Assert.Equal("example.pdf", reloadedStore.Downloads[0].FileName);
+    }
+
+    [Fact]
+    public void BrowserDataStore_FailedHistoryWrite_RestoresInMemoryDataAndCleansTemporaryFile()
+    {
+        using var store = new BrowserDataStore(_tempDir);
+        Assert.True(store.AddHistory("Existing", "https://existing.example"));
+        var existingItem = Assert.Single(store.History);
+        File.Delete(Path.Combine(_tempDir, "history.json"));
+        Directory.CreateDirectory(Path.Combine(_tempDir, "history.json"));
+
+        Assert.False(store.AddHistory("New", "https://new.example"));
+
+        Assert.Equal(new[] { existingItem }, store.History);
+        Assert.False(File.Exists(Path.Combine(_tempDir, "history.json.tmp")));
+    }
+
+    [Fact]
+    public void BrowserDataStore_FailedClear_RestoresHistoryAndDownloads()
+    {
+        using var store = new BrowserDataStore(_tempDir);
+        Assert.True(store.AddHistory("Existing", "https://existing.example"));
+        Assert.True(store.AddDownload(
+            "existing.pdf",
+            Path.Combine(_tempDir, "existing.pdf"),
+            "https://example.com/existing.pdf"));
+        var history = store.History.ToArray();
+        var downloads = store.Downloads.ToArray();
+
+        File.Delete(Path.Combine(_tempDir, "history.json"));
+        Directory.CreateDirectory(Path.Combine(_tempDir, "history.json"));
+        Assert.False(store.ClearHistory());
+        Assert.Equal(history, store.History);
+
+        File.Delete(Path.Combine(_tempDir, "downloads.json"));
+        Directory.CreateDirectory(Path.Combine(_tempDir, "downloads.json"));
+        Assert.False(store.ClearDownloads());
+        Assert.Equal(downloads, store.Downloads);
+    }
+
+    [Fact]
+    public void BrowserDataStore_ClearBrowsingState_PersistsClearedState()
+    {
+        using (var store = new BrowserDataStore(_tempDir))
+        {
+            Assert.True(store.AddHistory("Example", "https://example.com"));
+            Assert.True(store.AddDownload(
+                "example.pdf",
+                Path.Combine(_tempDir, "example.pdf"),
+                "https://example.com/example.pdf"));
+            Assert.True(store.SaveSession(new BrowserSession(
+                [new SessionTab("Example", "https://example.com")],
+                0)));
+
+            Assert.True(store.ClearBrowsingState());
+        }
+
+        using var reloadedStore = new BrowserDataStore(_tempDir);
+        Assert.Empty(reloadedStore.History);
+        Assert.Empty(reloadedStore.Downloads);
+        Assert.Empty(reloadedStore.LoadSession().Tabs);
+    }
+
+    [Fact]
+    public void BrowserDataStore_FailedClearBrowsingState_RestoresMemoryAndSession()
+    {
+        using var store = new BrowserDataStore(_tempDir);
+        Assert.True(store.AddHistory("Existing", "https://existing.example"));
+        Assert.True(store.AddDownload(
+            "existing.pdf",
+            Path.Combine(_tempDir, "existing.pdf"),
+            "https://example.com/existing.pdf"));
+        Assert.True(store.SaveSession(new BrowserSession(
+            [new SessionTab("Existing", "https://existing.example")],
+            0)));
+        var history = store.History.ToArray();
+        var downloads = store.Downloads.ToArray();
+
+        File.Delete(Path.Combine(_tempDir, "downloads.json"));
+        Directory.CreateDirectory(Path.Combine(_tempDir, "downloads.json"));
+
+        Assert.False(store.ClearBrowsingState());
+
+        Assert.Equal(history, store.History);
+        Assert.Equal(downloads, store.Downloads);
+        Assert.Single(store.LoadSession().Tabs);
+    }
 }

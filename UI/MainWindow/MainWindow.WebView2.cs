@@ -578,6 +578,7 @@ public partial class MainWindow
         {
             tab.IsLoading = false;
             tab.LastActiveUtc = DateTimeOffset.UtcNow;
+            var historySaveFailed = false;
 
             if (e.IsSuccess)
             {
@@ -590,7 +591,10 @@ public partial class MainWindow
 
                 if (!_isPrivate && BrowserDataStore.IsHttpUrl(tab.Address))
                 {
-                    _dataStore.AddHistory(tab.Title, tab.Address);
+                    if (!_dataStore.AddHistory(tab.Title, tab.Address) && tab == _activeTab)
+                    {
+                        historySaveFailed = true;
+                    }
                 }
 
                 FireAndForget(RestoreScrollPositionAsync(tab), "RestoreScrollPositionAsync");
@@ -616,7 +620,9 @@ public partial class MainWindow
 
             if (_activeTab == tab)
             {
-                StatusBar.StatusText.Text = e.IsSuccess ? "Ready" : StatusBar.StatusText.Text;
+                StatusBar.StatusText.Text = e.IsSuccess
+                    ? historySaveFailed ? "Couldn't save this page to history" : "Ready"
+                    : StatusBar.StatusText.Text;
                 UpdateNavigationButtons();
                 UpdateBookmarkButton();
                 UpdateLoadingOverlay();
@@ -872,12 +878,16 @@ public partial class MainWindow
             operation.StateChanged -= OnDownloadCompleted;
             Dispatcher.BeginInvoke(() =>
             {
-                _dataStore.AddDownload(fileName, resultFilePath, sourceUrl);
-                StatusBar.StatusText.Text = $"Downloaded {fileName}";
+                if (_dataStore.AddDownload(fileName, resultFilePath, sourceUrl))
+                {
+                    StatusBar.StatusText.Text = $"Downloaded {fileName}";
+                }
+                else
+                {
+                    StatusBar.StatusText.Text = $"Downloaded {fileName}, but couldn't save it to the downloads list";
+                }
             });
         }
     }
 }
-
-
 

@@ -21,9 +21,9 @@ public sealed class BrowserDataStore : IDisposable
     private readonly string _downloadsPath;
     private readonly ReaderWriterLockSlim _lock = new();
 
-    public BrowserDataStore()
+    public BrowserDataStore(string? dataFolder = null)
     {
-        _dataFolder = Path.Combine(
+        _dataFolder = dataFolder ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TabloidBrowser",
             "Data");
@@ -104,8 +104,17 @@ public sealed class BrowserDataStore : IDisposable
     private void WriteSession(BrowserSession session)
     {
         var tmp = _sessionPath + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(session, JsonOptions));
-        File.Move(tmp, _sessionPath, overwrite: true);
+        try
+        {
+            File.WriteAllText(tmp, JsonSerializer.Serialize(session, JsonOptions));
+            File.Move(tmp, _sessionPath, overwrite: true);
+        }
+        catch
+        {
+            try { File.Delete(tmp); }
+            catch (Exception ex) { Log.Debug(ex, "Failed to clean up temporary session file"); }
+            throw;
+        }
     }
 
     public bool SaveSession(BrowserSession session)
@@ -237,16 +246,17 @@ public sealed class BrowserDataStore : IDisposable
         finally { _lock.ExitReadLock(); }
     }
 
-    public void AddHistory(string title, string url)
+    public bool AddHistory(string title, string url)
     {
         if (!IsHttpUrl(url))
         {
-            return;
+            return false;
         }
 
         _lock.EnterWriteLock();
         try
         {
+            var snapshot = new List<HistoryItem>(HistoryInternal);
             if (HistoryInternal.FirstOrDefault() is { } latest &&
                 string.Equals(latest.Url, url, StringComparison.OrdinalIgnoreCase))
             {
@@ -266,31 +276,53 @@ public sealed class BrowserDataStore : IDisposable
                 HistoryInternal.RemoveRange(500, HistoryInternal.Count - 500);
             }
 
-            SaveHistory();
-        }
-        finally { _lock.ExitWriteLock(); }
-    }
+            if (SaveHistory())
+            {
+                return true;
+            }
 
-    public void ClearHistory()
-    {
-        _lock.EnterWriteLock();
-        try
-        {
             HistoryInternal.Clear();
-            SaveHistory();
+            HistoryInternal.AddRange(snapshot);
+            return false;
         }
         finally { _lock.ExitWriteLock(); }
     }
 
-    public void RemoveHistory(string url, DateTimeOffset visitedAt)
+    public bool ClearHistory()
     {
         _lock.EnterWriteLock();
         try
         {
-            HistoryInternal.RemoveAll(item =>
+            var snapshot = new List<HistoryItem>(HistoryInternal);
+            HistoryInternal.Clear();
+            if (SaveHistory())
+            {
+                return true;
+            }
+
+            HistoryInternal.AddRange(snapshot);
+            return false;
+        }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    public bool RemoveHistory(string url, DateTimeOffset visitedAt)
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            var snapshot = new List<HistoryItem>(HistoryInternal);
+            var removed = HistoryInternal.RemoveAll(item =>
                 string.Equals(item.Url, url, StringComparison.OrdinalIgnoreCase) &&
                 item.VisitedAt.Equals(visitedAt));
-            SaveHistory();
+            if (removed == 0 || SaveHistory())
+            {
+                return true;
+            }
+
+            HistoryInternal.Clear();
+            HistoryInternal.AddRange(snapshot);
+            return false;
         }
         finally { _lock.ExitWriteLock(); }
     }
@@ -311,25 +343,99 @@ public sealed class BrowserDataStore : IDisposable
         finally { _lock.ExitWriteLock(); }
     }
 
-    public void ClearBrowsingState()
+    public bool ClearBrowsingState()
     {
         _lock.EnterWriteLock();
         try
         {
+            var historySnapshot = new List<HistoryItem>(HistoryInternal);
+            var downloadsSnapshot = new List<DownloadItem>(DownloadsInternal);
+            var sessionExisted = File.Exists(_sessionPath);
+            string? sessionSnapshot = null;
+            try
+            {
+                if (sessionExisted)
+                {
+                    sessionSnapshot = File.ReadAllText(_sessionPath);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.Error(ex, "Failed to snapshot session before clearing browsing data");
+                return false;
+            }
+
             HistoryInternal.Clear();
             DownloadsInternal.Clear();
-            SaveHistory();
-            SaveDownloads();
-            try { WriteSession(BrowserSession.Empty); } catch (Exception ex) { Log.Error(ex, "Failed to write empty session during ClearBrowsingState"); }
+            var historySaved = SaveHistory();
+            var downloadsSaved = SaveDownloads();
+            if (historySaved && downloadsSaved)
+            {
+                try
+                {
+                    WriteSession(BrowserSession.Empty);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to write empty session during ClearBrowsingState");
+                }
+            }
+
+            HistoryInternal.AddRange(historySnapshot);
+            DownloadsInternal.AddRange(downloadsSnapshot);
+
+            var historyRestored = SaveHistory();
+            var downloadsRestored = SaveDownloads();
+            var sessionRestored = RestoreSessionSnapshot(sessionExisted, sessionSnapshot);
+            if (!historyRestored || !downloadsRestored || !sessionRestored)
+            {
+                Log.Error(
+                    new IOException("One or more browsing data files could not be restored after a failed clear."),
+                    "Browsing data rollback was incomplete");
+            }
+
+            return false;
         }
         finally { _lock.ExitWriteLock(); }
     }
 
-    public void AddDownload(string fileName, string filePath, string sourceUrl)
+    private bool RestoreSessionSnapshot(bool existed, string? content)
+    {
+        var temporaryPath = _sessionPath + ".restore.tmp";
+        try
+        {
+            if (!existed)
+            {
+                if (File.Exists(_sessionPath))
+                {
+                    File.Delete(_sessionPath);
+                }
+                return true;
+            }
+
+            File.WriteAllText(temporaryPath, content ?? string.Empty);
+            File.Move(temporaryPath, _sessionPath, overwrite: true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to restore session after a failed browsing data clear");
+            try { File.Delete(temporaryPath); }
+            catch (Exception cleanupException)
+            {
+                Log.Debug(cleanupException, "Failed to remove session restore file");
+            }
+            return false;
+        }
+    }
+
+    public bool AddDownload(string fileName, string filePath, string sourceUrl)
     {
         _lock.EnterWriteLock();
         try
         {
+            var snapshot = new List<DownloadItem>(DownloadsInternal);
             DownloadsInternal.Insert(0, new DownloadItem(CleanTitle(fileName), filePath, sourceUrl, DateTimeOffset.Now));
 
             if (DownloadsInternal.Count > 100)
@@ -337,18 +443,32 @@ public sealed class BrowserDataStore : IDisposable
                 DownloadsInternal.RemoveRange(100, DownloadsInternal.Count - 100);
             }
 
-            SaveDownloads();
+            if (SaveDownloads())
+            {
+                return true;
+            }
+
+            DownloadsInternal.Clear();
+            DownloadsInternal.AddRange(snapshot);
+            return false;
         }
         finally { _lock.ExitWriteLock(); }
     }
 
-    public void ClearDownloads()
+    public bool ClearDownloads()
     {
         _lock.EnterWriteLock();
         try
         {
+            var snapshot = new List<DownloadItem>(DownloadsInternal);
             DownloadsInternal.Clear();
-            SaveDownloads();
+            if (SaveDownloads())
+            {
+                return true;
+            }
+
+            DownloadsInternal.AddRange(snapshot);
+            return false;
         }
         finally { _lock.ExitWriteLock();
         }
@@ -386,14 +506,14 @@ public sealed class BrowserDataStore : IDisposable
         return Save(_bookmarksPath, BookmarksInternal);
     }
 
-    private void SaveHistory()
+    private bool SaveHistory()
     {
-        Save(_historyPath, HistoryInternal);
+        return Save(_historyPath, HistoryInternal);
     }
 
-    private void SaveDownloads()
+    private bool SaveDownloads()
     {
-        Save(_downloadsPath, DownloadsInternal);
+        return Save(_downloadsPath, DownloadsInternal);
     }
 
     private void TrimLoadedData()
@@ -453,6 +573,8 @@ public sealed class BrowserDataStore : IDisposable
         catch (Exception ex)
         {
             Log.Error(ex, "Save failed for {Path}", path);
+            try { File.Delete(path + ".tmp"); }
+            catch (Exception cleanupException) { Log.Debug(cleanupException, "Failed to clean up temporary data file for {Path}", path); }
             return false;
         }
     }

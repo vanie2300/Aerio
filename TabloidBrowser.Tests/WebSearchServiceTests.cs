@@ -1,9 +1,41 @@
+using System.Net;
+using System.Net.Http;
 using Xunit;
 
 namespace TabloidBrowser.Tests;
 
 public class WebSearchServiceTests
 {
+    [Fact]
+    public async Task SearchAsync_PropagatesCancellationDuringRequest()
+    {
+        var handler = new BlockingHttpMessageHandler();
+        using var client = new HttpClient(handler);
+        using var service = new WebSearchService(client);
+        using var cancellation = new CancellationTokenSource();
+
+        var search = service.SearchAsync("test query", cancellation.Token);
+        await handler.RequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => search);
+    }
+
+    [Fact]
+    public async Task GetSuggestionsAsync_PropagatesCancellationDuringRequest()
+    {
+        var handler = new BlockingHttpMessageHandler();
+        using var client = new HttpClient(handler);
+        using var service = new WebSearchService(client);
+        using var cancellation = new CancellationTokenSource();
+
+        var suggestions = service.GetSuggestionsAsync("test query", cancellation.Token);
+        await handler.RequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => suggestions);
+    }
+
     [Fact]
     public void ResolveBackend_DuckDuckGo_MapsCorrectly()
     {
@@ -146,5 +178,20 @@ public class WebSearchServiceTests
 
         Assert.Equal("First Result", ranked[0].Title);
         Assert.Equal("Second Result", ranked[1].Title);
+    }
+
+    private sealed class BlockingHttpMessageHandler : HttpMessageHandler
+    {
+        public TaskCompletionSource RequestStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestStarted.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
     }
 }

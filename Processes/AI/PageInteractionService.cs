@@ -72,9 +72,15 @@ public sealed class PageInteractionService
         try
         {
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            return JsonSerializer.Deserialize<List<InteractiveElement>>(json, options) ?? [];
+            using var document = JsonDocument.Parse(json);
+            var elementsJson = document.RootElement.ValueKind == JsonValueKind.String
+                ? document.RootElement.GetString()
+                : json;
+            return string.IsNullOrWhiteSpace(elementsJson)
+                ? []
+                : JsonSerializer.Deserialize<List<InteractiveElement>>(elementsJson, options) ?? [];
         }
-        catch
+        catch (JsonException)
         {
             return [];
         }
