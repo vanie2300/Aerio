@@ -63,6 +63,46 @@ jobs:
             -Path release\Aerio-win-x64\* `
             -DestinationPath Aerio-win-x64.zip
 
+      - name: Download offline WebView2 Runtime installer
+        shell: pwsh
+        run: |
+          $runtimeInstaller = "release\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+          Invoke-WebRequest `
+            -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" `
+            -OutFile $runtimeInstaller
+          $signature = Get-AuthenticodeSignature $runtimeInstaller
+          if ($signature.Status -ne "Valid" -or $signature.SignerCertificate.Subject -notlike "*Microsoft Corporation*") {
+            Write-Error "Downloaded WebView2 Runtime installer did not have a valid Microsoft signature."
+            exit 1
+          }
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress --yes
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $sourceDir = (Resolve-Path "release\Aerio-win-x64").Path
+          $runtimeInstaller = (Resolve-Path "release\MicrosoftEdgeWebView2RuntimeInstallerX64.exe").Path
+          $outputDir = (Resolve-Path "release").Path
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $compiler)) {
+            $compiler = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $compiler)) {
+            Write-Error "Inno Setup compiler (ISCC.exe) was not found."
+            exit 1
+          }
+          & $compiler "/DAppVersion=$version" "/DAppSourceDir=$sourceDir" "/DWebView2InstallerPath=$runtimeInstaller" "/O$outputDir" installer\Aerio.iss
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+          if (-not (Test-Path "release\Aerio-Setup-win-x64.exe")) {
+            Write-Error "Windows installer was not created."
+            exit 1
+          }
+
       - name: Upload Windows app artifact
         uses: actions/upload-artifact@v4
         with:
@@ -75,4 +115,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: Aerio-win-x64.zip
+          files: |
+            Aerio-win-x64.zip
+            release/Aerio-Setup-win-x64.exe

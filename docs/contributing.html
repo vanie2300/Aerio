@@ -31,7 +31,7 @@
                     <tr><th>Tool</th><th>Version</th></tr>
                     <tr><td>.NET SDK</td><td>8.0 or newer</td></tr>
                     <tr><td>Windows</td><td>10 (19041+) or 11</td></tr>
-                    <tr><td>Microsoft Edge WebView2 Runtime</td><td>Required to run the browser</td></tr>
+                    <tr><td>Microsoft Edge WebView2 Runtime</td><td>Required to run from source; the release setup installer bundles it</td></tr>
                 </table>
             </div>
 
@@ -88,7 +88,7 @@ dotnet build</code></pre>
             <div class="section">
                 <h2>Known Issues</h2>
                 <ul>
-                    <li>WebView2 must be installed on user's machine (not bundled)</li>
+                    <li>The portable ZIP does not bundle WebView2 Runtime; the setup installer includes Microsoft's offline Evergreen Runtime installer</li>
                     <li>Some features may not work on older Windows builds</li>
                     <li>AI features require credentials for a supported cloud provider (Ollama Cloud or NVIDIA NIM)</li>
                 </ul>

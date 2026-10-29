@@ -29,9 +29,9 @@
                 <h2>Running a release</h2>
                 <ul>
                     <li>Windows 10 (19041+) or Windows 11</li>
-                    <li>Microsoft Edge WebView2 Runtime</li>
+                    <li>Microsoft Edge WebView2 Runtime (installed by the setup installer)</li>
                 </ul>
-                <p>The published Windows ZIP is self-contained and does not require the .NET runtime or SDK to be installed separately.</p>
+                <p>The setup installer bundles the .NET runtime and the offline Microsoft Edge WebView2 Runtime installer, so it can install both prerequisites. The portable ZIP includes the .NET runtime but requires WebView2 Runtime to be installed separately.</p>
             </div>
 
             <div class="section">
@@ -44,8 +44,8 @@ dotnet run</code></pre>
 
             <div class="section">
                 <h2>Windows Releases</h2>
-                <p>Pushes to <code>main</code> or <code>dev</code> and pull requests targeting <code>main</code> run CI, which builds and tests Aerio and uploads a self-contained Windows x64 app as the <code>Aerio-Windows-x64</code> Actions artifact. Download it from the successful workflow run.</p>
-                <p>GitHub Actions builds Aerio for Windows x64 when a version tag is pushed. Download <code>Aerio-win-x64.zip</code> from the GitHub release, extract the complete ZIP, and run <code>Aerio.exe</code> from the extracted folder. Keep the bundled files together. The Microsoft Edge WebView2 Runtime is required.</p>
+                <p>Pushes to <code>main</code> or <code>dev</code> and pull requests targeting <code>main</code> run CI, which builds and tests Aerio, then uploads the portable Windows x64 app and installer as the <code>Aerio-Windows-x64</code> and <code>Aerio-Installer-win-x64</code> Actions artifacts.</p>
+                <p>When a version tag is pushed, GitHub Actions creates a release with <code>Aerio-Setup-win-x64.exe</code> and <code>Aerio-win-x64.zip</code>. The setup executable installs Aerio and the bundled WebView2 Runtime (administrator permission is required). The portable ZIP requires WebView2 Runtime to already be installed.</p>
                 <p>To check for a newer release from within Aerio, use <strong>Settings → Advanced → Updates</strong>. The check opens the GitHub release page when an update is available; installation is manual.</p>
             </div>
 

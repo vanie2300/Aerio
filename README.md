@@ -106,9 +106,9 @@ TabloidBrowser/
 ## Requirements
 
 - Windows 10 version 2004 (build 19041) or later, or Windows 11
-- Microsoft Edge WebView2 Runtime
+- Microsoft Edge WebView2 Runtime (installed automatically by the standalone setup installer)
 
-The .NET 8 SDK is additionally required to build or run from source. The published Windows ZIP is self-contained and does not require the .NET runtime to be installed separately.
+The .NET 8 SDK is additionally required to build or run from source. The published Windows app and installer include the .NET runtime. The portable ZIP still requires WebView2 Runtime to be installed separately; the setup executable bundles the offline Evergreen Runtime installer and installs it during setup.
 
 ## Run
 
@@ -127,11 +127,11 @@ Or run from PowerShell:
 
 ## Releases
 
-Pushes to `main` or `dev` and pull requests targeting `main` run CI: it tests the project, publishes the self-contained Windows x64 app, and uploads the complete app folder as the `Aerio-Windows-x64` Actions artifact. Open the successful workflow run and download that artifact to get a build without creating a release.
+Pushes to `main` or `dev` and pull requests targeting `main` run CI: it tests the project, publishes the self-contained Windows x64 app, builds the Windows installer, and uploads both as Actions artifacts. Open the successful workflow run to download `Aerio-Windows-x64` (portable app folder) or `Aerio-Installer-win-x64` (setup executable).
 
-Pushing a version tag such as `v1.4.1` runs the Windows release workflow. It runs the test suite, publishes a self-contained x64 build, uploads the complete Windows app folder as the `Aerio-Windows-x64` workflow artifact, and attaches `Aerio-win-x64.zip` to the GitHub release.
+Pushing a version tag such as `v1.4.1` runs the Windows release workflow. It runs the test suite, publishes a self-contained x64 build, creates the installer, uploads the complete app folder as the `Aerio-Windows-x64` workflow artifact, and attaches both `Aerio-Setup-win-x64.exe` and `Aerio-win-x64.zip` to the GitHub release.
 
-To install a release, download and extract `Aerio-win-x64.zip`, then run `Aerio.exe` from the extracted folder. Keep the other files beside it; the executable depends on bundled app resources. The target PC still needs the Microsoft Edge WebView2 Runtime.
+To install, download and run `Aerio-Setup-win-x64.exe`. It installs Aerio and the bundled Microsoft Edge WebView2 Evergreen Runtime, creates a Start Menu shortcut, and offers an optional desktop shortcut. Administrator permission is required to install the runtime. Alternatively, download and extract `Aerio-win-x64.zip` and run `Aerio.exe` from the extracted folder; the portable ZIP requires WebView2 Runtime to be installed separately.
 
 In Aerio, open **Settings → Advanced → Updates → Check for updates** to check for a newer release. If one is available, Aerio opens its GitHub release page; download and replace the portable app files manually after closing Aerio.
 
