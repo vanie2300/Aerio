@@ -139,7 +139,6 @@ public partial class MainWindow : Window
     private readonly bool _skipSessionPersistence;
     private int _blockedTrackerCount;
     private int _privacyIndicatorPending;
-    private long _pageVersion;
 
     public MainWindow()
         : this(isPrivate: false)
@@ -178,8 +177,8 @@ public partial class MainWindow : Window
         var hr = DwmSetWindowAttribute(hwnd, DWMWA_SNAP_LAYOUT, ref snapLayoutEnabled, 4u);
         if (hr != 0) Log.Debug($"DwmSetWindowAttribute failed: 0x{hr:X8}");
         TitleBar.TabStrip.ItemsSource = _tabs;
+        BrowserPane.SetNewTabShortcuts(_dataStore.Settings.NewTabShortcuts);
         TitleBar.NewTab += NewTab_Click;
-        TitleBar.TabSplit += SplitTab_Click;
         TitleBar.TabPopOut += PopOutTab_Click;
         TitleBar.MuteToggle += MuteButton_Click;
         TitleBar.TabClose += CloseTab_Click;
@@ -209,6 +208,8 @@ public partial class MainWindow : Window
         NavToolbar.Home += Home_Click;
         NavToolbar.Privacy += Privacy_Click;
         NavToolbar.AddressKeyDown += AddressBox_PreviewKeyDown;
+        NavToolbar.AddressTextChanged += AddressBox_TextChanged;
+        NavToolbar.AddressSuggestionSelected += AddressSuggestionSelected;
         NavToolbar.Go += Go_Click;
         NavToolbar.Bookmark += Bookmark_Click;
         NavToolbar.ReaderMode += ReaderMode_Click;
@@ -237,12 +238,13 @@ public partial class MainWindow : Window
         BrowserPane.StartSearchSurfaceMouseDown += StartSearchSurface_PreviewMouseDown;
         BrowserPane.StartSearchKeyDown += StartSearchBox_PreviewKeyDown;
         BrowserPane.StartSearchGo += StartSearchGo_Click;
+        BrowserPane.NewTabDialogSubmit += NewTabDialogSubmit_Click;
+        BrowserPane.NewTabShortcutSelected += NewTabShortcutSelected;
+        BrowserPane.NewTabShortcutsChanged += SaveNewTabShortcuts;
         BrowserPane.QuickDuckDuckGo += QuickDuckDuckGo_Click;
         BrowserPane.QuickStartpage += QuickStartpage_Click;
         BrowserPane.QuickGitHub += QuickGitHub_Click;
         BrowserPane.QuickHackerNews += QuickHackerNews_Click;
-        BrowserPane.FocusSplitTab += FocusSplitTab_Click;
-        BrowserPane.CloseSplit += CloseSplit_Click;
         AiSidebar.AiClearChat += AiClearChat_Click;
         AiSidebar.AiSidebarClose += AiSidebarClose_Click;
         AiSidebar.AiSend += AiSend_Click;
@@ -252,6 +254,9 @@ public partial class MainWindow : Window
         AiSidebar.WorkspaceKeepAll += WorkspaceKeepAll_Click;
         AiSidebar.WorkspaceCloseAll += WorkspaceCloseAll_Click;
         PreviewKeyDown += MainWindow_PreviewKeyDown;
+        _chromeAutoHideTimer.Tick += ChromeAutoHideTimer_Tick;
+        _chromeAutoHideTimer.Start();
+        Closed += (_, _) => _chromeAutoHideTimer.Stop();
         _sleepTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _sleepTimer.Tick += SleepTimer_Tick;
         _sleepTimer.Start();
@@ -468,6 +473,7 @@ public partial class MainWindow : Window
 
     private void ApplySettings()
     {
+        ApplyBrowserChromeVisibilitySetting();
         BrowserPane.QuickLinksPanel.Visibility = _dataStore.Settings.ShowQuickLinks ? Visibility.Visible : Visibility.Collapsed;
         ApplyTheme();
         ApplyBackground();
@@ -566,16 +572,6 @@ public partial class MainWindow : Window
         BrowserPane.StartOverlay.ClearValue(BackgroundProperty);
     }
 
-    private void SplitTab_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is MenuItem item && item.Tag is BrowserTab tab && !IsSplitActive && _activeTab is not null)
-        {
-            _splitPrimaryTab = _activeTab;
-            _splitSecondaryTab = tab;
-            _ = AttachSplitViewAsync(_activeTab);
-        }
-    }
-
     private async void PopOutTab_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -589,21 +585,6 @@ public partial class MainWindow : Window
             }
         }
         catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-    }
-
-    private async void FocusSplitTab_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (_splitSecondaryTab is not null)
-                await ActivateTabAsync(_splitSecondaryTab);
-        }
-        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-    }
-
-    private void CloseSplit_Click(object sender, RoutedEventArgs e)
-    {
-        ClearSplitView();
     }
 
     private static readonly List<(string Version, string[] Features)> Changelog =
@@ -711,7 +692,7 @@ public partial class MainWindow : Window
 
         var header = new TextBlock
         {
-            Text = "What's New in Tabloid Browser",
+            Text = "What's New in Aerio",
             Foreground = GetBrush("Text"),
             FontSize = 22,
             FontWeight = FontWeights.SemiBold,

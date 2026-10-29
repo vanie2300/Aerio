@@ -4,7 +4,7 @@ The biggest issue is that the current plan mixes **architecture, implementation,
 
 I would also make **Keep/Close, authorization, task context, and lifecycle cleanup first-class parts of the architecture**, rather than treating them as UI features.
 
-# Tabloid AI Browser — Revised Implementation Roadmap
+# Aerio AI Browser — Revised Implementation Roadmap
 
 ## Core architecture
 

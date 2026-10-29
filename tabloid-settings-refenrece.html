@@ -5,9 +5,9 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <meta content="#15161a" name="theme-color"/>
-<title>Tabloid — Settings (professional layout)</title>
+<title>Aerio — Settings (professional layout)</title>
 <style>
-    /* Tabloid settings concept — intentionally small, predictable design system. */
+    /* Aerio settings concept — intentionally small, predictable design system. */
     :root {
       color-scheme: dark;
       --accent: #9877e8;
@@ -329,7 +329,7 @@
   .generation-grid .setting-control{max-width:280px;}
 }
 
-/* Search carousel: retain Tabloid's original card-browsing interaction. */
+/* Search carousel: retain Aerio's card-browsing interaction. */
 .search-provider { min-width:0; }
 .search-layout {grid-template-columns:minmax(0,1.65fr) minmax(230px,.7fr); gap:45px;}
 .engine-carousel { width:100%; max-width:670px; }
@@ -367,7 +367,7 @@
 @media (max-width:680px) { .search-layout{grid-template-columns:1fr;} .search-custom {margin-top:11px;} .engine-stage{height:238px;} .engine-option {width:min(245px,78%);} .engine-option.is-prev{transform:translateX(calc(-50% - 172px)) scale(.78);} .engine-option.is-next{transform:translateX(calc(-50% + 172px)) scale(.78);} }
 @media (prefers-reduced-motion:reduce) { .engine-option {transition:none;} }
 
-/* Tabloid professional preferences layout — calmer, repeatable hierarchy. */
+/* Aerio professional preferences layout — calmer, repeatable hierarchy. */
 html,body {overflow-x:clip;}
 .content-frame { padding:40px clamp(28px,5vw,78px) 78px; }
 .content { max-width:1040px; margin:0 auto; }
@@ -536,7 +536,7 @@ html,body {overflow-x:clip;}
 </svg>
 <header aria-label="Browser interface preview" class="browser">
 <div class="tabbar">
-<div aria-label="Tabloid" class="app-letter">t</div>
+<div aria-label="Aerio" class="app-letter">a</div>
 <div class="browser-tab"><span class="tab-circle"></span><span>New tab</span><span class="tab-x">×</span></div>
 <div class="browser-tab current"><span class="tab-circle"></span><span>Settings</span><span class="tab-x">×</span></div>
 <button aria-label="New tab" class="tab-plus" title="Browser chrome visual only">+</button>
@@ -568,11 +568,11 @@ html,body {overflow-x:clip;}
 <button class="nav-link" data-page="extensions"><svg class="ico"><use href="#i-puzzle"></use></svg>Extensions</button>
 <button class="nav-link" data-page="ai"><svg class="ico"><use href="#i-spark"></use></svg>AI assistant</button>
 <button class="nav-link" data-page="advanced"><svg class="ico"><use href="#i-sliders"></use></svg>Advanced</button>
-<div class="sidebar-bottom"><b>Tabloid browser</b><div>Design concept · 2026</div></div>
+<div class="sidebar-bottom"><b>Aerio</b><div>Design concept · 2026</div></div>
 </aside>
 <main class="content-frame"><div class="content">
 <section aria-labelledby="title-appearance" class="page is-active" id="appearance">
-<div class="heading"><h1 id="title-appearance">Appearance</h1><p>Choose how Tabloid looks and feels.</p></div>
+<div class="heading"><h1 id="title-appearance">Appearance</h1><p>Choose how Aerio looks and feels.</p></div>
 <div class="appearance-layout"><div class="appearance-primary"><div class="section">
 <div class="section-head"><div><h2>Browser theme</h2><p>Applies to the browser interface and settings.</p></div></div>
 <div class="setting theme-setting"><div class="setting-name">Color mode</div><div aria-label="Browser theme" class="segmented" role="group"><button aria-pressed="true" class="segment" data-theme="dark">Dark</button><button aria-pressed="false" class="segment" data-theme="light">Light</button><button aria-pressed="false" class="segment" data-theme="system">System</button></div></div>
@@ -587,7 +587,7 @@ html,body {overflow-x:clip;}
 </div></div>
 </div><div class="newtab-block"><div class="section">
 <div class="section-head"><div><h2>New tab page</h2><p>Customize what you see when you open a tab.</p></div></div>
-<div class="newtab-body"><div class="newtab-background"><div class="setting top"><div class="setting-text"><div class="setting-name">Background</div><div class="setting-desc">Use a simple background or your own image.</div><div class="choice-inline"><label class="radio-inline"><input checked="" name="wallType" type="radio" value="default"/>Default</label><label class="radio-inline"><input name="wallType" type="radio" value="custom"/>Custom image</label></div><div class="upload-line" hidden="" id="uploadControls"><button class="button" id="uploadBtn"><svg class="ico sm"><use href="#i-upload"></use></svg>Choose image</button><span class="filename" id="filename">No image selected</span><input accept="image/*" hidden="" id="wallFile" type="file"/></div></div></div></div><div class="newtab-options"><div class="setting"><div class="setting-text"><div class="setting-name">Background opacity</div><div class="setting-desc">Adjust the visibility of your image.</div></div><div class="setting-control slider-line" style="width:170px"><input aria-label="Background opacity" id="opacity" max="100" min="0" type="range" value="50"/><span class="small-value" id="opacityValue">50%</span></div></div><div class="setting"><div class="setting-text"><div class="setting-name">Quick links</div><div class="setting-desc">Show shortcuts below the search box.</div></div><label class="switch setting-control"><input aria-label="Show quick links" checked="" id="quickLinks" type="checkbox"/><span class="track"></span></label></div></div></div></div></div></div><aside aria-label="Live new tab preview" class="preview-rail"><div class="preview-title">New tab preview</div><div class="preview-shell"><div class="preview-browser"><div class="preview-top"><i></i><i></i><i></i></div><div class="new-tab"><div class="wallpaper-layer" id="wallpaperLayer"></div><div class="preview-wordmark">Tabloid</div><div class="preview-search"><svg class="ico sm"><use href="#i-search"></use></svg>Search the web</div><div class="quick-links" id="previewQuick"><i></i><i></i><i></i><i></i></div></div></div></div><p class="preview-note">Updates instantly as you adjust appearance settings.</p></aside></div>
+<div class="newtab-body"><div class="newtab-background"><div class="setting top"><div class="setting-text"><div class="setting-name">Background</div><div class="setting-desc">Use a simple background or your own image.</div><div class="choice-inline"><label class="radio-inline"><input checked="" name="wallType" type="radio" value="default"/>Default</label><label class="radio-inline"><input name="wallType" type="radio" value="custom"/>Custom image</label></div><div class="upload-line" hidden="" id="uploadControls"><button class="button" id="uploadBtn"><svg class="ico sm"><use href="#i-upload"></use></svg>Choose image</button><span class="filename" id="filename">No image selected</span><input accept="image/*" hidden="" id="wallFile" type="file"/></div></div></div></div><div class="newtab-options"><div class="setting"><div class="setting-text"><div class="setting-name">Background opacity</div><div class="setting-desc">Adjust the visibility of your image.</div></div><div class="setting-control slider-line" style="width:170px"><input aria-label="Background opacity" id="opacity" max="100" min="0" type="range" value="50"/><span class="small-value" id="opacityValue">50%</span></div></div><div class="setting"><div class="setting-text"><div class="setting-name">Quick links</div><div class="setting-desc">Show shortcuts below the search box.</div></div><label class="switch setting-control"><input aria-label="Show quick links" checked="" id="quickLinks" type="checkbox"/><span class="track"></span></label></div></div></div></div></div></div><aside aria-label="Live new tab preview" class="preview-rail"><div class="preview-title">New tab preview</div><div class="preview-shell"><div class="preview-browser"><div class="preview-top"><i></i><i></i><i></i></div><div class="new-tab"><div class="wallpaper-layer" id="wallpaperLayer"></div><div class="preview-wordmark">Aerio</div><div class="preview-search"><svg class="ico sm"><use href="#i-search"></use></svg>Search the web</div><div class="quick-links" id="previewQuick"><i></i><i></i><i></i><i></i></div></div></div></div><p class="preview-note">Updates instantly as you adjust appearance settings.</p></aside></div>
 </section>
 <section aria-labelledby="title-search" class="page" id="search">
 <div class="heading"><h1 id="title-search">Search engine</h1><p>Select the search provider used in the address bar.</p></div><div class="search-layout"><div class="search-provider"><div class="section pref-section"><div class="section-head"><div><h2>Default search engine</h2><p>Browse available providers.</p></div></div><div class="pref-content">
@@ -603,7 +603,7 @@ html,body {overflow-x:clip;}
 <section aria-labelledby="title-tabs" class="page" id="tabs">
 <div class="heading"><h1 id="title-tabs">Tabs &amp; memory</h1><p>Manage tabs and reduce resource use.</p></div>
 <div class="section pref-section"><div class="section-head"><div><h2>Memory saver</h2><p>Free up memory when tabs are not being used.</p></div></div><div class="pref-content">
-<div class="memory-layout"><div class="setting"><div class="setting-text"><div class="setting-name">Hibernate inactive tabs</div><div class="setting-desc">Unload idle background tabs to free up RAM. Opening a hibernated tab reloads its contents.</div></div><label class="switch setting-control"><input aria-label="Hibernate inactive tabs" checked="" id="hibernate" type="checkbox"/><span class="track"></span></label></div><div class="setting"><div class="setting-text"><div class="setting-name">Hibernate after</div><div class="setting-desc">Minutes of inactivity before Tabloid unloads a background tab.</div></div><div class="number-picker setting-control"><button aria-label="Decrease minutes" id="minusMins">−</button><input aria-label="Hibernate after minutes" class="field" id="hibernateMins" max="180" min="1" type="number" value="15"/><button aria-label="Increase minutes" id="plusMins">+</button></div></div></div><div class="muted-panel inline-note"><div class="setting-name">About hibernation</div><div class="setting-desc">Some pages may need to reload before you can resume working. This preview does not actually suspend browser tabs.</div></div></div></div>
+<div class="memory-layout"><div class="setting"><div class="setting-text"><div class="setting-name">Hibernate inactive tabs</div><div class="setting-desc">Unload idle background tabs to free up RAM. Opening a hibernated tab reloads its contents.</div></div><label class="switch setting-control"><input aria-label="Hibernate inactive tabs" checked="" id="hibernate" type="checkbox"/><span class="track"></span></label></div><div class="setting"><div class="setting-text"><div class="setting-name">Hibernate after</div><div class="setting-desc">Minutes of inactivity before Aerio unloads a background tab.</div></div><div class="number-picker setting-control"><button aria-label="Decrease minutes" id="minusMins">−</button><input aria-label="Hibernate after minutes" class="field" id="hibernateMins" max="180" min="1" type="number" value="15"/><button aria-label="Increase minutes" id="plusMins">+</button></div></div></div><div class="muted-panel inline-note"><div class="setting-name">About hibernation</div><div class="setting-desc">Some pages may need to reload before you can resume working. This preview does not actually suspend browser tabs.</div></div></div></div>
 
 </section>
 <section aria-labelledby="title-privacy" class="page" id="privacy">
@@ -622,12 +622,12 @@ html,body {overflow-x:clip;}
 </section>
 <section aria-labelledby="title-data" class="page" id="data">
 <div class="heading"><h1 id="title-data">Browsing data</h1><p>Manage history, local files, and session information.</p></div><div class="data-layout"><div class="section pref-section"><div class="section-head"><div><h2>Data retention</h2></div></div><div class="pref-content">
-<div class="setting"><div class="setting-text"><div class="setting-name">Clear browsing state on exit</div><div class="setting-desc">Remove browsing history, download history, and session recovery data when Tabloid closes.</div></div><label class="switch setting-control"><input aria-label="Clear browsing state on exit" type="checkbox"/><span class="track"></span></label></div>
+<div class="setting"><div class="setting-text"><div class="setting-name">Clear browsing state on exit</div><div class="setting-desc">Remove browsing history, download history, and session recovery data when Aerio closes.</div></div><label class="switch setting-control"><input aria-label="Clear browsing state on exit" type="checkbox"/><span class="track"></span></label></div>
 </div></div><div class="section pref-section"><div class="section-head"><div><h2>Clear data</h2><p>Choose which data types to remove.</p></div></div><div class="pref-content">
 <div class="setting"><div class="setting-text"><div class="setting-name">Clear local browsing data</div><div class="setting-desc">Review data categories before clearing them.</div></div><button class="button setting-control" id="clearData">Choose data…</button></div>
 </div></div></div>
 <div class="section reset-section pref-section"><div class="section-head"><div><h2 style="color:var(--danger)">Reset</h2></div></div><div class="pref-content">
-<div class="setting"><div class="setting-text"><div class="setting-name">Reset all settings</div><div class="setting-desc">Restore Tabloid settings to their defaults. This is separate from clearing browsing data.</div></div><button class="button destructive setting-control" id="resetSettings">Reset settings…</button></div>
+<div class="setting"><div class="setting-text"><div class="setting-name">Reset all settings</div><div class="setting-desc">Restore Aerio settings to their defaults. This is separate from clearing browsing data.</div></div><button class="button destructive setting-control" id="resetSettings">Reset settings…</button></div>
 </div></div>
 </section>
 <section aria-labelledby="title-extensions" class="page" id="extensions">

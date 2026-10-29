@@ -420,7 +420,7 @@ private async Task<string> ExecuteNavigate(Dictionary<string, JsonElement>? args
             title = focusTab.Title;
         }
 
-        return await _closeTab(title, url ?? "", ct);
+        return await _closeTab(title ?? "", url ?? "", ct);
     }
 
     private async Task<string> ExecuteClick(Dictionary<string, JsonElement>? args)

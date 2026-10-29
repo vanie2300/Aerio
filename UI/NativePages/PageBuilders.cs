@@ -439,9 +439,28 @@ public partial class MainWindow
         var settings = _dataStore.Settings;
 
         Action onChange = () => { };
-        var searchCtrl = SearchEngineCarousel(settings.SearchEngine, settings.CustomEngines, () => onChange());
+        var savedSearchKeywords = settings.SearchKeywords ?? BrowserSettings.DefaultSearchKeywords;
+        var youtubeKeyword = Input(savedSearchKeywords.GetValueOrDefault("YouTube", ""));
+        var wikipediaKeyword = Input(savedSearchKeywords.GetValueOrDefault("Wikipedia", ""));
+        youtubeKeyword.Width = 150;
+        wikipediaKeyword.Width = 150;
+
+        Dictionary<string, string> GetBuiltInKeywords() => new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["YouTube"] = youtubeKeyword.Text.Trim(),
+            ["Wikipedia"] = wikipediaKeyword.Text.Trim()
+        };
+
+        var searchCtrl = SearchEngineCarousel(
+            settings.SearchEngine,
+            settings.CustomEngines,
+            () => onChange(),
+            GetBuiltInKeywords);
         var accent = AccentCircleGroup(["Blue", "Purple", "Gray", "Green", "White"], settings.Accent);
         var theme = Segmented(["Dark", "Light"], settings.Theme);
+        var autoHideBrowserChrome = SettingsToggleRow("Auto-hide browser controls",
+            "Hide the tabs, address bar, and status bar until you move your pointer to the top edge. Restart Aerio for changes to take effect.",
+            settings.AutoHideBrowserChrome);
         var customBgPath = settings.Background is not "Default" && File.Exists(settings.Background)
             ? settings.Background
             : null;
@@ -571,7 +590,7 @@ public partial class MainWindow
             "Filter advertising requests using a built-in EasyList-style list. Uses a bundled list offline and refreshes from EasyList.",
             settings.EnableAdBlock);
         var clearOnExit = SettingsToggleRow("Clear browsing state on exit",
-            "Remove browsing history, download history, and session recovery data when Tabloid closes.",
+            "Remove browsing history, download history, and session recovery data when Aerio closes.",
             settings.ClearDataOnExit);
         var enableAutofill = SettingsToggleRow("Form autofill",
             "Offer to fill saved details in forms.",
@@ -809,6 +828,21 @@ public partial class MainWindow
 
         void Save()
         {
+            var builtInKeywords = GetBuiltInKeywords();
+            var configuredKeywords = builtInKeywords.Values
+                .Where(keyword => !string.IsNullOrWhiteSpace(keyword))
+                .Select(keyword => keyword.Trim())
+                .ToList();
+            if (configuredKeywords.Any(keyword => keyword.Any(char.IsWhiteSpace)) ||
+                configuredKeywords.Distinct(StringComparer.OrdinalIgnoreCase).Count() != configuredKeywords.Count ||
+                searchCtrl.GetCustomEngines().Any(engine =>
+                    !string.IsNullOrWhiteSpace(engine.Keyword) &&
+                    configuredKeywords.Contains(engine.Keyword.Trim(), StringComparer.OrdinalIgnoreCase)))
+            {
+                StatusBar.StatusText.Text = "Search keywords must be single words and unique across engines.";
+                return;
+            }
+
             var saved = new BrowserSettings(
                 SearchEngine: searchCtrl.GetEngine(),
                 ClearDataOnExit: clearOnExit.Toggle.IsChecked == true,
@@ -833,6 +867,7 @@ public partial class MainWindow
                 ForceDarkPage: forceDark.Toggle.IsChecked == true,
                 Extensions: _dataStore.Settings.Extensions,
                 CustomEngines: searchCtrl.GetCustomEngines(),
+                SearchKeywords: builtInKeywords,
                 Shortcuts: shortcutOverrides is { Count: > 0 } ? new Dictionary<string, string>(shortcutOverrides) : null,
                 AiEnabled: aiEnabled.Toggle.IsChecked == true,
                 AiSidebarOpen: _dataStore.Settings.AiSidebarOpen,
@@ -859,7 +894,9 @@ public partial class MainWindow
                 AiMaxIterations: _dataStore.Settings.AiMaxIterations,
                 AiPageContextConfirmation: _dataStore.Settings.AiPageContextConfirmation,
                 AiToolsEnabled: _dataStore.Settings.AiToolsEnabled,
-                LastSeenVersion: _dataStore.Settings.LastSeenVersion);
+                LastSeenVersion: _dataStore.Settings.LastSeenVersion,
+                AutoHideBrowserChrome: autoHideBrowserChrome.Toggle.IsChecked == true,
+                NewTabShortcuts: _dataStore.Settings.NewTabShortcuts);
 
             _dataStore.SaveSettings(saved);
             ApplySettings();
@@ -919,6 +956,20 @@ public partial class MainWindow
 
         quickLinks.Toggle.Checked += (_, _) => Save();
         quickLinks.Toggle.Unchecked += (_, _) => Save();
+        autoHideBrowserChrome.Toggle.Checked += (_, _) =>
+        {
+            Save();
+            if (_dataStore.Settings.AutoHideBrowserChrome)
+                StatusBar.StatusText.Text = "Restart Aerio to enable auto-hide";
+        };
+        autoHideBrowserChrome.Toggle.Unchecked += (_, _) =>
+        {
+            Save();
+            if (!_dataStore.Settings.AutoHideBrowserChrome)
+                StatusBar.StatusText.Text = "Restart Aerio to disable auto-hide";
+        };
+        youtubeKeyword.LostFocus += (_, _) => Save();
+        wikipediaKeyword.LostFocus += (_, _) => Save();
         blockTrackers.Toggle.Checked += (_, _) => Save();
         blockTrackers.Toggle.Unchecked += (_, _) => Save();
         adBlock.Toggle.Checked += (_, _) => Save();
@@ -990,6 +1041,276 @@ public partial class MainWindow
             }
         };
 
+        var savedSitesList = new StackPanel();
+        var savedSitesStatus = new TextBlock
+        {
+            Text = "Loading cookie domains…",
+            Foreground = GetBrush("Text"),
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold
+        };
+        var savedSitesSummary = new Border
+        {
+            Background = GetBrush("ChromeAlt"),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = StackOf(
+                savedSitesStatus,
+                new TextBlock
+                {
+                    Text = "Domains are collected from cookies in this browser profile. Third-party services may appear even if you did not open them directly.",
+                    Foreground = GetBrush("Muted"),
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 5, 0, 0)
+                })
+        };
+        var savedSitesScroll = new ScrollViewer
+        {
+            Content = savedSitesList,
+            MaxHeight = 320,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        savedSitesScroll.Resources.Add(typeof(ScrollBar), FindResource("DarkScrollBar"));
+        var savedSitesListFrame = new Border
+        {
+            Background = GetBrush("SurfaceBg"),
+            BorderBrush = GetBrush("Stroke"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(10),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = savedSitesScroll
+        };
+
+        async Task RefreshSavedSitesAsync()
+        {
+            savedSitesStatus.Text = "Loading cookie domains…";
+            savedSitesList.Children.Clear();
+            try
+            {
+                var webView = _activeTab?.WebView?.CoreWebView2 ??
+                    _tabs.Select(browserTab => browserTab.WebView?.CoreWebView2)
+                        .FirstOrDefault(candidate => candidate is not null);
+                if (webView is null)
+                {
+                    savedSitesStatus.Text = "Browser profile is not ready";
+                    return;
+                }
+
+                var cookies = await webView.CookieManager.GetCookiesAsync(string.Empty);
+                var domains = cookies
+                    .Select(cookie => cookie.Domain.Trim().TrimStart('.'))
+                    .Where(domain => !string.IsNullOrWhiteSpace(domain))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                savedSitesStatus.Text = $"{domains.Count} cookie domain{(domains.Count == 1 ? "" : "s")}";
+                if (domains.Count == 0)
+                {
+                    savedSitesList.Children.Add(new TextBlock
+                    {
+                        Text = "No cookies are currently stored in this browser profile.",
+                        Foreground = GetBrush("Muted"),
+                        FontSize = 12,
+                        TextWrapping = TextWrapping.Wrap,
+                        Margin = new Thickness(8, 12, 8, 12)
+                    });
+                    return;
+                }
+
+                foreach (var domain in domains)
+                {
+                    var domainCookies = cookies
+                        .Where(cookie => string.Equals(
+                            cookie.Domain.Trim().TrimStart('.'),
+                            domain,
+                            StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    var siteButton = new Button
+                    {
+                        MinHeight = 46,
+                        Content = domain,
+                        Style = FindResource("SettingsActionButton") as Style,
+                        Background = GetBrush("SurfaceBg"),
+                        Foreground = GetBrush("Text"),
+                        BorderBrush = GetBrush("Stroke"),
+                        BorderThickness = new Thickness(1),
+                        Padding = new Thickness(12, 8, 12, 8),
+                        FontSize = 13,
+                        HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                        Margin = new Thickness(0, 0, 0, 6),
+                        Cursor = Cursors.Hand
+                    };
+                    var domainRow = new Grid();
+                    domainRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    domainRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    domainRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    domainRow.Children.Add(new Border
+                    {
+                        Width = 30,
+                        Height = 30,
+                        CornerRadius = new CornerRadius(8),
+                        Background = GetBrush("ChromeAlt"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Child = new TextBlock
+                        {
+                            Text = "\xE774",
+                            FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                            FontSize = 13,
+                            Foreground = GetBrush("Accent"),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center
+                        }
+                    });
+                    var domainLabel = new TextBlock
+                    {
+                        Text = domain,
+                        Foreground = GetBrush("Text"),
+                        FontSize = 12,
+                        FontWeight = FontWeights.SemiBold,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        Margin = new Thickness(10, 0, 8, 0)
+                    };
+                    Grid.SetColumn(domainLabel, 1);
+                    domainRow.Children.Add(domainLabel);
+                    var openLabel = new TextBlock
+                    {
+                        Text = "OPEN  \xE8A7",
+                        FontFamily = new FontFamily("Segoe UI, Segoe MDL2 Assets"),
+                        Foreground = GetBrush("Muted"),
+                        FontSize = 9,
+                        FontWeight = FontWeights.SemiBold,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(openLabel, 2);
+                    domainRow.Children.Add(openLabel);
+                    siteButton.Content = domainRow;
+                    siteButton.ToolTip = $"Open https://{domain} in a new tab";
+                    siteButton.Click += async (_, _) =>
+                    {
+                        try
+                        {
+                            await AddWebTabAsync(new UriBuilder(Uri.UriSchemeHttps, domain).Uri.ToString());
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error(ex, "Failed to open saved-cookie site {Domain}", domain);
+                            StatusBar.StatusText.Text = $"Couldn't open {domain}";
+                        }
+                    };
+                    System.Windows.Automation.AutomationProperties.SetName(siteButton, $"Open {domain}");
+
+                    var removeButton = SettingsButton("Remove", destructive: true);
+                    removeButton.MinHeight = 46;
+                    removeButton.Margin = new Thickness(8, 0, 0, 6);
+                    removeButton.ToolTip = $"Remove cookies for {domain}";
+                    System.Windows.Automation.AutomationProperties.SetName(removeButton, $"Remove cookies for {domain}");
+                    removeButton.Click += async (_, _) =>
+                    {
+                        var result = MessageBox.Show(
+                            this,
+                            $"Remove {domainCookies.Count} cookie{(domainCookies.Count == 1 ? "" : "s")} for {domain}?\n\nThis may sign you out of this site.",
+                            "Remove site cookies",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Warning);
+                        if (result != MessageBoxResult.Yes)
+                        {
+                            return;
+                        }
+
+                        removeButton.IsEnabled = false;
+                        try
+                        {
+                            foreach (var cookie in domainCookies)
+                            {
+                                webView.CookieManager.DeleteCookie(cookie);
+                            }
+
+                            await RefreshSavedSitesAsync();
+                            StatusBar.StatusText.Text = $"Cookies removed for {domain}";
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error(ex, "Failed to remove cookies for {Domain}", domain);
+                            StatusBar.StatusText.Text = $"Couldn't remove cookies for {domain}";
+                            await RefreshSavedSitesAsync();
+                        }
+                    };
+
+                    var siteRow = new Grid();
+                    siteRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    siteRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    Grid.SetColumn(siteButton, 0);
+                    Grid.SetColumn(removeButton, 1);
+                    siteRow.Children.Add(siteButton);
+                    siteRow.Children.Add(removeButton);
+                    savedSitesList.Children.Add(siteRow);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to load saved-cookie sites for privacy settings");
+                savedSitesStatus.Text = "Saved sites are unavailable.";
+                savedSitesList.Children.Clear();
+            }
+        }
+
+        var refreshSavedSites = SettingsButton("Refresh sites");
+        refreshSavedSites.Click += async (_, _) => await RefreshSavedSitesAsync();
+        var clearSavedSites = SettingsButton("Clear all cookies", destructive: true);
+        clearSavedSites.Margin = new Thickness(0, 8, 0, 0);
+        clearSavedSites.Click += async (_, _) =>
+        {
+            var result = MessageBox.Show(
+                this,
+                "This removes all cookies from the browser profile, including cookies for sites you are currently signed in to. It does not clear browsing history or bookmarks.\n\nContinue?",
+                "Clear all cookies",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var profile = _activeTab?.WebView?.CoreWebView2?.Profile ??
+                _tabs.Select(browserTab => browserTab.WebView?.CoreWebView2?.Profile)
+                    .FirstOrDefault(candidate => candidate is not null);
+            if (profile is null)
+            {
+                savedSitesStatus.Text = "Browser profile is not ready; cookies were not cleared.";
+                return;
+            }
+
+            clearSavedSites.IsEnabled = false;
+            refreshSavedSites.IsEnabled = false;
+            savedSitesStatus.Text = "Clearing cookies…";
+            try
+            {
+                await profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.Cookies);
+                await RefreshSavedSitesAsync();
+                StatusBar.StatusText.Text = "All browser-profile cookies cleared";
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to clear browser-profile cookies");
+                savedSitesStatus.Text = "Cookies could not be cleared. Please try again.";
+                StatusBar.StatusText.Text = "Couldn't clear cookies";
+            }
+            finally
+            {
+                clearSavedSites.IsEnabled = true;
+                refreshSavedSites.IsEnabled = true;
+            }
+        };
+
+        FireAndForget(RefreshSavedSitesAsync(), "Load saved-cookie sites in settings");
+
         var resetAll = SettingsButton("Reset all settings…", destructive: true);
         resetAll.Click += (_, _) =>
         {
@@ -1001,28 +1322,32 @@ public partial class MainWindow
         // ── Pages: each category is a list of reference-style pref-sections ──
         var pages = new Dictionary<string, (string Title, string Subtitle, FrameworkElement[] Sections)>
         {
-            ["Appearance"] = ("Appearance", "Choose how Tabloid looks and feels.",
+            ["Appearance"] = ("Appearance", "Choose how Aerio looks and feels.",
             [
                 // Keep related appearance controls together instead of creating
                 // a separate section for every setting.
                 PrefSection("Browser appearance", "Choose how the browser interface looks.",
                     SettingsRow2("Color mode", "Switch between the dark and light browser themes.", theme.Control),
-                    SettingsRow2("Accent color", "Used for selected tabs, active controls, and focus states.", accent.Control)),
+                    SettingsRow2("Accent color", "Used for selected tabs, active controls, and focus states.", accent.Control),
+                    autoHideBrowserChrome.Row),
                 PrefSection("New tab page", "Customize what you see when you open a tab.",
                     SettingsRow2("Background", "Use a simple background or your own image.", background.Control),
                     backgroundOptions,
                     bgOpacity.Control,
                     quickLinks.Row)
             ]),
-            ["Engine"] = ("Search engine", "Select the search provider used in the address bar.",
+            ["Engine"] = ("Search engine", "Choose your default search provider and set quick-search keywords.",
             [
-                PrefSection("Default search engine", "Choose which provider the address bar uses for searches.", searchCtrl.Control)
+                PrefSection("Default search engine", "Choose which provider the address bar uses for searches.", searchCtrl.Control),
+                PrefSection("Quick-search keywords", "Type a keyword followed by a search in the address bar. Leave a keyword blank to disable its shortcut.",
+                    SettingsRow2("YouTube", "Example: yt cats", youtubeKeyword),
+                    SettingsRow2("Wikipedia", "Example: wiki octopus", wikipediaKeyword))
             ]),
             ["Tabs"] = ("Tabs & memory", "Manage tabs and reduce resource use.",
             [
                 PrefSection("Memory saver", "Free up memory when tabs are not being used.",
                     SettingsRow2("Hibernate after",
-                        "Minutes of inactivity before Tabloid unloads a background tab.",
+                        "Minutes of inactivity before Aerio unloads a background tab.",
                         sleep.Control),
                     SettingsNote("About hibernation",
                         "Some pages may need to reload before you can resume working. Hibernated tabs restore their last URL and scroll position."))
@@ -1039,6 +1364,13 @@ public partial class MainWindow
                     enableAutofill.Row,
                     enablePasswordSave.Row)
             ]),
+            ["Saved sites"] = ("Saved sites", "These are cookie domains stored in this browser profile, not a list of sites you directly visited. Pages can load third-party services that store cookies too. A cookie does not confirm that you signed in.",
+            [
+                PrefSection("Cookies in this profile", "Select a domain to open it in a new tab. Cookie values are never displayed. Clearing cookies may sign you out of websites.",
+                    savedSitesSummary,
+                    savedSitesListFrame,
+                    StackOf(refreshSavedSites, clearSavedSites))
+            ]),
             ["Data"] = ("Browsing data", "Manage history, local files, and session information.",
             [
                 PrefSection("Data retention", null, clearOnExit.Row),
@@ -1048,7 +1380,7 @@ public partial class MainWindow
                         clearData)),
                 PrefSection("Reset", null,
                     SettingsRow2("Reset all settings",
-                        "Restore Tabloid settings to their defaults. This is separate from clearing browsing data.",
+                        "Restore Aerio settings to their defaults. This is separate from clearing browsing data.",
                         resetAll),
                     "dangerTitle")
             ]),
@@ -1089,6 +1421,7 @@ public partial class MainWindow
             ("Engine", "Search engine", "\xE774", null),
             ("Tabs", "Tabs & memory", "\xE7C4", null),
             ("Privacy && Security", "Privacy & security", "\xE72E", "Privacy"),
+            ("Saved sites", "Saved sites", "\xE774", null),
             ("Data", "Browsing data", "\xE81C", null),
             ("Extensions", "Extensions", "\xE7B8", "Tools"),
             ("AI", "AI assistant", "\xE99A", null),
@@ -1307,7 +1640,7 @@ public partial class MainWindow
             {
                 Children =
                 {
-                    new TextBlock { Text = "Tabloid Browser", FontSize = 11, Foreground = GetBrush("Muted") }
+                    new TextBlock { Text = "Aerio", FontSize = 11, Foreground = GetBrush("Muted") }
                 }
             }
         });

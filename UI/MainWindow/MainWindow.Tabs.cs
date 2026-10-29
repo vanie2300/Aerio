@@ -43,15 +43,16 @@ public partial class MainWindow
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out Win32Point lpPoint);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct Win32Point
     {
         public int X;
         public int Y;
     }
-
-    private BrowserTab? _splitPrimaryTab;
-    private BrowserTab? _splitSecondaryTab;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
     private struct MemoryStatusEx
@@ -203,17 +204,6 @@ public partial class MainWindow
         await ActivateTabAsync(tab);
     }
 
-    private bool IsSplitActive =>
-        _splitPrimaryTab is not null &&
-        _splitSecondaryTab is not null &&
-        _tabs.Contains(_splitPrimaryTab) &&
-        _tabs.Contains(_splitSecondaryTab) &&
-        _splitPrimaryTab.Kind == BrowserTabKind.Web &&
-        _splitSecondaryTab.Kind == BrowserTabKind.Web;
-
-    private bool IsSplitTab(BrowserTab? tab) =>
-        tab is not null && (ReferenceEquals(tab, _splitPrimaryTab) || ReferenceEquals(tab, _splitSecondaryTab));
-
     private static void RemoveElementFromParent(UIElement element)
     {
         var parent = VisualTreeHelper.GetParent(element);
@@ -229,78 +219,6 @@ public partial class MainWindow
         {
             contentControl.Content = null;
         }
-    }
-
-    private void ClearSplitView(bool clearState = true)
-    {
-        BrowserPane.SplitWebViewHost.Children.Clear();
-        BrowserPane.SplitLoadingOverlay.Visibility = Visibility.Collapsed;
-        BrowserPane.SplitPane.Visibility = Visibility.Collapsed;
-        BrowserPane.SplitPaneSplitter.Visibility = Visibility.Collapsed;
-        BrowserPane.SplitPaneDividerColumn.Width = new GridLength(0);
-        BrowserPane.SplitPaneColumn.Width = new GridLength(0);
-        BrowserPane.PrimaryPaneColumn.Width = new GridLength(1, GridUnitType.Star);
-
-        if (clearState)
-        {
-            _splitPrimaryTab = null;
-            _splitSecondaryTab = null;
-        }
-    }
-
-    private async Task<bool> AttachSplitViewAsync(BrowserTab focusedTab)
-    {
-        if (!IsSplitActive || _splitPrimaryTab is null || _splitSecondaryTab is null)
-        {
-            ClearSplitView();
-            return false;
-        }
-
-        var primary = _splitPrimaryTab;
-        var secondary = _splitSecondaryTab;
-
-        await EnsureWebViewAsync(primary);
-        await EnsureWebViewAsync(secondary);
-
-        if (primary.WebView is null || secondary.WebView is null)
-        {
-            ClearSplitView();
-            return false;
-        }
-
-        BrowserPane.WebViewHost.Children.Clear();
-        _attachedWebView = null;
-        BrowserPane.SplitWebViewHost.Children.Clear();
-        BrowserPane.PlaySwapScrim();
-
-        RemoveElementFromParent(primary.WebView);
-        RemoveElementFromParent(secondary.WebView);
-        BrowserPane.WebViewHost.Children.Add(primary.WebView);
-        BrowserPane.SplitWebViewHost.Children.Add(secondary.WebView);
-
-        primary.WebView.Visibility = Visibility.Visible;
-        secondary.WebView.Visibility = Visibility.Visible;
-
-        try { primary.WebView.CoreWebView2?.Resume(); }
-        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException) { Log.Error(ex, "Error occurred"); }
-        try { secondary.WebView.CoreWebView2?.Resume(); }
-        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException) { Log.Error(ex, "Error occurred"); }
-
-        BrowserPane.PrimaryPaneColumn.Width = new GridLength(1, GridUnitType.Star);
-        BrowserPane.SplitPaneDividerColumn.Width = new GridLength(5);
-        BrowserPane.SplitPaneColumn.Width = new GridLength(1, GridUnitType.Star);
-        BrowserPane.SplitPaneSplitter.Visibility = Visibility.Visible;
-        BrowserPane.SplitPane.Visibility = Visibility.Visible;
-
-        BrowserPane.WebViewHost.Visibility = Visibility.Visible;
-        BrowserPane.StartOverlay.Visibility = Visibility.Collapsed;
-        BrowserPane.InternalPageHost.Visibility = Visibility.Collapsed;
-        BrowserPane.LoadingOverlay.Visibility = primary.IsLoading ? Visibility.Visible : Visibility.Collapsed;
-        BrowserPane.SplitLoadingOverlay.Visibility = secondary.IsLoading ? Visibility.Visible : Visibility.Collapsed;
-
-        var focusedWebView = ReferenceEquals(focusedTab, secondary) ? secondary.WebView : primary.WebView;
-        _ = Dispatcher.BeginInvoke(() => focusedWebView.Focus(), DispatcherPriority.ApplicationIdle);
-        return true;
     }
 
     private async Task ActivateTabAsync(BrowserTab tab)
@@ -330,16 +248,8 @@ public partial class MainWindow
 
             if (tab.Kind == BrowserTabKind.Web)
             {
-                if (IsSplitActive && IsSplitTab(tab))
-                {
-                    await AttachSplitViewAsync(tab);
-                }
-                else
-                {
-                    ClearSplitView();
-                    await EnsureWebViewAsync(tab, attachBeforeInitialize: true);
-                    AttachActiveWebView(tab);
-                }
+                await EnsureWebViewAsync(tab, attachBeforeInitialize: true);
+                AttachActiveWebView(tab);
 
                 if (tab.IsRestoredPlaceholder && !string.IsNullOrWhiteSpace(tab.RestoredUrl))
                 {
@@ -352,10 +262,6 @@ public partial class MainWindow
             }
             else
             {
-                if (IsSplitTab(tab))
-                {
-                    ClearSplitView();
-                }
                 RenderNativeSurface(tab);
             }
 
@@ -552,8 +458,7 @@ public partial class MainWindow
                     tab.Kind == BrowserTabKind.Web &&
                     !tab.IsSleeping &&
                     !tab.IsPlayingAudio &&
-                    !(tab.IsAiOwned && tab.AiState != AiTaskState.Idle) &&
-                    !(IsSplitActive && IsSplitTab(tab)))
+                    !(tab.IsAiOwned && tab.AiState != AiTaskState.Idle))
                     .OrderBy(tab => tab.LastActiveUtc)
                     .ToList();
             }
@@ -588,8 +493,7 @@ public partial class MainWindow
             {
                 suspendedSnapshot = _tabs
                     .Where(tab => tab.IsSleeping && tab.SuspendedForSleep &&
-                                  tab != _activeTab &&
-                                  !(IsSplitActive && IsSplitTab(tab)))
+                                  tab != _activeTab)
                     .OrderBy(tab => tab.SuspendedAtUtc)
                     .ToList();
             }
@@ -632,14 +536,8 @@ public partial class MainWindow
                 return;
             }
 
-            // Don't hibernate a tab an AI task is actively using, or either
-            // half of an active split view.
+            // Don't hibernate a tab an AI task is actively using.
             if (tab.IsAiOwned && tab.AiState != AiTaskState.Idle)
-            {
-                return;
-            }
-
-            if (IsSplitActive && IsSplitTab(tab))
             {
                 return;
             }
@@ -834,11 +732,6 @@ public partial class MainWindow
                 }
             }
 
-            if (IsSplitActive && (ReferenceEquals(tab, _splitPrimaryTab) || ReferenceEquals(tab, _splitSecondaryTab)))
-            {
-                ClearSplitView();
-            }
-
             if (_tabs.Count == 0)
             {
                 FireAndForget(AddStartTabAsync(), "AddStartTabAsync");
@@ -1005,21 +898,14 @@ public partial class MainWindow
         if (panel is null) return;
 
         var belowTabStrip = pos.Y > TitleBar.TabStrip.ActualHeight + 10;
-        _tabDragDetaching = belowTabStrip && !IsSplitActive;
+        _tabDragDetaching = belowTabStrip;
 
         if (belowTabStrip)
         {
             panel.SetDetaching(true);
             panel.UpdateInsertion(currentIndex, currentIndex, default);
 
-            if (!IsSplitActive)
-            {
-                ShowGhostPreview();
-            }
-            else
-            {
-                HideGhostPreview();
-            }
+            ShowGhostPreview();
         }
         else
         {
@@ -1210,4 +1096,3 @@ public partial class MainWindow
         }
     }
 }
-

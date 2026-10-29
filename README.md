@@ -1,12 +1,12 @@
-# Tabloid Browser
+# Aerio
 
-Tabloid Browser is a personal Windows browser shell built with C#, WPF, and Microsoft WebView2.
+Aerio is a personal Windows browser built with C#, WPF, and Microsoft WebView2.
 
 ## Features
 
 - Compact dark gaming-styled UI with light theme option
 - WebView2-based browsing with tabbed navigation
-- Address/search bar with multiple search engine support (DuckDuckGo, Startpage, Brave, SearXNG, custom)
+- Address/search bar with bookmark/history suggestions, customizable search keywords (`yt cats`, `wiki octopus`), and multiple search engines (DuckDuckGo, Startpage, Brave, SearXNG, custom)
 - Start page with quick search and quick links
 - Local bookmarks, history, and downloads pages
 - Bookmark import/export
@@ -118,6 +118,10 @@ Or run from PowerShell:
 & "$env:USERPROFILE\.dotnet\dotnet.exe" restore
 & "$env:USERPROFILE\.dotnet\dotnet.exe" run
 ```
+
+## Releases
+
+Pushing a version tag such as `v1.4.1` runs the Windows release workflow. It runs the test suite, publishes a self-contained x64 build, and attaches `Aerio-win-x64.zip` to the GitHub release. The target PC still needs the Microsoft Edge WebView2 Runtime.
 
 ## Installed SDK
 

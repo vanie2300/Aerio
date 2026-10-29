@@ -827,29 +827,20 @@ public partial class MainWindow
 
             _aiTabManager = new AiTabManager(
                 _tabs,
-                async (tab, url) => await Dispatcher.InvokeAsync(async () => await NavigateWebAsync(tab, url)),
+                async (tab, url) => await Dispatcher.InvokeAsync(() => NavigateWebAsync(tab, url)).Task.Unwrap(),
                 async () =>
                 {
-                    BrowserTab? createdTab = null;
-                    var tcs = new TaskCompletionSource();
-                    Dispatcher.InvokeAsync(async () =>
+                    return await Dispatcher.InvokeAsync(async () =>
                     {
-                        try
-                        {
-                            var tab = new BrowserTab { Kind = BrowserTabKind.Web };
-                            await _tabOperationLock.WaitAsync();
-                            try { _tabs.Add(tab); }
-                            finally { _tabOperationLock.Release(); }
-                            await EnsureWebViewAsync(tab);
-                            createdTab = tab;
-                            tcs.SetResult();
-                        }
-                        catch (Exception ex) { tcs.SetException(ex); }
-                    });
-                    await tcs.Task;
-                    return createdTab!;
+                        var tab = new BrowserTab { Kind = BrowserTabKind.Web };
+                        await _tabOperationLock.WaitAsync();
+                        try { _tabs.Add(tab); }
+                        finally { _tabOperationLock.Release(); }
+                        await EnsureWebViewAsync(tab);
+                        return tab;
+                    }).Task.Unwrap();
                 },
-                async (tab) => await Dispatcher.InvokeAsync(async () => await ActivateTabAsync(tab)),
+                async (tab) => await Dispatcher.InvokeAsync(() => ActivateTabAsync(tab)).Task.Unwrap(),
                 _tabOperationLock);
 
             Func<string, Task<string?>> executeJs = async (script) =>
@@ -993,7 +984,7 @@ public partial class MainWindow
 
         context.Workspace.RemoveTab(target.Id);
         await CloseTabAsync(target);
-        Dispatcher.BeginInvoke(RefreshWorkspaceUi);
+        await Dispatcher.InvokeAsync(RefreshWorkspaceUi);
         return $"Closed tab: {target.Title} ({target.Address})";
     }
 
@@ -1043,38 +1034,28 @@ public partial class MainWindow
 
     private async Task OpenBackgroundTabAsync(string url, string title)
     {
-        var tcs = new TaskCompletionSource();
-        Dispatcher.InvokeAsync(async () =>
+        await Dispatcher.InvokeAsync(async () =>
         {
+            var tab = new BrowserTab
+            {
+                Kind = BrowserTabKind.Web,
+                Title = title,
+                Address = url
+            };
+
+            await _tabOperationLock.WaitAsync();
             try
             {
-                var tab = new BrowserTab
-                {
-                    Kind = BrowserTabKind.Web,
-                    Title = title,
-                    Address = url
-                };
-
-                await _tabOperationLock.WaitAsync();
-                try
-                {
-                    _tabs.Add(tab);
-                }
-                finally
-                {
-                    _tabOperationLock.Release();
-                }
-
-                await EnsureWebViewAsync(tab);
-                await NavigateWebAsync(tab, url);
-                tcs.SetResult();
+                _tabs.Add(tab);
             }
-            catch (Exception ex)
+            finally
             {
-                tcs.SetException(ex);
+                _tabOperationLock.Release();
             }
-        });
-        await tcs.Task;
+
+            await EnsureWebViewAsync(tab);
+            await NavigateWebAsync(tab, url);
+        }).Task.Unwrap();
     }
 
     private async Task<AiResponse> AgentLoopAsync(

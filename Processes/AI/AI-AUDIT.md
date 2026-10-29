@@ -135,8 +135,6 @@ _tabOperationLock.WaitAsync()
        │    ├─ tab.IsWebViewInitialized = false
        │    └─ Clears _profile if no more WebView2s alive
        │
-       ├─ ClearSplitView() (if split tab)
-       │
        ├─ If _tabs.Count == 0:
        │    └─ AddStartTabAsync()            ← Always keeps at least one tab
        │

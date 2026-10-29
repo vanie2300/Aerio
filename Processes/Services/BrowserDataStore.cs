@@ -482,6 +482,8 @@ public sealed class BrowserDataStore : IDisposable
                 SitePermissions = NormalizeSitePermissions(settings.SitePermissions),
                 Extensions = settings.Extensions ?? [],
                 CustomEngines = settings.CustomEngines ?? [],
+                SearchKeywords = settings.SearchKeywords ?? new Dictionary<string, string>(BrowserSettings.DefaultSearchKeywords, StringComparer.OrdinalIgnoreCase),
+                NewTabShortcuts = settings.NewTabShortcuts ?? [.. BrowserSettings.DefaultNewTabShortcuts],
                 AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) ? BrowserSettings.Default.AiEndpoint : settings.AiEndpoint,
                 AiModel = string.IsNullOrWhiteSpace(settings.AiModel) ? BrowserSettings.Default.AiModel : settings.AiModel,
                 AiApiKey = legacyDecrypted,
@@ -691,7 +693,9 @@ public sealed record SessionTab(string Title, string Url, double ScrollX = 0, do
 
 public sealed record SitePermissionRule(string Host, string Permission, string State);
 
-public sealed record SearchEngineDef(string Name, string UrlTemplate);
+public sealed record SearchEngineDef(string Name, string UrlTemplate, string Keyword = "");
+
+public sealed record NewTabShortcut(string Name, string Url);
 
 public sealed record BrowserSettings(
     string SearchEngine,
@@ -736,8 +740,17 @@ public sealed record BrowserSettings(
     bool AiPageContextConfirmation = true,
     Dictionary<string, bool>? AiToolsEnabled = null,
     string LastSeenVersion = "",
-    AiBrowserPolicy? AiPolicy = null)
+    AiBrowserPolicy? AiPolicy = null,
+    Dictionary<string, string>? SearchKeywords = null,
+    bool AutoHideBrowserChrome = false,
+    List<NewTabShortcut>? NewTabShortcuts = null)
 {
+    public static Dictionary<string, string> DefaultSearchKeywords { get; } = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["YouTube"] = "yt",
+        ["Wikipedia"] = "wiki"
+    };
+
     public static List<string> DefaultTrackerBlocklist { get; } =
     [
         "google-analytics.com",
@@ -750,6 +763,15 @@ public sealed record BrowserSettings(
         "mixpanel.com",
         "scorecardresearch.com",
         "adsystem.com"
+    ];
+
+    public static List<NewTabShortcut> DefaultNewTabShortcuts { get; } =
+    [
+        new("Google", "https://www.google.com"),
+        new("YouTube", "https://www.youtube.com"),
+        new("GitHub", "https://github.com"),
+        new("Reddit", "https://www.reddit.com"),
+        new("Gmail", "https://mail.google.com")
     ];
 
     public static Dictionary<string, string> DefaultShortcuts { get; } = new()
@@ -806,6 +828,8 @@ public sealed record BrowserSettings(
         TabSleepMinutes: 2,
         Accent: "Purple",
         Theme: "Dark",
+        AutoHideBrowserChrome: false,
+        NewTabShortcuts: DefaultNewTabShortcuts,
         ShowQuickLinks: true,
         Background: "Default",
         BackgroundOpacity: 1.0,
@@ -842,5 +866,6 @@ public sealed record BrowserSettings(
         AiPageContextConfirmation: true,
         AiToolsEnabled: null,
         LastSeenVersion: "",
-        AiPolicy: new AiBrowserPolicy());
+        AiPolicy: new AiBrowserPolicy(),
+        SearchKeywords: new Dictionary<string, string>(DefaultSearchKeywords, StringComparer.OrdinalIgnoreCase));
 }

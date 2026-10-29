@@ -80,6 +80,8 @@
                    FontSize="13"
                    Padding="2,0,8,0"
                    VerticalContentAlignment="Center"
+                   TextChanged="AddressBox_TextChanged"
+                   PreviewMouseLeftButtonDown="AddressBox_PreviewMouseLeftButtonDown"
                    PreviewKeyDown="AddressBox_PreviewKeyDown" />
           <Button x:Name="GoBtn"
                   Grid.Column="2"
@@ -93,6 +95,101 @@
                   ToolTip="Go to address" />
         </Grid>
       </Border>
+
+      <Popup x:Name="AddressSuggestionsPopup"
+             PlacementTarget="{Binding ElementName=AddressBox}"
+             Placement="Bottom"
+             StaysOpen="False"
+             AllowsTransparency="True"
+             PopupAnimation="Fade">
+        <Border x:Name="AddressSuggestionsBorder"
+                Background="{DynamicResource ChromeBg}"
+                BorderBrush="{DynamicResource Stroke}"
+                BorderThickness="1"
+                CornerRadius="7"
+                Padding="4"
+                Effect="{DynamicResource PopupShadow}"
+                MaxHeight="320">
+          <ListBox x:Name="AddressSuggestionsList"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   MaxHeight="318"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto"
+                   MouseLeftButtonUp="AddressSuggestions_MouseLeftButtonUp">
+            <ListBox.Resources>
+              <Style TargetType="ScrollBar" BasedOn="{StaticResource DarkScrollBar}" />
+            </ListBox.Resources>
+            <ListBox.ItemContainerStyle>
+              <Style TargetType="ListBoxItem">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="8,6" />
+                <Setter Property="Margin" Value="0,1" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                      <Border x:Name="SuggestionRoot"
+                              Background="{TemplateBinding Background}"
+                              BorderBrush="{TemplateBinding BorderBrush}"
+                              BorderThickness="{TemplateBinding BorderThickness}"
+                              CornerRadius="5"
+                              Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                      </Border>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                          <Setter TargetName="SuggestionRoot" Property="Background" Value="{DynamicResource ButtonHover}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                          <Setter TargetName="SuggestionRoot" Property="Background" Value="{DynamicResource ButtonPressed}" />
+                          <Setter TargetName="SuggestionRoot" Property="BorderBrush" Value="{DynamicResource Accent}" />
+                        </Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+              </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}"
+                               Foreground="{DynamicResource Text}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Url}"
+                               Foreground="{DynamicResource Muted}"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <Border Grid.Column="1"
+                          Background="{DynamicResource ChromeAlt}"
+                          BorderBrush="{DynamicResource SubtleStroke}"
+                          BorderThickness="1"
+                          CornerRadius="5"
+                          Padding="7,3"
+                          VerticalAlignment="Center"
+                          Margin="12,0,0,0">
+                    <TextBlock Text="{Binding Source}"
+                               Foreground="{DynamicResource Muted}"
+                               FontSize="10" />
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+      </Popup>
 
       <StackPanel Grid.Row="0"
                   Grid.Column="2"

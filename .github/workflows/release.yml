@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore test project
+        run: dotnet restore TabloidBrowser.Tests\TabloidBrowser.Tests.csproj
+
+      - name: Run tests
+        run: dotnet test TabloidBrowser.Tests\TabloidBrowser.Tests.csproj --no-restore --configuration Release --verbosity normal
+
+      - name: Publish self-contained Windows app
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          dotnet publish TabloidBrowser.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            "-p:Version=$version" `
+            --output release\Aerio-win-x64
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Package portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path release\Aerio-win-x64\* `
+            -DestinationPath Aerio-win-x64.zip
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: Aerio-win-x64.zip

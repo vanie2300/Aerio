@@ -61,7 +61,7 @@ public partial class MainWindow
         return root;
     }
 
-    private FrameworkElement SettingRow(string label, string detail, FrameworkElement control)
+    private FrameworkElement SettingRow(string label, string? detail, FrameworkElement control)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
         stack.Children.Add(new TextBlock
@@ -822,7 +822,11 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
     }
 
     private (FrameworkElement Control, Func<string> GetEngine, Func<List<SearchEngineDef>> GetCustomEngines)
-        SearchEngineCarousel(string selected, List<SearchEngineDef> customEngines, Action onChange)
+        SearchEngineCarousel(
+            string selected,
+            List<SearchEngineDef> customEngines,
+            Action onChange,
+            Func<IReadOnlyDictionary<string, string>> getBuiltInKeywords)
     {
         var builtInNames = new[] { "DuckDuckGo", "Startpage", "Brave", "SearXNG", "Google" };
         var builtInLetters = new[] { "D", "S", "B", "X", "G" };
@@ -1022,13 +1026,21 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
                 Foreground = GetBrush("Text"), BorderBrush = GetBrush("Stroke"),
                 Padding = new Thickness(8, 5, 8, 5)
             };
+            var keywordBox = new TextBox
+            {
+                Height = 30, Background = GetBrush("InputBg"),
+                Foreground = GetBrush("Text"), BorderBrush = GetBrush("Stroke"),
+                Padding = new Thickness(8, 5, 8, 5)
+            };
 
             var formGrid = new Grid();
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < 9; i++)
                 formGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             formGrid.Margin = new Thickness(4);
 
             var nameLabel = new TextBlock { Text = "Name", Foreground = GetBrush("Text"), FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 3) };
+            var keywordLabel = new TextBlock { Text = "Keyword (optional)", Foreground = GetBrush("Text"), FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 3) };
+            var keywordHint = new TextBlock { Text = "Type this followed by your search, e.g. yt cats", Foreground = GetBrush("Muted"), FontSize = 11, Margin = new Thickness(0, 0, 0, 2) };
             var urlLabel = new TextBlock { Text = "URL template", Foreground = GetBrush("Text"), FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 3) };
             var urlHint = new TextBlock { Text = "Use {q} for the query placeholder", Foreground = GetBrush("Muted"), FontSize = 11, Margin = new Thickness(0, 0, 0, 2) };
 
@@ -1036,8 +1048,24 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
             {
                 var n = nameBox.Text?.Trim();
                 var u = urlBox.Text?.Trim();
+                var keyword = keywordBox.Text?.Trim() ?? "";
                 if (string.IsNullOrEmpty(n) || string.IsNullOrEmpty(u)) return;
-                currentCustoms.Add(new SearchEngineDef(n, u));
+                if (keyword.Any(char.IsWhiteSpace))
+                {
+                    StatusBar.StatusText.Text = "Search keyword must be a single word.";
+                    return;
+                }
+                var activeBuiltInKeywords = getBuiltInKeywords().Values
+                    .Where(existingKeyword => !string.IsNullOrWhiteSpace(existingKeyword));
+                if (!string.IsNullOrEmpty(keyword) &&
+                    (activeBuiltInKeywords.Any(existingKeyword => string.Equals(existingKeyword.Trim(), keyword, StringComparison.OrdinalIgnoreCase)) ||
+                     currentCustoms.Any(engine => string.Equals(engine.Keyword, keyword, StringComparison.OrdinalIgnoreCase))))
+                {
+                    StatusBar.StatusText.Text = "That search keyword is already in use.";
+                    return;
+                }
+
+                currentCustoms.Add(new SearchEngineDef(n, u, keyword));
                 RebuildEngineList();
                 int newIdx = engines.FindIndex(e => e.Name == n);
                 if (newIdx >= 0)
@@ -1068,9 +1096,12 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
             formBtnRow.Children.Add(cancelBtn);
 
             Grid.SetRow(nameLabel, 0); Grid.SetRow(nameBox, 1);
-            Grid.SetRow(urlLabel, 2); Grid.SetRow(urlHint, 3);
-            Grid.SetRow(urlBox, 4); Grid.SetRow(formBtnRow, 5);
+            Grid.SetRow(keywordLabel, 2); Grid.SetRow(keywordHint, 3);
+            Grid.SetRow(keywordBox, 4);
+            Grid.SetRow(urlLabel, 5); Grid.SetRow(urlHint, 6);
+            Grid.SetRow(urlBox, 7); Grid.SetRow(formBtnRow, 8);
             formGrid.Children.Add(nameLabel); formGrid.Children.Add(nameBox);
+            formGrid.Children.Add(keywordLabel); formGrid.Children.Add(keywordHint); formGrid.Children.Add(keywordBox);
             formGrid.Children.Add(urlLabel); formGrid.Children.Add(urlHint);
             formGrid.Children.Add(urlBox); formGrid.Children.Add(formBtnRow);
 

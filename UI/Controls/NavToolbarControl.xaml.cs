@@ -4,10 +4,14 @@ using System.Windows.Input;
 
 namespace TabloidBrowser;
 
+public sealed record AddressSuggestion(string Title, string Url, string Source);
+
 public partial class NavToolbarControl : UserControl
 {
     public NavToolbarControl() => InitializeComponent();
 
+    public event EventHandler? AddressTextChanged;
+    public event Action<AddressSuggestion>? AddressSuggestionSelected;
     public event RoutedEventHandler? Back;
     public event RoutedEventHandler? Forward;
     public event RoutedEventHandler? Reload;
@@ -40,12 +44,83 @@ public partial class NavToolbarControl : UserControl
     public event RoutedEventHandler? UblockToggle;
     public event RoutedEventHandler? ShowSettings;
 
+    public void SetAddressSuggestions(IReadOnlyList<AddressSuggestion> suggestions)
+    {
+        AddressSuggestionsList.ItemsSource = suggestions;
+        AddressSuggestionsPopup.IsOpen = suggestions.Count > 0;
+        AddressSuggestionsBorder.Width = Math.Max(280, AddressBox.ActualWidth);
+        AddressSuggestionsList.SelectedIndex = -1;
+    }
+
+    public void CloseAddressSuggestions() => AddressSuggestionsPopup.IsOpen = false;
+
+    private void AddressBox_TextChanged(object s, TextChangedEventArgs e) => AddressTextChanged?.Invoke(s, EventArgs.Empty);
+
+    private void AddressBox_PreviewMouseLeftButtonDown(object s, MouseButtonEventArgs e)
+    {
+        if (AddressBox.IsKeyboardFocusWithin)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        AddressBox.Focus();
+        AddressBox.SelectAll();
+    }
+
     private void Back_Click(object s, RoutedEventArgs e) => Back?.Invoke(s, e);
     private void Forward_Click(object s, RoutedEventArgs e) => Forward?.Invoke(s, e);
     private void Reload_Click(object s, RoutedEventArgs e) => Reload?.Invoke(s, e);
     private void Home_Click(object s, RoutedEventArgs e) => Home?.Invoke(s, e);
     private void Privacy_Click(object s, RoutedEventArgs e) => Privacy?.Invoke(s, e);
-    private void AddressBox_PreviewKeyDown(object s, KeyEventArgs e) => AddressKeyDown?.Invoke(s, e);
+    private void AddressBox_PreviewKeyDown(object s, KeyEventArgs e)
+    {
+        if (AddressSuggestionsPopup.IsOpen)
+        {
+            if (e.Key is Key.Down or Key.Up)
+            {
+                var count = AddressSuggestionsList.Items.Count;
+                if (count > 0)
+                {
+                    var step = e.Key == Key.Down ? 1 : -1;
+                    var selected = AddressSuggestionsList.SelectedIndex;
+                    AddressSuggestionsList.SelectedIndex = selected < 0
+                        ? (step > 0 ? 0 : count - 1)
+                        : (selected + step + count) % count;
+                    AddressSuggestionsList.ScrollIntoView(AddressSuggestionsList.SelectedItem);
+                    e.Handled = true;
+                    return;
+                }
+            }
+            else if (e.Key == Key.Escape)
+            {
+                CloseAddressSuggestions();
+                e.Handled = true;
+                return;
+            }
+            else if ((e.Key is Key.Enter or Key.Return) &&
+                     AddressSuggestionsList.SelectedItem is AddressSuggestion suggestion)
+            {
+                AddressSuggestionSelected?.Invoke(suggestion);
+                CloseAddressSuggestions();
+                e.Handled = true;
+                return;
+            }
+        }
+
+        AddressKeyDown?.Invoke(s, e);
+    }
+
+    private void AddressSuggestions_MouseLeftButtonUp(object s, MouseButtonEventArgs e)
+    {
+        if (ItemsControl.ContainerFromElement(AddressSuggestionsList, e.OriginalSource as DependencyObject) is ListBoxItem item &&
+            item.DataContext is AddressSuggestion suggestion)
+        {
+            AddressSuggestionSelected?.Invoke(suggestion);
+            CloseAddressSuggestions();
+        }
+    }
+
     private void Go_Click(object s, RoutedEventArgs e) => Go?.Invoke(s, e);
     private void Bookmark_Click(object s, RoutedEventArgs e) => Bookmark?.Invoke(s, e);
     private void ReaderMode_Click(object s, RoutedEventArgs e) => ReaderMode?.Invoke(s, e);

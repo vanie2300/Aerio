@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings - Tabloid Browser</title>
+    <title>Settings - Aerio</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div class="layout">
         <nav>
-            <a class="brand" href="index.html"><span>Tabloid</span> Browser</a>
+            <a class="brand" href="index.html"><span>Aerio</span></a>
             <ul>
                 <li><a href="index.html">Overview</a></li>
                 <li><a href="features.html">Features</a></li>
@@ -42,9 +42,10 @@
                 <table>
                     <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
                     <tr><td><code>SearchEngine</code></td><td><span class="badge badge-string">string</span></td><td><code>"DuckDuckGo"</code></td><td>Default search engine for address bar</td></tr>
-                    <tr><td><code>CustomEngines</code></td><td><span class="badge badge-type">list</span></td><td><code>[]</code></td><td>User-defined search engines (name + URL template)</td></tr>
+                    <tr><td><code>CustomEngines</code></td><td><span class="badge badge-type">list</span></td><td><code>[]</code></td><td>User-defined search engines (name, URL template, optional unique keyword)</td></tr>
+                    <tr><td><code>SearchKeywords</code></td><td><span class="badge badge-type">map</span></td><td><code>YouTube: "yt", Wikipedia: "wiki"</code></td><td>Built-in search keywords; edit them in Settings or leave blank to disable</td></tr>
                 </table>
-                <p>Built-in engines: DuckDuckGo, Startpage, Brave, SearXNG.</p>
+                <p>Built-in engines: DuckDuckGo, Startpage, Brave, SearXNG, and Google. Set YouTube and Wikipedia keywords in Settings → Search engine; defaults are <code>yt</code> and <code>wiki</code>. Leave either blank to disable it. Set an optional, unique keyword when adding a custom engine to search it the same way (for example, <code>vid cats</code>).</p>
             </div>
 
             <div class="section">

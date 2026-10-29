@@ -19,11 +19,12 @@
                   Orientation="Horizontal"
                   VerticalAlignment="Center"
                   Margin="8,0,12,0">
-        <Path Data="M 152,110 H 238 V 194 H 324 V 264 H 238 V 345 C 238,410 275,435 322,435 H 324 V 500 H 314 C 212,500 152,445 152,335 Z"
-              Fill="#FFFFFF"
-              Stretch="Uniform"
-              Height="18"
-              VerticalAlignment="Center" />
+        <Image Source="/Aerio;component/Assets/Aerio.png"
+               Width="24"
+               Height="24"
+               Stretch="Uniform"
+               VerticalAlignment="Center"
+               ToolTip="Aerio" />
       </StackPanel>
 
       <Grid Grid.Column="1"
@@ -104,9 +105,6 @@
                           </Style>
                         </MenuItem.Style>
                       </MenuItem>
-                      <MenuItem Header="Split right"
-                                Click="SplitTab_Click"
-                                Tag="{Binding}" />
                       <MenuItem Header="Pop out tab"
                                 Click="PopOutTab_Click"
                                 Tag="{Binding}" />

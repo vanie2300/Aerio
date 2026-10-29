@@ -35,7 +35,11 @@ public class AiToolExecutorSimulationTests
             async (url, title, ct) => { _openedTabs.Add((url, title)); await Task.CompletedTask; },
             () => _activeTab,
             () => _activeTab,
-            async (title, url, ct) => { _closedTabs.Add(title); return $"Closed: {title}"; }
+            (title, url, ct) =>
+            {
+                _closedTabs.Add(title);
+                return Task.FromResult($"Closed: {title}");
+            }
         );
     }
 
@@ -90,7 +94,7 @@ public class AiToolExecutorSimulationTests
             async (url, title, ct) => { opened.Add((url, title)); await Task.CompletedTask; },
             () => null,
             () => null,
-            async (title, url, ct) => { return $"Closed: {title}"; }
+            (title, url, ct) => Task.FromResult($"Closed: {title}")
         );
 
         var method = typeof(AiToolExecutor).GetMethod("OpenAndReadArticleAsync", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -120,7 +124,7 @@ public class AiToolExecutorSimulationTests
             async (url, title, ct) => { opened.Add((url, title)); await Task.CompletedTask; },
             () => new BrowserTab { Owner = TabOwner.AI },
             () => new BrowserTab { Owner = TabOwner.AI },
-            async (title, url, ct) => { return $"Closed: {title}"; }
+            (title, url, ct) => Task.FromResult($"Closed: {title}")
         );
 
         var method = typeof(AiToolExecutor).GetMethod("OpenAndReadArticleAsync", BindingFlags.Instance | BindingFlags.NonPublic);

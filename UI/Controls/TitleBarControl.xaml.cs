@@ -9,7 +9,6 @@ public partial class TitleBarControl : UserControl
     public TitleBarControl() => InitializeComponent();
 
     public event RoutedEventHandler? NewTab;
-    public event RoutedEventHandler? TabSplit;
     public event RoutedEventHandler? TabPopOut;
     public event RoutedEventHandler? MuteToggle;
     public event RoutedEventHandler? TabClose;
@@ -27,8 +26,6 @@ public partial class TitleBarControl : UserControl
     public event MouseButtonEventHandler? TitleBarMouseUp;
 
     private void NewTab_Click(object sender, RoutedEventArgs e) => NewTab?.Invoke(sender, e);
-
-    private void SplitTab_Click(object sender, RoutedEventArgs e) => TabSplit?.Invoke(sender, e);
 
     private void PopOutTab_Click(object sender, RoutedEventArgs e) => TabPopOut?.Invoke(sender, e);
 

@@ -1,12 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <AssemblyName>Aerio</AssemblyName>
+    <AssemblyTitle>Aerio</AssemblyTitle>
+    <Product>Aerio</Product>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
-    <ApplicationIcon>UI\Assets\the app icon.ico</ApplicationIcon>
+    <ApplicationIcon>UI\Assets\Aerio.ico</ApplicationIcon>
     <Version>1.4.0</Version>
   </PropertyGroup>
 
@@ -29,6 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="UI\Assets\Aerio.png" Link="Assets\Aerio.png" />
     <Content Include="UI\Assets\the app icon.ico" Link="Assets\the app icon.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="UI\Assets\The app icon.png" Link="Assets\The app icon.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="UI\Assets\4578.jpg" Link="Assets\4578.jpg" CopyToOutputDirectory="PreserveNewest" />

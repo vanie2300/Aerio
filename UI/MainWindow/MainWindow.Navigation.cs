@@ -285,6 +285,15 @@ public partial class MainWindow
             return $"https://{input}";
         }
 
+        if (SearchKeywordService.TryBuildSearchUrl(
+                input,
+                _dataStore.Settings.CustomEngines,
+                _dataStore.Settings.SearchKeywords,
+                out var keywordSearchUrl))
+        {
+            return keywordSearchUrl;
+        }
+
         var template = GetSearchUrlTemplate(_dataStore.Settings.SearchEngine, _dataStore.Settings.CustomEngines);
         var escapedQuery = Uri.EscapeDataString(input);
         return template.Contains("{q}")
@@ -391,6 +400,36 @@ public partial class MainWindow
         NavigateFromAddressBar();
     }
 
+    private void AddressBox_TextChanged(object? sender, EventArgs e)
+    {
+        if (!NavToolbar.AddressBox.IsKeyboardFocusWithin)
+        {
+            NavToolbar.CloseAddressSuggestions();
+            return;
+        }
+
+        var matches = AddressSuggestionService.FindMatches(
+            NavToolbar.AddressBox.Text,
+            _dataStore.Bookmarks,
+            _dataStore.History);
+        NavToolbar.SetAddressSuggestions(matches);
+    }
+
+    private async void AddressSuggestionSelected(AddressSuggestion suggestion)
+    {
+        try
+        {
+            var tab = _activeTab;
+            if (tab is not null)
+            {
+                await NavigateWebAsync(tab, suggestion.Url);
+                NavToolbar.CloseAddressSuggestions();
+                Keyboard.ClearFocus();
+            }
+        }
+        catch (Exception ex) { Log.Error(ex, "Failed to navigate to address suggestion"); }
+    }
+
     private void Go_Click(object sender, RoutedEventArgs e) => NavigateFromAddressBar();
 
     private async void NavigateFromAddressBar()
@@ -419,6 +458,41 @@ public partial class MainWindow
     }
 
     private void StartSearchGo_Click(object sender, RoutedEventArgs e) => NavigateFromStartSearch();
+
+    private async void NewTabDialogSubmit_Click(object sender, RoutedEventArgs e)
+    {
+        var input = BrowserPane.NewTabDialogAddressBox.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return;
+        }
+
+        BrowserPane.HideNewTabDialog();
+        try
+        {
+            await AddWebTabAsync(input);
+            Keyboard.ClearFocus();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to navigate from the new-tab dialog");
+            StatusBar.StatusText.Text = "Couldn't open that address";
+        }
+    }
+
+    private async void NewTabShortcutSelected(string url)
+    {
+        BrowserPane.HideNewTabDialog();
+        try
+        {
+            await AddWebTabAsync(url);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open new-tab shortcut {Url}", url);
+            StatusBar.StatusText.Text = "Couldn't open shortcut";
+        }
+    }
 
     private void StartSearchSurface_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {

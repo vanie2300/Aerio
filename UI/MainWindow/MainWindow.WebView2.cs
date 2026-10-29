@@ -145,8 +145,8 @@ public partial class MainWindow
         BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
 
         var result = MessageBox.Show(
-            $"Tabloid Browser could not start.\n\n{exception.Message}\n\nOpen the WebView2 download page?",
-            "Tabloid Browser - WebView2 Required",
+            $"Aerio could not start.\n\n{exception.Message}\n\nOpen the WebView2 download page?",
+            "Aerio - WebView2 Required",
             MessageBoxButton.YesNo,
             MessageBoxImage.Error);
 
@@ -352,8 +352,7 @@ public partial class MainWindow
                     RemoveElementFromParent(webView);
                     webView.Visibility = Visibility.Visible;
 
-                    if (!IsSplitActive &&
-                        _activeTab is { Kind: BrowserTabKind.Web } active &&
+                    if (_activeTab is { Kind: BrowserTabKind.Web } active &&
                         active.WebView is { } activeWebView)
                     {
                         AttachActiveWebView(active);
@@ -879,8 +878,6 @@ public partial class MainWindow
         }
     }
 }
-
-
 
 
 

@@ -1,4 +1,4 @@
-# Tabloid-Browser Codebase Audit Report
+# Aerio Codebase Audit Report
 
 Generated: 2026-07-28
 

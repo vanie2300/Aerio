@@ -264,10 +264,6 @@ public class BrowserTab : INotifyPropertyChanged
 
     public DateTimeOffset? SuspendedAtUtc { get; set; }
 
-    public bool IsSplitPaneTab { get; set; }
-
-    private bool IsActiveOrSplit => _isActive || IsSplitPaneTab;
-
     private Brush? _cachedTabBrush;
 
     public Brush TabBrush
@@ -275,7 +271,7 @@ public class BrowserTab : INotifyPropertyChanged
         get
         {
             if (_cachedTabBrush is not null) return _cachedTabBrush;
-            var brush = IsActiveOrSplit ? new SolidColorBrush(ActiveTabColor)
+            var brush = _isActive ? new SolidColorBrush(ActiveTabColor)
                 : IsPlayingAudio ? new SolidColorBrush(AudioTabColor)
                 : new SolidColorBrush(InactiveTabColor);
             brush.Freeze();
@@ -284,7 +280,7 @@ public class BrowserTab : INotifyPropertyChanged
         }
     }
 
-    public Thickness TabBorderThickness => IsActiveOrSplit ? new Thickness(1.5) : new Thickness(1);
+    public Thickness TabBorderThickness => _isActive ? new Thickness(1.5) : new Thickness(1);
 
     private Brush? _cachedAccentBrush;
 
@@ -299,7 +295,7 @@ public class BrowserTab : INotifyPropertyChanged
                     ? new SolidColorBrush(AudioAccentColor)
                     : IsSleeping
                         ? new SolidColorBrush(SleepingAccentColor)
-                        : IsActiveOrSplit
+                        : _isActive
                             ? new SolidColorBrush(ActiveAccentColor)
                             : new SolidColorBrush(InactiveAccentColor);
             brush.Freeze();

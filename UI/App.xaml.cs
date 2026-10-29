@@ -26,7 +26,7 @@ public partial class App : Application
         base.OnStartup(e);
 
         Log.Init(LogDirectory);
-        Log.Info("Tabloid Browser starting");
+        Log.Info("Aerio starting");
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {

@@ -33,11 +33,161 @@ public partial class MainWindow
     private bool _isFindBarDragging;
     private bool _isFullScreen;
     private WindowState _previousWindowState;
+    private readonly DispatcherTimer _chromeAutoHideTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private DateTime _chromeHideAt = DateTime.UtcNow.AddSeconds(2);
+    private bool _browserChromeHidden;
+    private bool _autoHideBrowserChromeActive;
+    private bool _browserChromeSettingInitialized;
+    private int _chromeAnimationGeneration;
     private Point _findBarDragStart;
     private bool _suppressFindTextChanged;
     private volatile BrowserTab? _pendingReaderTab;
     private string? _readabilityCache;
     private readonly SemaphoreSlim _readabilityCacheLock = new(1, 1);
+
+    private void ChromeAutoHideTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!IsVisible || WindowState == WindowState.Minimized ||
+            !_autoHideBrowserChromeActive || _isFullScreen)
+        {
+            return;
+        }
+
+        if (!GetCursorPos(out var cursor))
+        {
+            Log.Debug("Unable to read cursor position for browser chrome auto-hide");
+            return;
+        }
+
+        if (!GetWindowRect(_windowHandle, out var windowRect))
+        {
+            Log.Debug("Unable to read window bounds for browser chrome auto-hide");
+            return;
+        }
+
+        var insideWindow = cursor.X >= windowRect.Left &&
+                           cursor.X <= windowRect.Right &&
+                           cursor.Y >= windowRect.Top &&
+                           cursor.Y <= windowRect.Bottom;
+
+        if (_browserChromeHidden)
+        {
+            if (insideWindow && cursor.Y <= windowRect.Top + 12)
+            {
+                SetBrowserChromeVisible(true);
+                _chromeHideAt = DateTime.MaxValue;
+            }
+            return;
+        }
+
+        if (TitleBar.IsKeyboardFocusWithin || NavToolbar.IsKeyboardFocusWithin ||
+            (insideWindow && cursor.Y <= windowRect.Top + 84))
+        {
+            _chromeHideAt = DateTime.MaxValue;
+            return;
+        }
+
+        if (_chromeHideAt == DateTime.MaxValue)
+        {
+            _chromeHideAt = DateTime.UtcNow.AddMilliseconds(700);
+            return;
+        }
+
+        if (DateTime.UtcNow >= _chromeHideAt)
+        {
+            SetBrowserChromeVisible(false);
+        }
+    }
+
+    private void SetBrowserChromeVisible(bool visible)
+    {
+        if (_browserChromeHidden == !visible)
+        {
+            return;
+        }
+
+        _browserChromeHidden = !visible;
+        var generation = ++_chromeAnimationGeneration;
+        var chromeElements = new FrameworkElement[] { TitleBar, NavToolbar, StatusBar };
+        var duration = TimeSpan.FromMilliseconds(190);
+
+        if (visible)
+        {
+            RootGrid.RowDefinitions[0].Height = new GridLength(40);
+            RootGrid.RowDefinitions[1].Height = new GridLength(40);
+            RootGrid.RowDefinitions[3].Height = new GridLength(22);
+        }
+
+        foreach (var element in chromeElements)
+        {
+            var transform = element.RenderTransform as TranslateTransform;
+            if (transform is null)
+            {
+                transform = new TranslateTransform();
+                element.RenderTransform = transform;
+            }
+
+            element.BeginAnimation(OpacityProperty, null);
+            transform.BeginAnimation(TranslateTransform.YProperty, null);
+            element.Opacity = visible ? 1 : 0;
+            transform.Y = visible ? 0 : -8;
+
+            var opacityAnimation = new DoubleAnimation(visible ? 0 : 1, visible ? 1 : 0, duration)
+            {
+                EasingFunction = new CubicEase { EasingMode = visible ? EasingMode.EaseOut : EasingMode.EaseIn },
+                FillBehavior = FillBehavior.Stop
+            };
+            if (element == StatusBar && !visible)
+            {
+                opacityAnimation.Completed += (_, _) =>
+                {
+                    if (generation != _chromeAnimationGeneration || !_browserChromeHidden)
+                    {
+                        return;
+                    }
+
+                    RootGrid.RowDefinitions[0].Height = new GridLength(0);
+                    RootGrid.RowDefinitions[1].Height = new GridLength(0);
+                    RootGrid.RowDefinitions[3].Height = new GridLength(0);
+                    foreach (var chromeElement in chromeElements)
+                    {
+                        chromeElement.Opacity = 1;
+                        if (chromeElement.RenderTransform is TranslateTransform chromeTransform)
+                        {
+                            chromeTransform.Y = 0;
+                        }
+                    }
+                };
+            }
+            element.BeginAnimation(OpacityProperty, opacityAnimation);
+            transform.BeginAnimation(
+                TranslateTransform.YProperty,
+                new DoubleAnimation(visible ? -8 : 0, visible ? 0 : -8, duration)
+                {
+                    EasingFunction = new CubicEase { EasingMode = visible ? EasingMode.EaseOut : EasingMode.EaseIn },
+                    FillBehavior = FillBehavior.Stop
+                });
+        }
+    }
+
+    private void ApplyBrowserChromeVisibilitySetting()
+    {
+        if (!_browserChromeSettingInitialized)
+        {
+            _autoHideBrowserChromeActive = _dataStore.Settings.AutoHideBrowserChrome;
+            _browserChromeSettingInitialized = true;
+        }
+
+        if (_isFullScreen)
+        {
+            return;
+        }
+
+        SetBrowserChromeVisible(true);
+        _chromeHideAt = _autoHideBrowserChromeActive
+            ? DateTime.UtcNow.AddSeconds(2)
+            : DateTime.MaxValue;
+    }
 
     private void ApplyWindowMode()
     {
@@ -47,7 +197,7 @@ public partial class MainWindow
             return;
         }
 
-        Title = "Tabloid Browser - Private";
+        Title = "Aerio - Private";
         StatusBar.LocalDataText.Text = "Private";
         StatusBar.LocalDataText.Foreground = GetBrush("Pink");
         NavToolbar.PrivateButton.Content = "PVT";
@@ -195,14 +345,14 @@ public partial class MainWindow
     private void FocusStartSearchIfActive()
     {
         var tab = _activeTab;
-        if (tab?.Kind != BrowserTabKind.Start)
+        if (tab?.Kind != BrowserTabKind.Start || BrowserPane.IsNewTabDialogOpen)
         {
             return;
         }
 
         Dispatcher.BeginInvoke(() =>
         {
-            if (tab?.Kind != BrowserTabKind.Start)
+            if (tab?.Kind != BrowserTabKind.Start || BrowserPane.IsNewTabDialogOpen)
             {
                 return;
             }
@@ -311,10 +461,27 @@ public partial class MainWindow
         return domains.Count == 0 ? [.. fallback] : domains;
     }
 
-    private async void NewTab_Click(object sender, RoutedEventArgs e)
+    private void NewTab_Click(object sender, RoutedEventArgs e)
     {
-        try { await AddStartTabAsync(); }
+        try { OpenNewTabDialog(); }
         catch (Exception ex) { Log.Error(ex, "Error occurred"); }
+    }
+
+    private void OpenNewTabDialog()
+    {
+        BrowserPane.ShowNewTabDialog();
+    }
+
+    private bool SaveNewTabShortcuts(List<NewTabShortcut> shortcuts)
+    {
+        if (!_dataStore.SaveSettings(_dataStore.Settings with { NewTabShortcuts = [.. shortcuts] }))
+        {
+            StatusBar.StatusText.Text = "Couldn't save new-tab shortcuts";
+            return false;
+        }
+
+        StatusBar.StatusText.Text = "New-tab shortcuts saved";
+        return true;
     }
 
     private async void CloseTab_Click(object sender, RoutedEventArgs e)
@@ -525,7 +692,7 @@ public partial class MainWindow
 
         if (MatchesShortcut(e, "new_tab"))
         {
-            await AddStartTabAsync();
+            OpenNewTabDialog();
             e.Handled = true;
             return;
         }
@@ -1267,8 +1434,7 @@ public partial class MainWindow
                     tab != _activeTab &&
                     tab.Kind == BrowserTabKind.Web &&
                     !tab.IsSleeping &&
-                    !(tab.IsAiOwned && tab.AiState != AiTaskState.Idle) &&
-                    !(IsSplitActive && IsSplitTab(tab))).ToList();
+                    !(tab.IsAiOwned && tab.AiState != AiTaskState.Idle)).ToList();
             }
             finally { _tabOperationLock.Release(); }
             await Task.WhenAll(snapshot.Select(HibernateTabAsync));
@@ -1914,16 +2080,12 @@ private void DisposeWebViewsAndExit()
             _previousWindowState = WindowState;
             WindowState = WindowState.Maximized;
             WindowStyle = WindowStyle.None;
-            RootGrid.RowDefinitions[0].Height = new GridLength(0);
-            RootGrid.RowDefinitions[1].Height = new GridLength(0);
-            RootGrid.RowDefinitions[3].Height = new GridLength(0);
+            SetBrowserChromeVisible(false);
         }
         else
         {
             WindowStyle = WindowStyle.None;
-            RootGrid.RowDefinitions[0].Height = new GridLength(40);
-            RootGrid.RowDefinitions[1].Height = new GridLength(40);
-            RootGrid.RowDefinitions[3].Height = new GridLength(22);
+            SetBrowserChromeVisible(true);
             WindowState = _previousWindowState;
         }
     }
@@ -1991,87 +2153,264 @@ private void DisposeWebViewsAndExit()
     {
         try
         {
-        var activeTab = _activeTab;
-        var cwv = activeTab?.WebView?.CoreWebView2;
-        var address = activeTab?.Address ?? "";
-        if (cwv is null) return;
-        var popup = new Popup
-        {
-            PlacementTarget = this,
-            Placement = PlacementMode.Center,
-            StaysOpen = false,
-            AllowsTransparency = true,
-            PopupAnimation = PopupAnimation.Fade
-        };
-        var stack = new StackPanel { Margin = new Thickness(16) };
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Cookies & Site Data",
-            Foreground = GetBrush("Text"),
-            FontSize = 18,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 12)
-        });
-        try
-        {
-            var cookies = await cwv.CookieManager.GetCookiesAsync(address);
+            var activeTab = _activeTab;
+            var cwv = activeTab?.WebView?.CoreWebView2 ??
+                _tabs.Select(tab => tab.WebView?.CoreWebView2).FirstOrDefault(webView => webView is not null);
+            if (cwv is null)
+            {
+                StatusBar.StatusText.Text = "Open a website first to inspect saved site cookies.";
+                return;
+            }
+
+            var popup = new Popup
+            {
+                PlacementTarget = this,
+                Placement = PlacementMode.Center,
+                StaysOpen = false,
+                AllowsTransparency = true,
+                PopupAnimation = PopupAnimation.Fade
+            };
+            var stack = new StackPanel { Margin = new Thickness(16) };
             stack.Children.Add(new TextBlock
             {
-                Text = $"Cookies: {cookies.Count}",
+                Text = "Cookies & Site Data",
                 Foreground = GetBrush("Text"),
-                FontSize = 13,
-                Margin = new Thickness(0, 0, 0, 4)
+                FontSize = 18,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 6)
             });
-        }
-        catch (Exception ex) { Log.Error(ex, "GetCookiesAsync failed"); stack.Children.Add(new TextBlock
-        {
-            Text = "Cookies: unavailable",
-            Foreground = GetBrush("Muted"),
-            FontSize = 13,
-            Margin = new Thickness(0, 0, 0, 4)
-        }); }
-        var clearBtn = new Button
-        {
-            Content = "Clear all site data",
-            Height = 30,
-            Margin = new Thickness(0, 12, 0, 0),
-            Style = TryFindResource("MicroButton") as Style
-        };
-        clearBtn.Click += async (_, _) =>
-        {
-            try
+            stack.Children.Add(new TextBlock
             {
-                var profile = activeTab?.WebView?.CoreWebView2?.Profile;
-                if (profile is not null)
-                    await profile.ClearBrowsingDataAsync();
-                popup.IsOpen = false;
-                StatusBar.StatusText.Text = "Site data cleared";
+                Text = "Sites with saved cookies (may include sign-ins, preferences, or other site data):",
+                Foreground = GetBrush("Muted"),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 10)
+            });
+
+            var siteCount = new TextBlock
+            {
+                Text = "Loading saved sites…",
+                Foreground = GetBrush("Text"),
+                FontSize = 12,
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            stack.Children.Add(siteCount);
+
+            var siteList = new StackPanel
+            {
+                Margin = new Thickness(0, 0, 4, 0)
+            };
+            var siteListScroll = new ScrollViewer
+            {
+                MaxHeight = 270,
+                MinHeight = 54,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Content = siteList
+            };
+            siteListScroll.Resources.Add(typeof(ScrollBar), FindResource("DarkScrollBar"));
+            siteList.Children.Add(new TextBlock
+            {
+                Text = "Loading sites…",
+                Foreground = GetBrush("Muted"),
+                FontSize = 12,
+                Margin = new Thickness(10, 14, 10, 14)
+            });
+            stack.Children.Add(siteListScroll);
+
+            async Task RefreshSitesAsync()
+            {
+                siteList.Children.Clear();
+                siteList.Children.Add(new TextBlock
+                {
+                    Text = "Loading sites…",
+                    Foreground = GetBrush("Muted"),
+                    FontSize = 12,
+                    Margin = new Thickness(10, 14, 10, 14)
+                });
+                siteCount.Text = "Loading saved sites…";
+                try
+                {
+                    var cookies = await cwv.CookieManager.GetCookiesAsync(string.Empty);
+                    var domains = cookies
+                        .Select(cookie => cookie.Domain.Trim().TrimStart('.'))
+                        .Where(domain => !string.IsNullOrWhiteSpace(domain))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    siteList.Children.Clear();
+                    siteCount.Text = $"{domains.Count} site{(domains.Count == 1 ? "" : "s")} with saved cookies";
+                    if (domains.Count == 0)
+                    {
+                        siteList.Children.Add(new TextBlock
+                        {
+                            Text = "No saved site cookies found.",
+                            Foreground = GetBrush("Muted"),
+                            FontSize = 12,
+                            Margin = new Thickness(10, 14, 10, 14)
+                        });
+                    }
+                    else
+                    {
+                        foreach (var domain in domains)
+                        {
+                            var siteButton = new Button
+                            {
+                                MinHeight = 46,
+                                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                                Padding = new Thickness(10, 6, 10, 6),
+                                Margin = new Thickness(0, 0, 0, 6),
+                                Background = GetBrush("SurfaceBg"),
+                                BorderBrush = GetBrush("Stroke"),
+                                BorderThickness = new Thickness(1),
+                                Style = TryFindResource("MicroButton") as Style,
+                                ToolTip = $"Open https://{domain}"
+                            };
+                            var row = new Grid();
+                            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                            var siteIcon = new Border
+                            {
+                                Width = 30,
+                                Height = 30,
+                                CornerRadius = new CornerRadius(8),
+                                Background = GetBrush("ChromeAlt"),
+                                VerticalAlignment = VerticalAlignment.Center,
+                                Child = new TextBlock
+                                {
+                                    Text = "\uE774",
+                                    FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                                    FontSize = 13,
+                                    Foreground = GetBrush("Accent"),
+                                    HorizontalAlignment = HorizontalAlignment.Center,
+                                    VerticalAlignment = VerticalAlignment.Center
+                                }
+                            };
+                            row.Children.Add(siteIcon);
+
+                            var domainLabel = new TextBlock
+                            {
+                                Text = domain,
+                                Foreground = GetBrush("Text"),
+                                FontSize = 12,
+                                FontWeight = FontWeights.SemiBold,
+                                VerticalAlignment = VerticalAlignment.Center,
+                                TextTrimming = TextTrimming.CharacterEllipsis,
+                                Margin = new Thickness(10, 0, 8, 0)
+                            };
+                            Grid.SetColumn(domainLabel, 1);
+                            row.Children.Add(domainLabel);
+
+                            var openLabel = new TextBlock
+                            {
+                                Text = "OPEN  \uE8A7",
+                                FontFamily = new FontFamily("Segoe UI, Segoe MDL2 Assets"),
+                                Foreground = GetBrush("Muted"),
+                                FontSize = 9,
+                                FontWeight = FontWeights.SemiBold,
+                                VerticalAlignment = VerticalAlignment.Center,
+                                Margin = new Thickness(8, 0, 0, 0)
+                            };
+                            Grid.SetColumn(openLabel, 2);
+                            row.Children.Add(openLabel);
+                            siteButton.Content = row;
+                            siteButton.Click += async (_, _) =>
+                            {
+                                try
+                                {
+                                    popup.IsOpen = false;
+                                    var siteUrl = new UriBuilder(Uri.UriSchemeHttps, domain).Uri.ToString();
+                                    await AddWebTabAsync(siteUrl);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Error(ex, "Failed to open saved-cookie site {Domain}", domain);
+                                    StatusBar.StatusText.Text = $"Couldn't open {domain}";
+                                }
+                            };
+                            System.Windows.Automation.AutomationProperties.SetName(siteButton, $"Open {domain}");
+                            siteList.Children.Add(siteButton);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to get saved site cookies");
+                    siteCount.Text = "Saved sites are unavailable";
+                    siteList.Children.Clear();
+                    siteList.Children.Add(new TextBlock
+                    {
+                        Text = "Couldn't read cookies from the browser profile.",
+                        Foreground = GetBrush("Muted"),
+                        FontSize = 12,
+                        TextWrapping = TextWrapping.Wrap,
+                        Margin = new Thickness(10, 14, 10, 14)
+                    });
+                }
             }
-            catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-        };
-        stack.Children.Add(clearBtn);
-        var closeBtn = new Button
-        {
-            Content = "Close",
-            Height = 30,
-            Margin = new Thickness(0, 8, 0, 0),
-            Style = TryFindResource("MicroButton") as Style
-        };
-        closeBtn.Click += (_, _) => popup.IsOpen = false;
-        stack.Children.Add(closeBtn);
-        var border = new Border
-        {
-            Background = GetBrush("ChromeBg"),
-            BorderBrush = GetBrush("Stroke"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(0),
-            Child = stack,
-            MinWidth = 300
-        };
-        popup.Child = border;
-        UiFx.PlayPopupEntrance(border);
-        popup.IsOpen = true;
+
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
+            var refreshBtn = new Button
+            {
+                Content = "Refresh",
+                Height = 30,
+                Style = TryFindResource("MicroButton") as Style
+            };
+            refreshBtn.Click += async (_, _) => await RefreshSitesAsync();
+            actions.Children.Add(refreshBtn);
+
+            var clearBtn = new Button
+            {
+                Content = "Clear all site data",
+                Height = 30,
+                Margin = new Thickness(8, 0, 0, 0),
+                Style = TryFindResource("MicroButton") as Style
+            };
+            clearBtn.Click += async (_, _) =>
+            {
+                try
+                {
+                    var profile = cwv.Profile;
+                    await profile.ClearBrowsingDataAsync();
+                    await RefreshSitesAsync();
+                    StatusBar.StatusText.Text = "Site data cleared";
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to clear site data");
+                    StatusBar.StatusText.Text = "Couldn't clear site data";
+                }
+            };
+            actions.Children.Add(clearBtn);
+
+            var closeBtn = new Button
+            {
+                Content = "Close",
+                Height = 30,
+                Margin = new Thickness(8, 0, 0, 0),
+                Style = TryFindResource("MicroButton") as Style
+            };
+            closeBtn.Click += (_, _) => popup.IsOpen = false;
+            actions.Children.Add(closeBtn);
+            stack.Children.Add(actions);
+
+            var border = new Border
+            {
+                Background = GetBrush("ChromeBg"),
+                BorderBrush = GetBrush("Stroke"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Child = stack,
+                MinWidth = 360,
+                MaxWidth = 480
+            };
+            popup.Child = border;
+            UiFx.PlayPopupEntrance(border);
+            popup.IsOpen = true;
+            await RefreshSitesAsync();
         }
         catch (Exception ex) { Log.Error(ex, "ShowSiteDataPopup failed"); }
     }
