@@ -127,6 +127,8 @@ Or run from PowerShell:
 
 ## Releases
 
+Pushes to `main` or `dev` and pull requests targeting `main` run CI: it tests the project, publishes the self-contained Windows x64 app, and uploads the complete app folder as the `Aerio-Windows-x64` Actions artifact. Open the successful workflow run and download that artifact to get a build without creating a release.
+
 Pushing a version tag such as `v1.4.1` runs the Windows release workflow. It runs the test suite, publishes a self-contained x64 build, uploads the complete Windows app folder as the `Aerio-Windows-x64` workflow artifact, and attaches `Aerio-win-x64.zip` to the GitHub release.
 
 To install a release, download and extract `Aerio-win-x64.zip`, then run `Aerio.exe` from the extracted folder. Keep the other files beside it; the executable depends on bundled app resources. The target PC still needs the Microsoft Edge WebView2 Runtime.

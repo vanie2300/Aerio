@@ -28,6 +28,32 @@ jobs:
         timeout-minutes: 10
         run: dotnet test TabloidBrowser.Tests\TabloidBrowser.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
 
+      - name: Publish self-contained Windows app
+        run: dotnet publish TabloidBrowser.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts\Aerio-win-x64
+
+      - name: Verify Windows app files
+        shell: pwsh
+        run: |
+          $requiredFiles = @(
+            "artifacts\Aerio-win-x64\Aerio.exe",
+            "artifacts\Aerio-win-x64\readability.min.js",
+            "artifacts\Aerio-win-x64\Assets\the app icon.ico"
+          )
+          foreach ($file in $requiredFiles) {
+            if (-not (Test-Path $file)) {
+              Write-Error "Required Windows app file is missing: $file"
+              exit 1
+            }
+          }
+
+      - name: Upload Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aerio-Windows-x64
+          path: artifacts\Aerio-win-x64\*
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
