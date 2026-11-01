@@ -166,6 +166,16 @@ Notes:
 **Accepted residual risk:**
 - Binaries are not code-signed (requires a signing certificate); SmartScreen will warn on first run. Tracked as an infrastructure item, not a code defect.
 
+### Phase 4 issue remediation (2026-11-01)
+
+Follow-up hardening pass (ISSUE-001 … ISSUE-005), all verified by the test suite:
+
+1. **Plaintext API-key fallback removed** (`BrowserDataStore`): a DPAPI encryption failure previously wrote the key to disk as plaintext. Encryption now propagates failures and the disk layer fails closed — the key stays in memory for the session but is never persisted unencrypted. Regression tests assert the plaintext never appears on disk (success and DPAPI-failure paths).
+2. **Secure AI endpoints enforced** (`AiEndpoints`): API keys and conversation content are only sent over HTTPS, with loopback HTTP allowed for local servers (Ollama on localhost). Enforced at request time in `AiService` (chat + model-list paths) and normalized at settings load; non-loopback HTTP endpoints are refused with a clear message.
+3. **Site-permission origin boundaries validated** (`SitePermissionPolicy`): hosts are validated real hostnames (scheme, port, path, credentials stripped; garbage rejected — including scheme-only inputs like `https://`), matching is exact-host (a rule for example.com never matches evilexample.com, example.com.evil.com, or subdomains), and stored rules are normalized at load through the same policy.
+4. **AI authorization and prompt-injection tests expanded** (+48 tests total): authorizer edge cases (cross-AI-tab writes, reason completeness), sanitizer multilingual redaction (Chinese/Japanese/French/Spanish/German/Russian), tag-escaping with whitespace variants, redaction-at-scale over 100 KB content, and benign-word false-positive checks.
+5. **Windows runtime regression**: Release build with zero warnings, 396/396 tests green on .NET 10, and an app smoke test (launch, responsive, no log errors).
+
 ## Phase 5: Browser Performance and Reliability
 
 **Target:** Fast, stable daily browsing.

@@ -38,14 +38,9 @@ public sealed class AiService : IDisposable
 
     private string GetBaseUrl()
     {
-        if (string.IsNullOrWhiteSpace(Endpoint))
-            throw new InvalidOperationException("Enter an AI API endpoint in Settings > AI.");
-
-        if (!Uri.TryCreate(Endpoint.Trim(), UriKind.Absolute, out var endpoint) ||
-            (endpoint.Scheme != Uri.UriSchemeHttp && endpoint.Scheme != Uri.UriSchemeHttps))
-            throw new InvalidOperationException("The AI API endpoint must be a valid HTTP or HTTPS URL.");
-
-        return endpoint.ToString().TrimEnd('/');
+        // HTTPS enforced (loopback HTTP allowed for local servers) — the API
+        // key and conversation content must never travel over plain HTTP.
+        return AiEndpoints.EnsureSecure(Endpoint).TrimEnd('/');
     }
 
     private string GetChatUrl()
@@ -168,10 +163,8 @@ public sealed class AiService : IDisposable
         CancellationToken ct = default,
         HttpClient? httpClient = null)
     {
-        var trimmedEndpoint = endpoint.Trim().TrimEnd('/');
-        if (!Uri.TryCreate(trimmedEndpoint, UriKind.Absolute, out var baseUri) ||
-            (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps))
-            throw new InvalidOperationException("The AI API endpoint must be a valid HTTP or HTTPS URL.");
+        var trimmedEndpoint = AiEndpoints.EnsureSecure(endpoint).TrimEnd('/');
+        var baseUri = new Uri(trimmedEndpoint, UriKind.Absolute);
 
         var baseUrl = baseUri.ToString().TrimEnd('/');
         var nativeOllama = BrowserSettings.UsesNativeOllamaApi(provider);

@@ -1,4 +1,5 @@
 using Xunit;
+using System.Security.Cryptography;
 using System.Text.Json;
 using TabloidBrowser;
 
@@ -393,5 +394,58 @@ public class BrowserDataStoreTests : IDisposable
 
         using var reloadedStore = new BrowserDataStore(_tempDir);
         Assert.Equal(20, reloadedStore.History.Count);
+    }
+
+    [Fact]
+    public void BrowserDataStore_SaveSettings_NeverWritesPlaintextApiKeyToDisk()
+    {
+        const string apiKey = "super-secret-key-12345";
+        using (var store = new BrowserDataStore(_tempDir))
+        {
+            Assert.True(store.SaveSettings(BrowserSettings.Default with { AiApiKey = apiKey }));
+        }
+
+        var raw = File.ReadAllText(Path.Combine(_tempDir, "settings.json"));
+        Assert.DoesNotContain(apiKey, raw);
+        Assert.Contains(BrowserDataStore.EncryptedApiKeyPrefix, raw);
+
+        // The key must survive a restart via DPAPI decryption. On load the
+        // legacy field is decrypted back into AiApiKey.
+        using var reloadedStore = new BrowserDataStore(_tempDir);
+        Assert.Equal(apiKey, reloadedStore.Settings.AiApiKey);
+    }
+
+    [Fact]
+    public void BrowserDataStore_SaveSettings_WhenDpapiFails_FailsClosedWithoutPlaintext()
+    {
+        var original = BrowserDataStore.DataProtectOverride;
+        BrowserDataStore.DataProtectOverride = _ =>
+            throw new CryptographicException("simulated DPAPI failure");
+        try
+        {
+            const string apiKey = "another-secret-key-67890";
+            using var store = new BrowserDataStore(_tempDir);
+            Assert.True(store.SaveSettings(BrowserSettings.Default with { AiApiKey = apiKey }));
+
+            var raw = File.ReadAllText(Path.Combine(_tempDir, "settings.json"));
+            Assert.DoesNotContain(apiKey, raw);
+            Assert.DoesNotContain(BrowserDataStore.EncryptedApiKeyPrefix, raw);
+
+            // The in-memory settings keep the key so the session stays usable;
+            // persistence simply fails closed.
+            Assert.Equal(apiKey, store.Settings.AiApiKey);
+        }
+        finally
+        {
+            BrowserDataStore.DataProtectOverride = original;
+        }
+    }
+
+    [Fact]
+    public void BrowserDataStore_DecryptApiKey_RejectsGarbageWithoutThrowing()
+    {
+        Assert.Equal("", BrowserDataStore.DecryptApiKey(""));
+        Assert.Equal("plain value", BrowserDataStore.DecryptApiKey("plain value"));
+        Assert.Equal("", BrowserDataStore.DecryptApiKey(BrowserDataStore.EncryptedApiKeyPrefix + "not-base64!!!"));
     }
 }

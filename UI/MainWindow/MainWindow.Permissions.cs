@@ -400,25 +400,9 @@ public partial class MainWindow
 
     private static string? NormalizePermissionHost(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var input = value.Trim();
-        if (Uri.TryCreate(input, UriKind.Absolute, out var absolute) &&
-            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
-        {
-            return absolute.Host.ToLowerInvariant();
-        }
-
-        if (Uri.TryCreate($"https://{input}", UriKind.Absolute, out var withScheme) &&
-            !string.IsNullOrWhiteSpace(withScheme.Host))
-        {
-            return withScheme.Host.ToLowerInvariant();
-        }
-
-        return null;
+        // Delegates to the shared origin-boundary policy so the runtime path
+        // and the stored-rule validation use identical host semantics.
+        return SitePermissionPolicy.NormalizeHost(value);
     }
 
     private static List<SitePermissionRule> UpdateSitePermissionRules(
@@ -482,15 +466,7 @@ public partial class MainWindow
 
     private static string GetSitePermissionState(IEnumerable<SitePermissionRule> rules, string? hostOrUrl, string permission)
     {
-        var host = NormalizePermissionHost(hostOrUrl);
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            return "Default";
-        }
-
-        return rules.FirstOrDefault(rule =>
-            string.Equals(rule.Host, host, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(rule.Permission, permission, StringComparison.OrdinalIgnoreCase))?.State ?? "Default";
+        return SitePermissionPolicy.StateFor(rules, hostOrUrl, permission);
     }
 
     private static string? PermissionKey(CoreWebView2PermissionKind kind)

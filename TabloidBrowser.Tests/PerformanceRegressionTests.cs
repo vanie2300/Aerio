@@ -38,8 +38,7 @@ public class PerformanceRegressionTests
             }
         }
 
-        Assert.True(
-            false,
+        Assert.Fail(
             $"Expected under {limitMs}ms, best of 3 attempts was {best:F1}ms over {iterations} iteration(s)");
     }
 

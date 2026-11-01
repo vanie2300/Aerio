@@ -705,7 +705,9 @@ public sealed class BrowserDataStore : IDisposable
                 CustomEngines = settings.CustomEngines ?? [],
                 SearchKeywords = settings.SearchKeywords ?? new Dictionary<string, string>(BrowserSettings.DefaultSearchKeywords, StringComparer.OrdinalIgnoreCase),
                 NewTabShortcuts = settings.NewTabShortcuts ?? [.. BrowserSettings.DefaultNewTabShortcuts],
-                AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) ? BrowserSettings.Default.AiEndpoint : settings.AiEndpoint,
+                AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) || !AiEndpoints.IsSecure(settings.AiEndpoint)
+                    ? BrowserSettings.Default.AiEndpoint
+                    : settings.AiEndpoint,
                 AiModel = string.IsNullOrWhiteSpace(settings.AiModel) ? BrowserSettings.Default.AiModel : settings.AiModel,
                 AiApiKey = legacyDecrypted,
                 AiApiKeys = MigrateProviderApiKeys(
@@ -748,7 +750,7 @@ public sealed class BrowserDataStore : IDisposable
         return BrowserSettings.StoreProviderApiKey(keys, provider, legacyKey);
     }
 
-    private const string EncryptedApiKeyPrefix = "$dpapi$";
+    internal const string EncryptedApiKeyPrefix = "$dpapi$";
 
     /// <summary>
     /// Raw ciphertext blobs that failed DPAPI decryption at load time (slot key
@@ -758,7 +760,7 @@ public sealed class BrowserDataStore : IDisposable
     /// </summary>
     private readonly Dictionary<string, string> _preservedKeyBlobs = [];
 
-    private string EncryptApiKeyForDisk(string slotKey, string plaintext)
+    internal string EncryptApiKeyForDisk(string slotKey, string plaintext)
     {
         if (string.IsNullOrEmpty(plaintext) &&
             _preservedKeyBlobs.TryGetValue(slotKey, out var blob) &&
@@ -769,10 +771,22 @@ public sealed class BrowserDataStore : IDisposable
             // with an empty value.
             return blob;
         }
-        return EncryptApiKey(plaintext);
+
+        try
+        {
+            return EncryptApiKey(plaintext);
+        }
+        catch (CryptographicException ex)
+        {
+            // Fail closed: DPAPI failure must never cause the key to be
+            // written to disk in plaintext. The in-memory settings keep the
+            // key for the current session; the user re-enters it next launch.
+            Log.Error(ex, "DPAPI encryption failed for the {Slot} API key; the key will not be persisted", string.IsNullOrEmpty(slotKey) ? "default" : slotKey);
+            return string.Empty;
+        }
     }
 
-    private string DecryptKeyTracked(string slotKey, string stored)
+    internal string DecryptKeyTracked(string slotKey, string stored)
     {
         var decrypted = DecryptApiKey(stored);
         if (string.IsNullOrEmpty(decrypted) &&
@@ -787,25 +801,26 @@ public sealed class BrowserDataStore : IDisposable
         return decrypted;
     }
 
+    /// <summary>
+    /// Test seam allowing the DPAPI protect call to be replaced (e.g. to
+    /// simulate a CryptographicException). Production code never sets this.
+    /// </summary>
+    internal static Func<byte[], byte[]>? DataProtectOverride;
+
     private static string EncryptApiKey(string plaintext)
     {
         if (string.IsNullOrEmpty(plaintext))
             return string.Empty;
 
-        try
-        {
-            var plainBytes = Encoding.UTF8.GetBytes(plaintext);
-            var encryptedBytes = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
-            return EncryptedApiKeyPrefix + Convert.ToBase64String(encryptedBytes);
-        }
-        catch (CryptographicException ex)
-        {
-            Log.Error(ex, "Failed to encrypt API key via DPAPI – storing as plaintext fallback");
-            return plaintext;
-        }
+        // Deliberately no fallback here: a DPAPI failure propagates so the
+        // disk layer can fail closed instead of storing plaintext.
+        var plainBytes = Encoding.UTF8.GetBytes(plaintext);
+        var encryptedBytes = DataProtectOverride?.Invoke(plainBytes)
+            ?? ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
+        return EncryptedApiKeyPrefix + Convert.ToBase64String(encryptedBytes);
     }
 
-    private static string DecryptApiKey(string stored)
+    internal static string DecryptApiKey(string stored)
     {
         if (string.IsNullOrEmpty(stored))
             return string.Empty;
@@ -860,31 +875,9 @@ public sealed class BrowserDataStore : IDisposable
 
     private static List<SitePermissionRule> NormalizeSitePermissions(List<SitePermissionRule>? rules)
     {
-        if (rules is null)
-        {
-            return [];
-        }
-
-    return rules
-        .Where(rule => !string.IsNullOrWhiteSpace(rule.Host) &&
-            !string.IsNullOrWhiteSpace(rule.Permission))
-        .Select(rule => new SitePermissionRule(
-            rule.Host.Trim().ToLowerInvariant(),
-            rule.Permission.Trim(),
-            NormalizePermissionState(rule.State)))
-        .Where(rule => rule.State is "Allow" or "Deny")
-        .Distinct()
-        .ToList();
-    }
-
-    private static string NormalizePermissionState(string? state)
-    {
-        return state switch
-        {
-            "Allow" => "Allow",
-            "Deny" or "Block" => "Deny",
-            _ => "Default"
-        };
+        // Origin-boundary validation lives in SitePermissionPolicy: hosts must
+        // parse as real hostnames and matching is exact-host.
+        return SitePermissionPolicy.NormalizeRules(rules);
     }
 
     public static bool IsHttpUrl(string url)

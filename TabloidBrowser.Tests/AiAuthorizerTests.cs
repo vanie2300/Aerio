@@ -86,4 +86,37 @@ public class AiAuthorizerTests
         var result = auth.Authorize("open_tab", null, requiresWrite: false);
         Assert.True(result.IsAllowed);
     }
+
+    [Fact]
+    public void Authorize_AllowsAiTabWrite_WhenAnotherAiTabIsActive()
+    {
+        var activeAiTab = new BrowserTab { Owner = TabOwner.AI };
+        var targetAiTab = new BrowserTab { Owner = TabOwner.AI };
+        var auth = CreateAuthorizer(activeTab: activeAiTab);
+        var result = auth.Authorize("click", targetAiTab, requiresWrite: true);
+        Assert.True(result.IsAllowed);
+    }
+
+    [Fact]
+    public void Authorize_DeniesUserTabWrite_WhenAiTabIsActive()
+    {
+        var activeAiTab = new BrowserTab { Owner = TabOwner.AI };
+        var targetUserTab = new BrowserTab { Owner = TabOwner.User };
+        var auth = CreateAuthorizer(activeTab: activeAiTab);
+        var result = auth.Authorize("click", targetUserTab, requiresWrite: true);
+        Assert.False(result.IsAllowed);
+        Assert.False(string.IsNullOrWhiteSpace(result.DenialReason));
+    }
+
+    [Fact]
+    public void Authorize_DenialsAlwaysCarryAReason()
+    {
+        var userTab = new BrowserTab { Owner = TabOwner.User };
+        var otherUserTab = new BrowserTab { Owner = TabOwner.User };
+        var auth = CreateAuthorizer(activeTab: userTab);
+
+        Assert.False(string.IsNullOrWhiteSpace(auth.Authorize("navigate_to", null, true).DenialReason));
+        Assert.False(string.IsNullOrWhiteSpace(auth.Authorize("navigate_to", userTab, true).DenialReason));
+        Assert.False(string.IsNullOrWhiteSpace(auth.Authorize("navigate_to", otherUserTab, true).DenialReason));
+    }
 }
