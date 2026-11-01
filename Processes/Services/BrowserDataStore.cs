@@ -554,6 +554,7 @@ public sealed class BrowserDataStore : IDisposable
     public bool SaveSettings(BrowserSettings settings)
     {
         _lock.EnterWriteLock();
+        var tmp = $"{_settingsPath}.{Guid.NewGuid():N}.tmp";
         try
         {
             // Write to disk FIRST; only mutate the in-memory settings after the
@@ -563,7 +564,6 @@ public sealed class BrowserDataStore : IDisposable
                 AiApiKey = EncryptApiKeyForDisk("", settings.AiApiKey),
                 AiApiKeys = settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => EncryptApiKeyForDisk(kv.Key, kv.Value))
             };
-            var tmp = $"{_settingsPath}.{Guid.NewGuid():N}.tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(forDisk, JsonOptions));
             MoveWithRetry(tmp, _settingsPath);
             Settings = settings;
@@ -571,7 +571,11 @@ public sealed class BrowserDataStore : IDisposable
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "SaveSettings failed");
+            // The previous settings file — including any previously stored
+            // valid ciphertext — is left untouched on any failure.
+            Log.Error(ex, "SaveSettings failed; previous settings file was left untouched");
+            try { File.Delete(tmp); }
+            catch (Exception delEx) { Log.Debug(delEx, "Failed to delete settings temp file"); }
             return false;
         }
         finally { _lock.ExitWriteLock(); }
@@ -778,11 +782,13 @@ public sealed class BrowserDataStore : IDisposable
         }
         catch (CryptographicException ex)
         {
-            // Fail closed: DPAPI failure must never cause the key to be
-            // written to disk in plaintext. The in-memory settings keep the
-            // key for the current session; the user re-enters it next launch.
-            Log.Error(ex, "DPAPI encryption failed for the {Slot} API key; the key will not be persisted", string.IsNullOrEmpty(slotKey) ? "default" : slotKey);
-            return string.Empty;
+            // Fail closed: a DPAPI failure must never persist the key in
+            // plaintext. Throwing here fails the whole SaveSettings call so
+            // the previous settings file — including any previously stored
+            // valid ciphertext — stays intact.
+            Log.Error(ex, "DPAPI protection failed; refusing to persist API key");
+            throw new InvalidOperationException(
+                "Your API key could not be encrypted. Settings were not saved.", ex);
         }
     }
 

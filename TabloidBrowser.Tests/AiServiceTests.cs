@@ -172,6 +172,60 @@ public class AiServiceTests
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
 
+    [Fact]
+    public async Task CompleteWithToolsAsync_RedirectResponse_IsNotFollowedAndFails()
+    {
+        // An HTTPS endpoint that answers with a redirect must not have the
+        // request re-sent (with its Authorization header) to the Location.
+        // The AI retry logic may re-attempt the SAME validated origin, but no
+        // request may ever reach the redirect target.
+        var requestCount = 0;
+        var uris = new List<string>();
+        var handler = new StubHandler((request, _) =>
+        {
+            requestCount++;
+            uris.Add(request.RequestUri?.ToString() ?? "");
+            return new HttpResponseMessage(HttpStatusCode.Found)
+            {
+                Headers = { Location = new Uri("http://evil.example/callback") }
+            };
+        });
+        using var client = new HttpClient(handler);
+        using var svc = new AiService(client)
+        {
+            Provider = "OpenAI",
+            Endpoint = "https://api.example.com/v1",
+            Model = "test-model",
+            ApiKey = "secret-key"
+        };
+
+        await Assert.ThrowsAnyAsync<Exception>(() => svc.CompleteWithToolsAsync(
+            [new ChatMessage("user", "hello")],
+            [new AiTool("search", "Search", new { type = "object" })],
+            "none"));
+
+        // 1 initial attempt + MaxRetries (3) retries, all to the original origin.
+        Assert.Equal(4, requestCount);
+        Assert.All(uris, uri => Assert.StartsWith("https://api.example.com", uri));
+    }
+
+    [Fact]
+    public async Task FetchModelsAsync_InsecureRemoteEndpoint_IsRejectedBeforeAnyRequest()
+    {
+        var requestCount = 0;
+        var handler = new StubHandler((_, _) =>
+        {
+            requestCount++;
+            return JsonResponse("[]");
+        });
+        using var client = new HttpClient(handler);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            AiService.FetchModelsAsync("http://api.example.com", "secret-key", "OpenAI", httpClient: client));
+
+        Assert.Equal(0, requestCount);
+    }
+
     private sealed class StubHandler(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {

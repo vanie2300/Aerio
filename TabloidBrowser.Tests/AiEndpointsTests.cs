@@ -14,7 +14,9 @@ public class AiEndpointsTests
     [InlineData("http://[::1]:11434", true)]
     [InlineData("http://evil.com", false)]
     [InlineData("http://192.168.1.10:11434", false)]
-    [InlineData("ftp://ollama.com", false)]
+    [InlineData("http://api.example.com/v1", false)]
+    [InlineData("http://localhost.evil.example", false)] // lookalike hostname is not loopback
+    [InlineData("ftp://api.example.com", false)]
     [InlineData("ollama.com", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
@@ -49,5 +51,18 @@ public class AiEndpointsTests
     public void EnsureSecure_AllowsLocalOllama()
     {
         Assert.Equal("http://localhost:11434", AiEndpoints.EnsureSecure("http://localhost:11434"));
+    }
+
+    [Fact]
+    public void CreateSecureHttpClient_DisablesAutoRedirects()
+    {
+        // A 3xx from an HTTPS endpoint must never carry the Authorization
+        // header to a downgraded scheme or a different origin.
+        using var client = AiEndpoints.CreateSecureHttpClient();
+        var handlerField = typeof(HttpMessageInvoker).GetField(
+            "_handler",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var handler = Assert.IsAssignableFrom<HttpClientHandler>(handlerField?.GetValue(client));
+        Assert.False(handler.AllowAutoRedirect);
     }
 }

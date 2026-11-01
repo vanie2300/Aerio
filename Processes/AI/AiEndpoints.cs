@@ -1,4 +1,7 @@
 using System;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TabloidBrowser;
 
@@ -44,5 +47,19 @@ public static class AiEndpoints
         }
 
         return endpoint.Trim();
+    }
+
+    /// <summary>
+    /// Creates an HttpClient for authenticated AI traffic. Auto-redirects are
+    /// disabled so an HTTPS endpoint can never bounce the Authorization header
+    /// to a downgraded scheme or a different origin — a 3xx response is
+    /// surfaced to the caller and treated as an error instead.
+    /// </summary>
+    public static HttpClient CreateSecureHttpClient(TimeSpan? timeout = null)
+    {
+        return new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            Timeout = timeout ?? TimeSpan.FromSeconds(30)
+        };
     }
 }

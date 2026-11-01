@@ -17,7 +17,9 @@ public sealed class AiService : IDisposable
 
     public AiService(HttpClient? httpClient = null)
     {
-        _http = httpClient ?? new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        // Injected clients (tests) keep their handler; the production default
+        // disables auto-redirects so credentials can never ride a 3xx.
+        _http = httpClient ?? AiEndpoints.CreateSecureHttpClient(System.Threading.Timeout.InfiniteTimeSpan);
         _ownsHttpClient = httpClient is null;
     }
 
@@ -154,7 +156,7 @@ public sealed class AiService : IDisposable
         return await CompleteNativeOllamaStreamingCoreAsync(messages, onContentDelta, tools, toolChoice, ct);
     }
 
-    private static readonly HttpClient _fetchHttp = new() { Timeout = TimeSpan.FromSeconds(10) };
+    private static readonly HttpClient _fetchHttp = AiEndpoints.CreateSecureHttpClient(TimeSpan.FromSeconds(10));
 
     public static async Task<List<string>> FetchModelsAsync(
         string endpoint,

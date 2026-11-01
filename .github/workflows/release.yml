@@ -24,6 +24,9 @@ jobs:
       - name: Restore test project
         run: dotnet restore TabloidBrowser.Tests\TabloidBrowser.Tests.csproj
 
+      - name: Check for vulnerable packages
+        run: dotnet list TabloidBrowser.csproj package --vulnerable --include-transitive
+
       - name: Run tests
         run: dotnet test TabloidBrowser.Tests\TabloidBrowser.Tests.csproj --no-restore --configuration Release --verbosity normal
 

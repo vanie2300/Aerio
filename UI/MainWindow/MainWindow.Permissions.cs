@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -75,15 +75,28 @@ public partial class MainWindow
                 return;
             }
 
-            var host = NormalizePermissionHost(args.Uri) ?? NormalizePermissionHost(tab.Address);
+            // Authorize against the REQUESTING origin only (args.Uri carries
+            // the requesting frame's URI). Never fall back to the tab's
+            // address: an iframe must not inherit the top-level page's grants.
+            // An unresolvable origin is denied and logged.
+            var origin = SitePermissionPolicy.NormalizeOrigin(args.Uri);
             var permission = PermissionKey(args.PermissionKind);
-            if (string.IsNullOrWhiteSpace(host) || permission is null)
+            if (origin is null)
+            {
+                Log.Debug("Permission request with unresolvable origin denied (kind: {Kind}, uri: {Uri})",
+                    args.PermissionKind, args.Uri);
+                args.State = CoreWebView2PermissionState.Deny;
+                args.Handled = true;
+                return;
+            }
+
+            if (permission is null)
             {
                 return;
             }
 
             var rule = _dataStore.Settings.SitePermissions.FirstOrDefault(item =>
-                string.Equals(item.Host, host, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(item.Host, origin, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(item.Permission, permission, StringComparison.OrdinalIgnoreCase));
 
             if (rule is null)
@@ -93,7 +106,7 @@ public partial class MainWindow
                     var deferral = args.GetDeferral();
                     try
                     {
-                        var requestedState = await PromptForPermissionAsync(host, permission);
+                        var requestedState = await PromptForPermissionAsync(origin, permission);
                         if (requestedState == "Default")
                         {
                             args.State = CoreWebView2PermissionState.Deny;
@@ -104,7 +117,7 @@ public partial class MainWindow
                         args.SavesInProfile = false;
                         args.State = ToWebViewPermissionState(requestedState);
                         args.Handled = true;
-                        StatusBar.StatusText.Text = $"{PermissionLabel(permission)} {PermissionStateLabel(requestedState).ToLowerInvariant()} for {host}";
+                        StatusBar.StatusText.Text = $"{PermissionLabel(permission)} {PermissionStateLabel(requestedState).ToLowerInvariant()} for {origin}";
                     }
                     finally { deferral.Dispose(); }
                 }
@@ -121,7 +134,7 @@ public partial class MainWindow
             args.SavesInProfile = false;
             args.State = ToWebViewPermissionState(rule.State);
             args.Handled = true;
-            StatusBar.StatusText.Text = $"{PermissionLabel(permission)} {PermissionStateLabel(rule.State).ToLowerInvariant()} for {host}";
+            StatusBar.StatusText.Text = $"{PermissionLabel(permission)} {PermissionStateLabel(rule.State).ToLowerInvariant()} for {origin}";
         }
         catch (Exception ex)
         {
@@ -131,7 +144,7 @@ public partial class MainWindow
         }
     }
 
-    private async Task<string> PromptForPermissionAsync(string host, string permission)
+    private async Task<string> PromptForPermissionAsync(string origin, string permission)
     {
         var label = PermissionLabel(permission);
         var tcs = new TaskCompletionSource<string>();
@@ -242,7 +255,9 @@ public partial class MainWindow
 
         stack.Children.Add(new TextBlock
         {
-            Text = host,
+            // Full origin (scheme + host + port) so the user can see exactly
+            // which origin is asking, e.g. https://example.com:8443.
+            Text = origin,
             Foreground = GetBrush("Text"),
             FontSize = 14,
             FontWeight = FontWeights.SemiBold,
@@ -312,7 +327,7 @@ public partial class MainWindow
         {
             if (rememberChoice)
             {
-                SaveRuntimeSitePermission(host, permission, state);
+                SaveRuntimeSitePermission(origin, permission, state);
             }
 
             tcs.TrySetResult(state);
@@ -373,10 +388,10 @@ public partial class MainWindow
         }
     }
 
-    private string GetSuggestedPermissionHost()
+    private string GetSuggestedPermissionOrigin()
     {
-        return NormalizePermissionHost(_lastSitePermissionsUrl) ??
-            NormalizePermissionHost(_activeTab?.Address) ??
+        return SitePermissionPolicy.NormalizeOrigin(_lastSitePermissionsUrl) ??
+            SitePermissionPolicy.NormalizeOrigin(_activeTab?.Address) ??
             string.Empty;
     }
 
@@ -591,16 +606,18 @@ public partial class MainWindow
 
             foreach (var setting in permissionSettings)
             {
-                var host = NormalizePermissionHost(setting.PermissionOrigin);
+                // WebView2's PermissionOrigin is already scheme+host+port —
+                // preserve it as-is instead of collapsing to a hostname.
+                var origin = SitePermissionPolicy.NormalizeOrigin(setting.PermissionOrigin);
                 var permission = PermissionKey(setting.PermissionKind);
                 var state = PermissionStateFromWebView(setting.PermissionState);
 
-                if (string.IsNullOrWhiteSpace(host) || permission is null || state == "Default")
+                if (origin is null || permission is null || state == "Default")
                 {
                     continue;
                 }
 
-                importedRules.Add(new SitePermissionRule(host, permission, state));
+                importedRules.Add(new SitePermissionRule(origin, permission, state));
             }
 
             if (importedRules.Count == 0)
@@ -631,7 +648,7 @@ public partial class MainWindow
         }
     }
 
-    private async Task ApplySitePermissionProfileStateAsync(string host, IReadOnlyDictionary<string, string> states)
+    private async Task ApplySitePermissionProfileStateAsync(string origin, IReadOnlyDictionary<string, string> states)
     {
         var profile = _tabs
             .Select(tab => tab.WebView?.CoreWebView2?.Profile)
@@ -642,6 +659,9 @@ public partial class MainWindow
             return;
         }
 
+        // Apply the saved decision to the EXACT origin only — writing both
+        // https:// and http:// variants of a hostname would expand the grant
+        // across origins.
         foreach (var (permission, state) in states)
         {
             var kind = PermissionKindFromKey(permission);
@@ -650,25 +670,24 @@ public partial class MainWindow
                 continue;
             }
 
-            foreach (var origin in new[] { $"https://{host}", $"http://{host}" })
+            try
             {
-                try
-                {
-                    await profile.SetPermissionStateAsync(kind, origin, ToWebViewPermissionState(state));
-                }
-                catch (InvalidOperationException ex)
-                {
-                    Log.Error(ex, "Error occurred");
-                }
-                catch (COMException ex)
-                {
-                    Log.Error(ex, "Error occurred");
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Error occurred");
-                }
+                await profile.SetPermissionStateAsync(kind, origin, ToWebViewPermissionState(state));
+            }
+            catch (InvalidOperationException ex)
+            {
+                Log.Error(ex, "Error occurred");
+            }
+            catch (COMException ex)
+            {
+                Log.Error(ex, "Error occurred");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error occurred");
             }
         }
     }
 }
+
+

@@ -416,7 +416,7 @@ public class BrowserDataStoreTests : IDisposable
     }
 
     [Fact]
-    public void BrowserDataStore_SaveSettings_WhenDpapiFails_FailsClosedWithoutPlaintext()
+    public void BrowserDataStore_SaveSettings_WhenDpapiFails_FailsWholeSaveWithoutPlaintext()
     {
         var original = BrowserDataStore.DataProtectOverride;
         BrowserDataStore.DataProtectOverride = _ =>
@@ -425,19 +425,82 @@ public class BrowserDataStoreTests : IDisposable
         {
             const string apiKey = "another-secret-key-67890";
             using var store = new BrowserDataStore(_tempDir);
-            Assert.True(store.SaveSettings(BrowserSettings.Default with { AiApiKey = apiKey }));
+            Assert.False(store.SaveSettings(BrowserSettings.Default with { AiApiKey = apiKey }));
 
-            var raw = File.ReadAllText(Path.Combine(_tempDir, "settings.json"));
-            Assert.DoesNotContain(apiKey, raw);
-            Assert.DoesNotContain(BrowserDataStore.EncryptedApiKeyPrefix, raw);
+            // The whole save failed: no settings file was committed at all.
+            Assert.False(File.Exists(Path.Combine(_tempDir, "settings.json")));
+            Assert.Empty(Directory.GetFiles(_tempDir, "*.tmp"));
 
-            // The in-memory settings keep the key so the session stays usable;
-            // persistence simply fails closed.
-            Assert.Equal(apiKey, store.Settings.AiApiKey);
+            // In-memory settings are untouched by the failed save (the store's
+            // settings stay at their constructor-loaded state).
+            Assert.Equal(string.Empty, store.Settings.AiApiKey);
         }
         finally
         {
             BrowserDataStore.DataProtectOverride = original;
+        }
+    }
+
+    [Fact]
+    public void BrowserDataStore_SaveSettings_WhenDpapiFails_PreservesPreviousCiphertext()
+    {
+        const string originalKey = "original-secret-key";
+        using (var store = new BrowserDataStore(_tempDir))
+        {
+            Assert.True(store.SaveSettings(BrowserSettings.Default with { AiApiKey = originalKey }));
+        }
+
+        var originalFile = File.ReadAllText(Path.Combine(_tempDir, "settings.json"));
+
+        var backup = BrowserDataStore.DataProtectOverride;
+        BrowserDataStore.DataProtectOverride = _ =>
+            throw new CryptographicException("simulated DPAPI failure");
+        try
+        {
+            // A later attempt to change settings with a NEW key fails without
+            // touching the previous file, so the old ciphertext survives.
+            using var store = new BrowserDataStore(_tempDir);
+            Assert.False(store.SaveSettings(BrowserSettings.Default with { AiApiKey = "replacement-key" }));
+
+            var currentFile = File.ReadAllText(Path.Combine(_tempDir, "settings.json"));
+            Assert.Equal(originalFile, currentFile);
+            Assert.DoesNotContain("replacement-key", currentFile);
+
+            using var verifyStore = new BrowserDataStore(_tempDir);
+            Assert.Equal(originalKey, verifyStore.Settings.AiApiKey);
+        }
+        finally
+        {
+            BrowserDataStore.DataProtectOverride = backup;
+        }
+    }
+
+    [Fact]
+    public void BrowserDataStore_SaveSettings_WhenDpapiFails_NoProviderKeyLeaks()
+    {
+        var backup = BrowserDataStore.DataProtectOverride;
+        BrowserDataStore.DataProtectOverride = _ =>
+            throw new CryptographicException("simulated DPAPI failure");
+        try
+        {
+            var settings = BrowserSettings.Default with
+            {
+                AiProvider = "OpenAI",
+                AiApiKey = "legacy-key-should-not-persist",
+                AiApiKeys = new Dictionary<string, string>
+                {
+                    ["OpenAI"] = "openai-key-should-not-persist",
+                    ["Groq"] = "groq-key-should-not-persist"
+                }
+            };
+
+            using var store = new BrowserDataStore(_tempDir);
+            Assert.False(store.SaveSettings(settings));
+            Assert.False(File.Exists(Path.Combine(_tempDir, "settings.json")));
+        }
+        finally
+        {
+            BrowserDataStore.DataProtectOverride = backup;
         }
     }
 

@@ -98,9 +98,9 @@ public partial class MainWindow
     private UIElement BuildSitePermissionsPopupContent(Popup popup)
     {
         var settings = _dataStore.Settings;
-        var suggestedHost = GetSuggestedPermissionHost();
+        var suggestedHost = GetSuggestedPermissionOrigin();
         var allHosts = GetSitePermissionHosts(settings.SitePermissions, suggestedHost);
-        var selectedHost = NormalizePermissionHost(suggestedHost) ?? allHosts.FirstOrDefault() ?? string.Empty;
+        var selectedHost = SitePermissionPolicy.NormalizeOrigin(suggestedHost) ?? allHosts.FirstOrDefault() ?? string.Empty;
 
         var siteCombo = new ComboBox
         {
@@ -234,7 +234,9 @@ public partial class MainWindow
 
         void LoadHost(string host)
         {
-            var norm = NormalizePermissionHost(host);
+            // The combo may hold an origin or free text; resolve to a
+            // canonical origin so display, lookup, and saving agree.
+            var norm = SitePermissionPolicy.OriginFromUserInput(host);
             if (string.IsNullOrWhiteSpace(norm))
             {
                 StatusBar.StatusText.Text = "Enter a site domain or URL";
@@ -266,7 +268,8 @@ public partial class MainWindow
 
         async Task SaveAsync()
         {
-            var host = NormalizePermissionHost(GetComboText(siteCombo)) ?? NormalizePermissionHost(selectedHost);
+            var host = SitePermissionPolicy.OriginFromUserInput(GetComboText(siteCombo))
+                ?? SitePermissionPolicy.OriginFromUserInput(selectedHost);
             if (string.IsNullOrWhiteSpace(host))
             {
                 StatusBar.StatusText.Text = "Choose or enter a site before saving permissions";
