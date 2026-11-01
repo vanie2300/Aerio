@@ -54,37 +54,6 @@ public partial class MainWindow
         public int Y;
     }
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-    private struct MemoryStatusEx
-    {
-        public uint Length;
-        public uint MemoryLoad;
-        public ulong TotalPhysical;
-        public ulong AvailablePhysical;
-        public ulong TotalPageFile;
-        public ulong AvailablePageFile;
-        public ulong TotalVirtual;
-        public ulong AvailableVirtual;
-        public ulong AvailableExtendedVirtual;
-    }
-
-    [DllImport("kernel32.dll", EntryPoint = "GlobalMemoryStatusEx", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx buffer);
-
-    private static bool IsUnderMemoryPressure()
-    {
-        var status = new MemoryStatusEx { Length = (uint)Marshal.SizeOf<MemoryStatusEx>() };
-        if (!GlobalMemoryStatusEx(ref status))
-        {
-            Log.Error(new Win32Exception(Marshal.GetLastWin32Error()), "Unable to read system memory status");
-            return false;
-        }
-
-        var pressureThreshold = Math.Max(1024UL * 1024 * 1024, status.TotalPhysical / 12);
-        return status.AvailablePhysical < pressureThreshold;
-    }
-
     private async Task RestoreSessionOrOpenStartAsync()
     {
         if (_isPrivate || _skipSessionPersistence)
@@ -440,80 +409,84 @@ public partial class MainWindow
         return tab.ScrollX >= 1.0 || tab.ScrollY >= 1.0;
     }
 
+    private TabSleepSnapshot CreateSleepSnapshot(BrowserTab tab) => new(
+        tab.Kind == BrowserTabKind.Web,
+        ReferenceEquals(tab, _activeTab),
+        tab.IsSleeping,
+        tab.IsPlayingAudio,
+        tab.IsAiOwned,
+        tab.IsAiOwned && tab.AiState != AiTaskState.Idle,
+        tab.SuspendedForSleep,
+        tab.SuspendedAtUtc,
+        tab.LastActiveUtc);
+
     private async void SleepTimer_Tick(object? sender, EventArgs e)
     {
         if (Dispatcher.HasShutdownStarted) { _sleepTimer.Stop(); return; }
         try
         {
-            var active = _activeTab;
             var sleepMinutes = _dataStore.Settings.TabSleepMinutes;
-            var underMemoryPressure = IsUnderMemoryPressure();
-            List<BrowserTab> snapshot;
+            var underMemoryPressure = SystemMemoryPressure.IsUnderPressure();
+            List<(BrowserTab Tab, TabSleepSnapshot Snapshot)> snapshot;
 
             await _tabOperationLock.WaitAsync();
             try
             {
-                snapshot = _tabs.Where(tab =>
-                    tab != active &&
-                    tab.Kind == BrowserTabKind.Web &&
-                    !tab.IsSleeping &&
-                    !tab.IsPlayingAudio &&
-                    !(tab.IsAiOwned && tab.AiState != AiTaskState.Idle))
-                    .OrderBy(tab => tab.LastActiveUtc)
+                snapshot = _tabs
+                    .Select(tab => (Tab: tab, Snapshot: CreateSleepSnapshot(tab)))
+                    .Where(pair => TabSleepPolicy.IsSleepCandidate(pair.Snapshot))
+                    .OrderBy(pair => pair.Tab.LastActiveUtc)
                     .ToList();
             }
             finally { _tabOperationLock.Release(); }
 
-            foreach (var tab in snapshot)
+            foreach (var (tab, _) in snapshot)
             {
                 try
                 {
-                    underMemoryPressure = IsUnderMemoryPressure();
-                    if (!underMemoryPressure &&
-                        DateTimeOffset.UtcNow - tab.LastActiveUtc < TimeSpan.FromMinutes(sleepMinutes))
+                    underMemoryPressure = SystemMemoryPressure.IsUnderPressure();
+                    var inactiveFor = DateTimeOffset.UtcNow - tab.LastActiveUtc;
+                    if (!TabSleepPolicy.ShouldSleep(inactiveFor, TimeSpan.FromMinutes(sleepMinutes), underMemoryPressure))
                     {
                         continue;
                     }
 
                     await HibernateTabAsync(tab);
 
-                    if (underMemoryPressure && IsUnderMemoryPressure() &&
+                    if (underMemoryPressure && SystemMemoryPressure.IsUnderPressure() &&
                         tab.SuspendedForSleep && tab.IsSleeping)
                     {
                         await DiscardSuspendedTabAsync(tab);
-                        underMemoryPressure = IsUnderMemoryPressure();
+                        underMemoryPressure = SystemMemoryPressure.IsUnderPressure();
                     }
                 }
                 catch (Exception ex) { Log.Error(ex, "Error occurred"); }
             }
 
-            List<BrowserTab> suspendedSnapshot;
+            List<(BrowserTab Tab, TabSleepSnapshot Snapshot)> suspendedSnapshot;
             await _tabOperationLock.WaitAsync();
             try
             {
                 suspendedSnapshot = _tabs
-                    .Where(tab => tab.IsSleeping && tab.SuspendedForSleep &&
-                                  tab != _activeTab)
-                    .OrderBy(tab => tab.SuspendedAtUtc)
+                    .Select(tab => (Tab: tab, Snapshot: CreateSleepSnapshot(tab)))
+                    .Where(pair => TabSleepPolicy.IsDiscardCandidate(pair.Snapshot))
+                    .OrderBy(pair => pair.Tab.SuspendedAtUtc)
                     .ToList();
             }
             finally { _tabOperationLock.Release(); }
 
-            foreach (var tab in suspendedSnapshot)
+            foreach (var (tab, _) in suspendedSnapshot)
             {
                 try
                 {
-                    underMemoryPressure = IsUnderMemoryPressure();
-                    var suspendedAt = tab.SuspendedAtUtc;
-                    var expired = suspendedAt is not null &&
-                                  DateTimeOffset.UtcNow - suspendedAt >= DiscardSuspendedAfter;
-                    if (!expired && !underMemoryPressure)
+                    underMemoryPressure = SystemMemoryPressure.IsUnderPressure();
+                    if (!TabSleepPolicy.ShouldDiscard(tab.SuspendedAtUtc, DateTimeOffset.UtcNow, underMemoryPressure))
                     {
                         continue;
                     }
 
                     await DiscardSuspendedTabAsync(tab);
-                    underMemoryPressure = IsUnderMemoryPressure();
+                    underMemoryPressure = SystemMemoryPressure.IsUnderPressure();
                 }
                 catch (Exception ex) { Log.Error(ex, "Error occurred"); }
             }
@@ -610,8 +583,6 @@ public partial class MainWindow
 
         UpdateMemoryStatus();
     }
-
-    private static readonly TimeSpan DiscardSuspendedAfter = TimeSpan.FromMinutes(30);
 
     private async Task DiscardSuspendedTabAsync(BrowserTab tab)
     {

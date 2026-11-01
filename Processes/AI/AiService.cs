@@ -469,9 +469,8 @@ public sealed class AiService : IDisposable
             bool gotMessage = false;
             const int MaxResponseChars = 1_000_000;
 
-            while (!reader.EndOfStream && !ct.IsCancellationRequested)
+            while (await reader.ReadLineAsync(ct) is { } line)
             {
-                var line = await reader.ReadLineAsync(ct);
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
                 try
@@ -719,9 +718,8 @@ public sealed class AiService : IDisposable
             bool gotChoices = false;
             const int MaxResponseChars = 1_000_000;
 
-            while (!reader.EndOfStream && !ct.IsCancellationRequested)
+            while (await reader.ReadLineAsync(ct) is { } line)
             {
-                var line = await reader.ReadLineAsync(ct);
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
                 // OpenAI streams SSE events: "data: {json}". Ignore keep-alive

@@ -22,7 +22,8 @@
       <StackPanel HorizontalAlignment="Center"
                   VerticalAlignment="Center"
                   Margin="0,0,0,36">
-        <Border Width="36"
+        <Border x:Name="LoadingSpinner"
+                Width="36"
                 Height="36"
                 CornerRadius="18"
                 BorderBrush="{DynamicResource Accent}"
@@ -31,16 +32,6 @@
                 HorizontalAlignment="Center"
                 Margin="0,0,0,12"
                 RenderTransformOrigin="0.5,0.5">
-          <Border.Triggers>
-            <EventTrigger RoutedEvent="Loaded">
-              <BeginStoryboard>
-                <Storyboard RepeatBehavior="Forever">
-                  <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
-                                   From="0" To="360" Duration="0:0:0.8" />
-                </Storyboard>
-              </BeginStoryboard>
-            </EventTrigger>
-          </Border.Triggers>
           <Border.RenderTransform>
             <RotateTransform />
           </Border.RenderTransform>

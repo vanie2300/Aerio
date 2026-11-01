@@ -556,15 +556,48 @@ public partial class MainWindow : Window
 
         if (File.Exists(bg))
         {
-            BrowserPane.StartOverlay.Background = new ImageBrush(new BitmapImage(new Uri(bg)))
-            {
-                Stretch = Stretch.UniformToFill,
-                Opacity = _dataStore.Settings.BackgroundOpacity
-            };
+            FireAndForget(LoadCustomBackgroundAsync(bg, _dataStore.Settings.BackgroundOpacity), "LoadCustomBackgroundAsync");
             return;
         }
 
         BrowserPane.StartOverlay.ClearValue(BackgroundProperty);
+    }
+
+    private async Task LoadCustomBackgroundAsync(string imagePath, double opacity)
+    {
+        try
+        {
+            // Decode off the UI thread; OnLoad releases the file handle right
+            // away and Freeze() makes the bitmap safe to use from any thread.
+            var bitmap = await Task.Run(() =>
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(imagePath);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                bmp.Freeze();
+                return bmp;
+            });
+
+            if (Dispatcher.HasShutdownStarted)
+            {
+                return;
+            }
+
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                BrowserPane.StartOverlay.Background = new ImageBrush(bitmap)
+                {
+                    Stretch = Stretch.UniformToFill,
+                    Opacity = opacity
+                };
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to load custom background {Image}", imagePath);
+        }
     }
 
     private async void PopOutTab_Click(object sender, RoutedEventArgs e)

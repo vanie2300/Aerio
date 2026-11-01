@@ -37,18 +37,26 @@ Aerio is a personal Windows browser built with C#, WPF, and Microsoft WebView2.
 TabloidBrowser/
 ├── TabloidBrowser.csproj
 ├── Run-TabloidBrowser.cmd
+├── installer/Aerio.iss                      — Inno Setup installer (online + offline modes)
+├── scripts/measure-browser.ps1              — Performance benchmark harness
+├── docs/                                    — Benchmark protocol, release checklist, user guides
 ├── UI/
 │   ├── App.xaml / App.xaml.cs              — Application entry
 │   ├── MainWindow.xaml / MainWindow.xaml.cs — Window chrome, tab strip, core logic
 │   ├── MainWindow/                          — Partial class files
 │   │   ├── MainWindow.AI.cs                — AI sidebar, agent loop, tool execution
-│   │   ├── MainWindow.Navigation.cs        — URL parsing, navigation, downloads
+│   │   ├── MainWindow.Navigation.cs        — URL parsing, navigation
 │   │   ├── MainWindow.Particles.cs         — Start page particle animation
 │   │   ├── MainWindow.Permissions.cs       — Site permission management
 │   │   ├── MainWindow.Tabs.cs              — Tab creation, switching, hibernation
-│   │   ├── MainWindow.Updates.cs           — GitHub release update checks
-│   │   ├── MainWindow.UI.cs                — Settings, menus, bookmarks, history UI
-│   │   └── MainWindow.WebView2.cs          — WebView2 initialization and events
+│   │   ├── MainWindow.WebView2.cs          — WebView2 initialization and events
+│   │   ├── MainWindow.UI.cs                — Chrome auto-hide, status, popups
+│   │   ├── MainWindow.TabActions.cs        — Tab keyboard/mouse actions, shortcuts
+│   │   ├── MainWindow.FindAndNav.cs        — Navigation buttons, find bar, print
+│   │   ├── MainWindow.Reader.cs            — Reader mode
+│   │   ├── MainWindow.Extensions.cs        — Extensions and uBlock management
+│   │   ├── MainWindow.Shutdown.cs          — Close/save/dispose flow
+│   │   └── MainWindow.Updates.cs           — GitHub release update checks
 │   ├── Controls/                            — Reusable UI widgets
 │   │   ├── AiSidebarControl.xaml(.cs)      — AI chat sidebar
 │   │   ├── BrowserPaneControl.xaml(.cs)    — Main browser content area
@@ -58,40 +66,35 @@ TabloidBrowser/
 │   │   ├── TitleBarControl.xaml(.cs)       — Custom title bar
 │   │   ├── AnimatedTabPanel.cs             — Tab strip panel animation
 │   │   └── Widgets.cs                      — Reusable UI components
-│   ├── NativePages/
-│   │   └── PageBuilders.cs                 — Native page builders (settings, bookmarks, etc.)
-│   ├── Styles/                             — XAML resource dictionaries
-│   │   ├── BrushesAndEffects.xaml
-│   │   ├── ButtonStyles.xaml
-│   │   ├── ComboBoxStyles.xaml
-│   │   ├── EasingFunctions.xaml
-│   │   ├── MenuStyles.xaml
-│   │   ├── ScrollBarStyles.xaml
-│   │   └── SharedResources.xaml
-│   └── Assets/                             — Static resources
-│       ├── Aerio.ico
-│       ├── Aerio.png
-│       ├── the app icon.ico
-│       ├── startpage.png
-│       └── Fonts/
+│   ├── NativePages/                         — Native page builders (MainWindow partials)
+│   │   ├── PageBuilders.cs                 — Bookmarks, history, downloads, shared helpers
+│   │   ├── PageBuilders.Settings.cs        — Settings page
+│   │   ├── PageBuilders.Hymns.cs           — Hymn presenter
+│   │   ├── PageBuilders.SiteData.cs        — Site permissions popup
+│   │   ├── PageBuilders.Extensions.cs      — Extensions page
+│   │   └── PageBuilders.AiManagement.cs    — AI management page
+│   ├── Styles/                              — XAML resource dictionaries
+│   └── Assets/                              — Static resources
 ├── Processes/
 │   ├── AI/                                  — AI assistant services
 │   │   ├── AiService.cs                    — AI provider API client
-│   │   ├── AiTools.cs                      — Tool calling models and parsers
 │   │   ├── AiToolDefinitions.cs            — Tool definitions and executor
+│   │   ├── AiTabManager.cs                 — AI-owned tab lifecycle
 │   │   ├── WebSearchService.cs             — Web search
+│   │   ├── ContentSanitizer.cs             — Prompt-injection defenses
 │   │   └── ChatMessage.cs                  — Chat message model
 │   ├── Models/                              — Data models
-│   │   ├── BrowserTab.cs                   — Tab model
-│   │   ├── BrowserTabKind.cs               — Tab type enum
-│   │   ├── Theme.cs                        — Theme definitions
-│   │   └── ExtensionInfo.cs                — Chrome extension model
+│   │   └── BrowserTab.cs                   — Tab model (plus kind, theme, extension models)
 │   └── Services/                            — Business logic / persistence
 │       ├── BrowserDataStore.cs             — Settings and browser data persistence
 │       ├── AddressSuggestionService.cs     — Address-bar suggestions
 │       ├── SearchKeywordService.cs         — Search keyword handling
 │       ├── AdBlockEngine.cs                — Ad/tracker blocking engine
-│       ├── MediaService.cs                 — Media detection service
+│       ├── TrackerPolicy.cs                — Tracker allow/blocklist matching
+│       ├── TabSleepPolicy.cs               — Tab hibernation decisions
+│       ├── SystemMemoryPressure.cs         — Memory pressure signal
+│       ├── NewTabShortcutPolicy.cs         — Shortcut validation
+│       ├── HymnService.cs                  — Hymn data
 │       └── AerioUpdateService.cs           — GitHub release update checks
 ├── TabloidBrowser.Tests/                     — xUnit test project
 └── .github/workflows/                        — Build and tagged-release automation
@@ -106,9 +109,9 @@ TabloidBrowser/
 ## Requirements
 
 - Windows 10 version 2004 (build 19041) or later, or Windows 11
-- Microsoft Edge WebView2 Runtime (installed automatically by the standalone setup installer)
+- Microsoft Edge WebView2 Runtime (preinstalled on Windows 10/11; installed automatically by the setup installer when missing)
 
-The .NET 8 SDK is additionally required to build or run from source. The published Windows app and installer include the .NET runtime. The portable ZIP still requires WebView2 Runtime to be installed separately; the setup executable bundles the offline Evergreen Runtime installer and installs it during setup.
+The .NET 10 SDK is additionally required to build or run from source. The published app comes in two flavors: the **online installer** ships the lightweight framework-dependent app and downloads the .NET 10 Desktop Runtime during setup only if it is missing; the **offline installer** bundles the full self-contained build plus the offline WebView2 Evergreen Runtime installer. The portable ZIP is self-contained and only requires the WebView2 Runtime to be present.
 
 ## Run
 
@@ -127,11 +130,11 @@ Or run from PowerShell:
 
 ## Releases
 
-Every push to `main` runs tests, builds the standalone Windows installer and portable app, and automatically creates a GitHub Release with a new patch version (for example, `v1.4.0` becomes `v1.4.1`). The release includes `Aerio-Setup-win-x64.exe` and `Aerio-win-x64.zip`. The version is incremented from the highest existing `vMAJOR.MINOR.PATCH` tag. Pushes to `dev` and pull requests targeting `main` build and upload Actions artifacts without publishing a release.
+Every push to `main` runs tests, builds both Windows installers and the portable app, and automatically creates a GitHub Release with a new patch version (for example, `v1.4.0` becomes `v1.4.1`). The release includes `Aerio-Setup-win-x64.exe` (online, framework-dependent), `Aerio-Setup-offline-win-x64.exe` (self-contained), and `Aerio-win-x64.zip`. The version is incremented from the highest existing `vMAJOR.MINOR.PATCH` tag. Pushes to `dev` and pull requests targeting `main` build and upload Actions artifacts without publishing a release.
 
-Pushing a version tag such as `v1.4.1` directly also runs the Windows release workflow. It runs the test suite, publishes the self-contained x64 build, creates the installer, uploads the complete app folder as the `Aerio-Windows-x64` workflow artifact, and attaches both the setup executable and portable ZIP to the GitHub release.
+Pushing a version tag such as `v1.4.1` directly also runs the Windows release workflow. It runs the test suite, publishes both the framework-dependent and self-contained x64 builds, creates both installers, uploads the self-contained app folder as the `Aerio-Windows-x64` workflow artifact, and attaches both installers and the portable ZIP to the GitHub release.
 
-To install, download and run `Aerio-Setup-win-x64.exe`. It installs Aerio and the bundled Microsoft Edge WebView2 Evergreen Runtime, creates a Start Menu shortcut, and offers an optional desktop shortcut. Administrator permission is required to install the runtime. Alternatively, download and extract `Aerio-win-x64.zip` and run `Aerio.exe` from the extracted folder; the portable ZIP requires WebView2 Runtime to be installed separately.
+To install, download and run `Aerio-Setup-win-x64.exe`. It installs Aerio, checks for the WebView2 Evergreen Runtime and the .NET 10 Desktop Runtime, and downloads either one automatically only if missing. Administrator permission is required to install system components. For machines without internet during setup, `Aerio-Setup-offline-win-x64.exe` bundles everything. Alternatively, download and extract `Aerio-win-x64.zip` and run `Aerio.exe` from the extracted folder; the portable ZIP requires the WebView2 Runtime to be installed separately.
 
 In Aerio, open **Settings → Advanced → Updates → Check for updates** to check for a newer release. If one is available, choose **Download installer** to download and optionally run the Windows installer without opening GitHub.
 

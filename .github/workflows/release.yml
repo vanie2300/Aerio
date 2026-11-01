@@ -1,4 +1,4 @@
-name: Release
+﻿name: Release
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Restore test project
         run: dotnet restore TabloidBrowser.Tests\TabloidBrowser.Tests.csproj
@@ -27,16 +27,34 @@ jobs:
       - name: Run tests
         run: dotnet test TabloidBrowser.Tests\TabloidBrowser.Tests.csproj --no-restore --configuration Release --verbosity normal
 
-      - name: Publish self-contained Windows app
+      - name: Resolve release version
         shell: pwsh
         run: |
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          "RELEASE_VERSION=$version" | Add-Content $env:GITHUB_ENV
+
+      - name: Publish framework-dependent Windows app (online installer payload)
+        shell: pwsh
+        run: |
+          dotnet publish TabloidBrowser.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained false `
+            "-p:Version=$env:RELEASE_VERSION" `
+            --output release\Aerio-win-x64
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Publish self-contained Windows app (offline installer payload)
+        shell: pwsh
+        run: |
           dotnet publish TabloidBrowser.csproj `
             --configuration Release `
             --runtime win-x64 `
             --self-contained true `
-            "-p:Version=$version" `
-            --output release\Aerio-win-x64
+            "-p:Version=$env:RELEASE_VERSION" `
+            --output release\Aerio-win-x64-offline
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
           }
@@ -45,23 +63,19 @@ jobs:
         shell: pwsh
         run: |
           $requiredFiles = @(
-            "release\Aerio-win-x64\Aerio.exe",
-            "release\Aerio-win-x64\readability.min.js",
-            "release\Aerio-win-x64\Assets\the app icon.ico"
+            "Aerio.exe",
+            "readability.min.js",
+            "Assets\the app icon.ico"
           )
-          foreach ($file in $requiredFiles) {
-            if (-not (Test-Path $file)) {
-              Write-Error "Required release file is missing: $file"
-              exit 1
+          foreach ($dir in @("release\Aerio-win-x64", "release\Aerio-win-x64-offline")) {
+            foreach ($file in $requiredFiles) {
+              $path = Join-Path $dir $file
+              if (-not (Test-Path $path)) {
+                Write-Error "Required release file is missing: $path"
+                exit 1
+              }
             }
           }
-
-      - name: Package portable ZIP
-        shell: pwsh
-        run: |
-          Compress-Archive `
-            -Path release\Aerio-win-x64\* `
-            -DestinationPath Aerio-win-x64.zip
 
       - name: Download offline WebView2 Runtime installer
         shell: pwsh
@@ -79,13 +93,9 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup --no-progress --yes
 
-      - name: Build Windows installer
+      - name: Build Windows installers
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          $sourceDir = (Resolve-Path "release\Aerio-win-x64").Path
-          $runtimeInstaller = (Resolve-Path "release\MicrosoftEdgeWebView2RuntimeInstallerX64.exe").Path
-          $outputDir = (Resolve-Path "release").Path
           $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $compiler)) {
             $compiler = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
@@ -94,20 +104,66 @@ jobs:
             Write-Error "Inno Setup compiler (ISCC.exe) was not found."
             exit 1
           }
-          & $compiler "/DAppVersion=$version" "/DAppSourceDir=$sourceDir" "/DWebView2InstallerPath=$runtimeInstaller" "/O$outputDir" installer\Aerio.iss
+          $outputDir = (Resolve-Path "release").Path
+          $onlineSource = (Resolve-Path "release\Aerio-win-x64").Path
+          $offlineSource = (Resolve-Path "release\Aerio-win-x64-offline").Path
+          $runtimeInstaller = (Resolve-Path "release\MicrosoftEdgeWebView2RuntimeInstallerX64.exe").Path
+          & $compiler "/DAppVersion=$env:RELEASE_VERSION" "/DAppSourceDir=$onlineSource" "/O$outputDir" installer\Aerio.iss
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
           }
-          if (-not (Test-Path "release\Aerio-Setup-win-x64.exe")) {
-            Write-Error "Windows installer was not created."
-            exit 1
+          & $compiler "/DAppVersion=$env:RELEASE_VERSION" "/DAppSourceDir=$offlineSource" "/DWebView2InstallerPath=$runtimeInstaller" "/DOfflineInstaller" "/O$outputDir" installer\Aerio.iss
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+          foreach ($installer in @(
+              "release\Aerio-Setup-win-x64.exe",
+              "release\Aerio-Setup-offline-win-x64.exe")) {
+            if (-not (Test-Path $installer)) {
+              Write-Error "Windows installer was not created: $installer"
+              exit 1
+            }
+          }
+
+      - name: Package portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path release\Aerio-win-x64-offline\* `
+            -DestinationPath Aerio-win-x64.zip
+
+      - name: Report artifact sizes
+        shell: pwsh
+        run: |
+          function Get-SizeMB($path) {
+            if (-not (Test-Path $path)) { return "missing" }
+            $item = Get-Item $path
+            if ($item.PSIsContainer) {
+              return [math]::Round((Get-ChildItem -Recurse $item.FullName -File | Measure-Object Length -Sum).Sum / 1MB, 1)
+            }
+            return [math]::Round($item.Length / 1MB, 1)
+          }
+          $report = [ordered]@{
+            "Framework-dependent publish (online payload)" = "$(Get-SizeMB 'release\Aerio-win-x64') MB"
+            "Self-contained publish (offline payload)" = "$(Get-SizeMB 'release\Aerio-win-x64-offline') MB"
+            "Online installer" = "$(Get-SizeMB 'release\Aerio-Setup-win-x64.exe') MB"
+            "Offline installer" = "$(Get-SizeMB 'release\Aerio-Setup-offline-win-x64.exe') MB"
+            "Portable ZIP" = "$(Get-SizeMB 'Aerio-win-x64.zip') MB"
+          }
+          $table = @("| Artifact | Size |", "|---|---|")
+          foreach ($key in $report.Keys) {
+            $table += "| $key | $($report[$key]) |"
+          }
+          $table | ForEach-Object { Write-Host $_ }
+          if ($env:GITHUB_STEP_SUMMARY) {
+            $table | Add-Content -Path $env:GITHUB_STEP_SUMMARY
           }
 
       - name: Upload Windows app artifact
         uses: actions/upload-artifact@v4
         with:
           name: Aerio-Windows-x64
-          path: release\Aerio-win-x64\*
+          path: release\Aerio-win-x64-offline\*
           if-no-files-found: error
           retention-days: 30
 
@@ -116,5 +172,6 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            Aerio-win-x64.zip
             release/Aerio-Setup-win-x64.exe
+            release/Aerio-Setup-offline-win-x64.exe
+            Aerio-win-x64.zip

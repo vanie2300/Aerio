@@ -103,11 +103,14 @@ public sealed class BrowserDataStore : IDisposable
 
     private void WriteSession(BrowserSession session)
     {
-        var tmp = _sessionPath + ".tmp";
+        // A unique temp name per write: several windows share this data folder,
+        // and a fixed ".tmp" name made concurrent saves collide with
+        // "file is being used by another process" (observed in the logs).
+        var tmp = $"{_sessionPath}.{Guid.NewGuid():N}.tmp";
         try
         {
             File.WriteAllText(tmp, JsonSerializer.Serialize(session, JsonOptions));
-            File.Move(tmp, _sessionPath, overwrite: true);
+            MoveWithRetry(tmp, _sessionPath);
         }
         catch
         {
@@ -256,7 +259,6 @@ public sealed class BrowserDataStore : IDisposable
         _lock.EnterWriteLock();
         try
         {
-            var snapshot = new List<HistoryItem>(HistoryInternal);
             if (HistoryInternal.FirstOrDefault() is { } latest &&
                 string.Equals(latest.Url, url, StringComparison.OrdinalIgnoreCase))
             {
@@ -276,16 +278,91 @@ public sealed class BrowserDataStore : IDisposable
                 HistoryInternal.RemoveRange(500, HistoryInternal.Count - 500);
             }
 
-            if (SaveHistory())
+            // Hot path: this runs on the UI thread for every completed page
+            // navigation. Persist on a short debounce instead of rewriting the
+            // whole file per navigation; durability is preserved by the flush
+            // on Dispose and by the immediate saves in Clear/Remove operations.
+            ScheduleHistorySave();
+            return true;
+        }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    private static readonly TimeSpan HistorySaveDebounce = TimeSpan.FromSeconds(2);
+    private readonly object _historyFlushGate = new();
+    private System.Threading.Timer? _historySaveTimer;
+    private bool _historySavePending;
+
+    private void ScheduleHistorySave()
+    {
+        _historySavePending = true;
+        if (_historySaveTimer is null)
+        {
+            _historySaveTimer = new System.Threading.Timer(
+                _ => FlushPendingHistorySave(), null, HistorySaveDebounce, Timeout.InfiniteTimeSpan);
+        }
+        else
+        {
+            _historySaveTimer.Change(HistorySaveDebounce, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private void FlushPendingHistorySave()
+    {
+        // Serialize flushes so a timer flush and a dispose flush can't write
+        // out of order (the later snapshot must win on disk).
+        lock (_historyFlushGate)
+        {
+            if (!_historySavePending)
+            {
+                return;
+            }
+            _historySavePending = false;
+
+            List<HistoryItem> snapshot;
+            _lock.EnterReadLock();
+            try
+            {
+                snapshot = [.. HistoryInternal];
+            }
+            finally { _lock.ExitReadLock(); }
+
+            if (!Save(_historyPath, snapshot))
+            {
+                // Keep the new data in memory; the next add reschedules a flush.
+                _historySavePending = true;
+            }
+        }
+    }
+
+    /// <summary>Persists any debounced writes immediately (used on Dispose and by tests).</summary>
+    public bool FlushPendingSaves()
+    {
+        lock (_historyFlushGate)
+        {
+            var pending = _historySavePending;
+            _historySavePending = false;
+            if (!pending)
             {
                 return true;
             }
 
-            HistoryInternal.Clear();
-            HistoryInternal.AddRange(snapshot);
-            return false;
+            List<HistoryItem> snapshot;
+            _lock.EnterReadLock();
+            try
+            {
+                snapshot = [.. HistoryInternal];
+            }
+            finally { _lock.ExitReadLock(); }
+
+            if (!Save(_historyPath, snapshot))
+            {
+                _historySavePending = true;
+                return false;
+            }
+
+            return true;
         }
-        finally { _lock.ExitWriteLock(); }
     }
 
     public bool ClearHistory()
@@ -402,7 +479,7 @@ public sealed class BrowserDataStore : IDisposable
 
     private bool RestoreSessionSnapshot(bool existed, string? content)
     {
-        var temporaryPath = _sessionPath + ".restore.tmp";
+        var temporaryPath = $"{_sessionPath}.{Guid.NewGuid():N}.restore.tmp";
         try
         {
             if (!existed)
@@ -486,16 +563,15 @@ public sealed class BrowserDataStore : IDisposable
                 AiApiKey = EncryptApiKeyForDisk("", settings.AiApiKey),
                 AiApiKeys = settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => EncryptApiKeyForDisk(kv.Key, kv.Value))
             };
-            var tmp = _settingsPath + ".tmp";
+            var tmp = $"{_settingsPath}.{Guid.NewGuid():N}.tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(forDisk, JsonOptions));
-            File.Move(tmp, _settingsPath, overwrite: true);
+            MoveWithRetry(tmp, _settingsPath);
             Settings = settings;
             return true;
         }
         catch (Exception ex)
         {
             Log.Error(ex, "SaveSettings failed");
-            try { File.Delete(_settingsPath + ".tmp"); } catch (Exception delEx) { Log.Debug(delEx, "Failed to delete settings temp file"); }
             return false;
         }
         finally { _lock.ExitWriteLock(); }
@@ -561,21 +637,44 @@ public sealed class BrowserDataStore : IDisposable
 
     private static bool Save<T>(string path, List<T> items)
     {
+        // A unique temp name per write: several windows share this data folder,
+        // and a fixed ".tmp" name made concurrent saves collide.
+        var tmp = $"{path}.{Guid.NewGuid():N}.tmp";
         try
         {
             var dir = Path.GetDirectoryName(path);
             if (dir is not null) Directory.CreateDirectory(dir);
-            var tmp = path + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(items, JsonOptions));
-            File.Move(tmp, path, overwrite: true);
+            MoveWithRetry(tmp, path);
             return true;
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Save failed for {Path}", path);
-            try { File.Delete(path + ".tmp"); }
+            try { File.Delete(tmp); }
             catch (Exception cleanupException) { Log.Debug(cleanupException, "Failed to clean up temporary data file for {Path}", path); }
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Atomic replace with a short retry: the destination can be transiently
+    /// locked by antivirus/indexing or another window's replace on some file
+    /// systems. Two quick retries cover the observed 100 ms-scale contention.
+    /// </summary>
+    private static void MoveWithRetry(string tmp, string path)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                File.Move(tmp, path, overwrite: true);
+                return;
+            }
+            catch (IOException) when (attempt < 2)
+            {
+                Thread.Sleep(40);
+            }
         }
     }
 
@@ -796,6 +895,16 @@ public sealed class BrowserDataStore : IDisposable
 
     public void Dispose()
     {
+        _historySaveTimer?.Dispose();
+        _historySaveTimer = null;
+        try
+        {
+            FlushPendingSaves();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Failed to flush pending history save on dispose");
+        }
         _lock.Dispose();
     }
 }

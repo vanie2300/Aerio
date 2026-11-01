@@ -199,18 +199,35 @@ public class BrowserDataStoreTests : IDisposable
     }
 
     [Fact]
-    public void BrowserDataStore_FailedHistoryWrite_RestoresInMemoryDataAndCleansTemporaryFile()
+    public void BrowserDataStore_HistoryAdd_IsPersistedByFlush()
+    {
+        using (var store = new BrowserDataStore(_tempDir))
+        {
+            Assert.True(store.AddHistory("Example", "https://example.com"));
+            // The debounce means the file may not exist yet — the flush persists it.
+            Assert.True(store.FlushPendingSaves());
+        }
+
+        using var reloadedStore = new BrowserDataStore(_tempDir);
+        Assert.Single(reloadedStore.History);
+        Assert.Equal("https://example.com", reloadedStore.History[0].Url);
+    }
+
+    [Fact]
+    public void BrowserDataStore_FailedHistoryWrite_KeepsMemoryAndReportsFlushFailure()
     {
         using var store = new BrowserDataStore(_tempDir);
         Assert.True(store.AddHistory("Existing", "https://existing.example"));
-        var existingItem = Assert.Single(store.History);
         File.Delete(Path.Combine(_tempDir, "history.json"));
         Directory.CreateDirectory(Path.Combine(_tempDir, "history.json"));
 
-        Assert.False(store.AddHistory("New", "https://new.example"));
-
-        Assert.Equal(new[] { existingItem }, store.History);
-        Assert.False(File.Exists(Path.Combine(_tempDir, "history.json.tmp")));
+        // Hot-path history adds are recorded in memory and persisted on a
+        // debounce; a broken destination surfaces as a failed flush instead of
+        // silently discarding the entry.
+        Assert.True(store.AddHistory("New", "https://new.example"));
+        Assert.False(store.FlushPendingSaves());
+        Assert.Equal(2, store.History.Count);
+        Assert.Empty(Directory.GetFiles(_tempDir, "*.tmp"));
     }
 
     [Fact]
@@ -282,5 +299,99 @@ public class BrowserDataStoreTests : IDisposable
         Assert.Equal(history, store.History);
         Assert.Equal(downloads, store.Downloads);
         Assert.Single(store.LoadSession().Tabs);
+    }
+
+    [Fact]
+    public void BrowserDataStore_SessionRoundtrip_PersistsTabsScrollAndActiveIndex()
+    {
+        var session = new BrowserSession(
+        [
+            new SessionTab("First", "https://first.example", 12.5, 340),
+            new SessionTab("Second", "https://second.example", 0, 99)
+        ], 1);
+
+        using (var store = new BrowserDataStore(_tempDir))
+        {
+            Assert.True(store.SaveSession(session));
+        }
+
+        using var reloadedStore = new BrowserDataStore(_tempDir);
+        var restored = reloadedStore.LoadSession();
+        Assert.Equal(2, restored.Tabs.Count);
+        Assert.Equal(1, restored.ActiveIndex);
+        Assert.Equal("Second", restored.Tabs[1].Title);
+        Assert.Equal("https://second.example", restored.Tabs[1].Url);
+        Assert.Equal(340, restored.Tabs[0].ScrollY);
+    }
+
+    [Fact]
+    public void BrowserDataStore_CorruptSessionFile_ReturnsEmptySession()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "session.json"), "{ not valid json !!!");
+
+        using var store = new BrowserDataStore(_tempDir);
+        var session = store.LoadSession();
+
+        Assert.Empty(session.Tabs);
+        Assert.Equal(0, session.ActiveIndex);
+
+        // The store must still be able to overwrite the corrupt file.
+        Assert.True(store.SaveSession(new BrowserSession(
+            [new SessionTab("Recovered", "https://example.com")], 0)));
+        Assert.Single(store.LoadSession().Tabs);
+    }
+
+    [Fact]
+    public void BrowserDataStore_CorruptSettingsFile_FallsBackToDefaults()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "settings.json"), "definitely not json");
+
+        using var store = new BrowserDataStore(_tempDir);
+        Assert.Equal(BrowserSettings.Default.SearchEngine, store.Settings.SearchEngine);
+        Assert.Equal(BrowserSettings.Default.Theme, store.Settings.Theme);
+
+        // And a subsequent save must replace the corrupt file cleanly.
+        Assert.True(store.SaveSettings(BrowserSettings.Default with { Accent = "Green" }));
+        using var reloadedStore = new BrowserDataStore(_tempDir);
+        Assert.Equal("Green", reloadedStore.Settings.Accent);
+    }
+
+    [Fact]
+    public void BrowserDataStore_ConcurrentSessionSaves_AllSucceed()
+    {
+        // Regression: a fixed ".tmp" name made saves from concurrent windows
+        // collide with "file is being used by another process".
+        using var store = new BrowserDataStore(_tempDir);
+        var results = Enumerable.Range(0, 12)
+            .AsParallel()
+            .Select(i =>
+            {
+                var session = new BrowserSession(
+                    [new SessionTab($"Tab {i}", $"https://example.com/{i}")], 0);
+                return store.SaveSession(session);
+            })
+            .ToArray();
+
+        Assert.All(results, Assert.True);
+        Assert.DoesNotContain(Directory.GetFiles(_tempDir, "*.tmp"), f => File.Exists(f));
+        Assert.Single(store.LoadSession().Tabs);
+    }
+
+    [Fact]
+    public void BrowserDataStore_HistoryDebounceBurst_CoalescesToPersistedState()
+    {
+        using (var store = new BrowserDataStore(_tempDir))
+        {
+            for (var i = 0; i < 20; i++)
+            {
+                Assert.True(store.AddHistory($"Page {i}", $"https://example.com/{i}"));
+            }
+            Assert.Equal(20, store.History.Count);
+            Assert.True(store.FlushPendingSaves());
+            Assert.True(store.FlushPendingSaves()); // idempotent
+        }
+
+        using var reloadedStore = new BrowserDataStore(_tempDir);
+        Assert.Equal(20, reloadedStore.History.Count);
     }
 }

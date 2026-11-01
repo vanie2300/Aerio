@@ -898,7 +898,11 @@ public partial class MainWindow
                             await WaitForContentAsync(tab);
                         }
                     }
-                    return await GetPageContentAsync(offset, limit);
+                    // Tool results are page-controlled text entering the model
+                    // conversation — apply the same prompt-injection defenses
+                    // as the chat page-context path.
+                    var content = await GetPageContentAsync(offset, limit);
+                    return content is null ? null : ContentSanitizer.Sanitize(content);
                 },
                 async (url, ct) =>
                 {
@@ -912,7 +916,8 @@ public partial class MainWindow
                             await WaitForContentAsync(tab);
                         }
                     }
-                    return await GetPageMetadataAsync();
+                    var metadata = await GetPageMetadataAsync();
+                    return metadata is null ? null : ContentSanitizer.Sanitize(metadata);
                 },
                 async (url, ct) =>
                 {
@@ -926,7 +931,8 @@ public partial class MainWindow
                             await WaitForContentAsync(tab);
                         }
                     }
-                    return await GetPageLinksAsync();
+                    var links = await GetPageLinksAsync();
+                    return links is null ? null : ContentSanitizer.Sanitize(links);
                 },
                 async (url, title, ct) =>
                 {
@@ -1852,6 +1858,7 @@ public partial class MainWindow
     {
         _streamingContent = new StringBuilder();
         _streamingPlaceholderActive = false;
+        _lastStreamingFlushTicks = 0;
 
         var bubble = new Border
         {
@@ -1912,6 +1919,8 @@ public partial class MainWindow
         ScrollAiMessagesToBottom();
     }
 
+    private long _lastStreamingFlushTicks;
+
     private void UpdateStreamingBubble(string token)
     {
         if (_streamingPlaceholderActive)
@@ -1920,6 +1929,17 @@ public partial class MainWindow
             _streamingPlaceholderActive = false;
         }
         _streamingContent?.Append(token);
+
+        // Token deltas can arrive faster than the UI needs to repaint; coalesce
+        // the full-string rebuild and scroll to ~20 updates per second. The
+        // final bubble render in FinalizeStreamingBubble always shows the
+        // complete text.
+        var now = Environment.TickCount64;
+        if (now - _lastStreamingFlushTicks < 50)
+        {
+            return;
+        }
+        _lastStreamingFlushTicks = now;
 
         if (_streamingBubble?.Child is StackPanel innerStack &&
             innerStack.Children.Count >= 2 &&

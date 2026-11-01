@@ -895,7 +895,11 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
         {
             try
             {
-                await wv.EnsureCoreWebView2Async(null);
+                // Reuse the window's shared WebView2 environment so the
+                // carousel joins the existing browser process tree instead of
+                // starting a separate one (falls back to the default
+                // environment if the shared one isn't available yet).
+                await wv.EnsureCoreWebView2Async(_environment);
                 var assetsPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
                 wv.CoreWebView2.SetVirtualHostNameToFolderMapping("assets.local", assetsPath,
                     Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.DenyCors);

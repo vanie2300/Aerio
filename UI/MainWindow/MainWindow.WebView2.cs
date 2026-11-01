@@ -143,6 +143,7 @@ public partial class MainWindow
         BrowserPane.InternalPageHost.Visibility = Visibility.Collapsed;
         BrowserPane.WebViewHost.Visibility = Visibility.Hidden;
         BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
+        BrowserPane.SetLoadingSpinnerActive(false);
 
         var result = MessageBox.Show(
             $"Aerio could not start.\n\n{exception.Message}\n\nOpen the WebView2 download page?",
@@ -375,14 +376,14 @@ public partial class MainWindow
         }
         
         var settings = _dataStore.Settings;
-        var host = GetHost(tab.Address);
-        var reqHost = GetHost(e.Request.Uri);
+        var host = TrackerPolicy.GetHost(tab.Address);
+        var reqHost = TrackerPolicy.GetHost(e.Request.Uri);
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(reqHost))
         {
             return;
         }
 
-        if (settings.TrackerAllowlist.Count > 0 && settings.TrackerAllowlist.Any(domain => DomainMatches(host, domain)))
+        if (settings.TrackerAllowlist.Count > 0 && settings.TrackerAllowlist.Any(domain => TrackerPolicy.DomainMatches(host, domain)))
         {
             return;
         }
@@ -399,7 +400,7 @@ public partial class MainWindow
         }
 
         var blocklist = settings.TrackerBlocklist;
-        if (blocklist.Count == 0 || !blocklist.Any(domain => DomainMatches(reqHost, domain)))
+        if (blocklist.Count == 0 || !blocklist.Any(domain => TrackerPolicy.DomainMatches(reqHost, domain)))
         {
             return;
         }
@@ -701,44 +702,6 @@ public partial class MainWindow
         if (Dispatcher.CheckAccess()) handler();
         else Dispatcher.Invoke(handler);
     }
-    private static bool IsTrackerAllowedForSite(BrowserTab tab, List<string> allowlist)
-    {
-        var host = GetHost(tab.Address);
-        return !string.IsNullOrWhiteSpace(host) &&
-            allowlist.Any(domain => DomainMatches(host, domain));
-    }
-
-    private static bool IsTrackerRequest(string uri, List<string> blocklist)
-    {
-        var host = GetHost(uri);
-        return !string.IsNullOrWhiteSpace(host) &&
-            blocklist.Any(domain => DomainMatches(host, domain));
-    }
-
-    private static string? GetHost(string? uri)
-    {
-        return Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ? parsed.Host : null;
-    }
-
-    private static bool DomainMatches(string host, string domain)
-    {
-        domain = domain.TrimStart('.');
-        if (string.Equals(host, domain, StringComparison.OrdinalIgnoreCase))
-            return true;
-        if (host.EndsWith($".{domain}", StringComparison.OrdinalIgnoreCase))
-            return true;
-        if (domain.Contains('*'))
-        {
-            var pattern = "^" + Regex.Escape(domain).Replace("\\*", ".*") + "$";
-            return Regex.IsMatch(host, pattern, RegexOptions.IgnoreCase);
-        }
-        return false;
-    }
-
-    private static readonly HashSet<string> DangerousExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".exe", ".msi", ".bat", ".cmd", ".ps1", ".vbs", ".scr", ".jar", ".msix", ".appx"
-    };
 
     private void WebView_DownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs args)
     {
@@ -747,7 +710,7 @@ public partial class MainWindow
             var url = args.DownloadOperation.Uri;
             var ext = Path.GetExtension(new Uri(url).LocalPath);
 
-        if (DangerousExtensions.Contains(ext))
+        if (TrackerPolicy.IsDangerousDownloadExtension(ext))
         {
             var fileName = Path.GetFileName(new Uri(url).LocalPath);
             var result = MessageBox.Show(
@@ -865,8 +828,11 @@ public partial class MainWindow
             if (operation.State == CoreWebView2DownloadState.Interrupted)
             {
                 // Cancelled/failed downloads: detach the handler so it doesn't
-                // leak for the process lifetime.
+                // leak for the process lifetime, and tell the user what happened
+                // instead of failing silently.
                 operation.StateChanged -= OnDownloadCompleted;
+                Dispatcher.BeginInvoke(() =>
+                    StatusBar.StatusText.Text = $"Download interrupted: {fileName}");
                 return;
             }
 

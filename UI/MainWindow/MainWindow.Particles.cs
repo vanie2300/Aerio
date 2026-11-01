@@ -59,6 +59,8 @@ public partial class MainWindow
     private bool _bgInitialized;
     private double _bgTime;
     private int _bgFrame;
+    private double _bgInitWidth;
+    private double _bgInitHeight;
 
     private void InitBgParticles()
     {
@@ -128,6 +130,8 @@ public partial class MainWindow
         _bgConnections = connections;
         _bgGlowConnections = glowConnections;
         _bgTime = 0;
+        _bgInitWidth = w;
+        _bgInitHeight = h;
         _bgInitialized = true;
 
         foreach (var (_, _, line) in _bgGlowConnections)
@@ -217,24 +221,36 @@ public partial class MainWindow
                         var alpha = (1 - dist / connectDist);
                         var lineAlpha = alpha * alpha * 0.5;
 
+                        if (line.Visibility != Visibility.Visible)
+                        {
+                            line.Visibility = Visibility.Visible;
+                        }
                         line.X1 = particles[a].X;
                         line.Y1 = particles[a].Y;
                         line.X2 = particles[b].X;
                         line.Y2 = particles[b].Y;
                         line.Opacity = lineAlpha * baseOp * 2;
-                        line.Visibility = Visibility.Visible;
 
+                        if (glowLine.Visibility != Visibility.Visible)
+                        {
+                            glowLine.Visibility = Visibility.Visible;
+                        }
                         glowLine.X1 = particles[a].X;
                         glowLine.Y1 = particles[a].Y;
                         glowLine.X2 = particles[b].X;
                         glowLine.Y2 = particles[b].Y;
                         glowLine.Opacity = lineAlpha * 0.3;
-                        glowLine.Visibility = Visibility.Visible;
                     }
                     else
                     {
-                        line.Visibility = Visibility.Collapsed;
-                        glowLine.Visibility = Visibility.Collapsed;
+                        if (line.Visibility != Visibility.Collapsed)
+                        {
+                            line.Visibility = Visibility.Collapsed;
+                        }
+                        if (glowLine.Visibility != Visibility.Collapsed)
+                        {
+                            glowLine.Visibility = Visibility.Collapsed;
+                        }
                     }
 
                     connectionIdx++;
@@ -250,6 +266,31 @@ public partial class MainWindow
 
     private void StartBg_SizeChanged(object? sender, SizeChangedEventArgs e)
     {
+        // Avoid rebuilding the whole particle visual tree for small resize
+        // deltas (e.g. during a continuous drag-resize); particle positions
+        // already adapt live to the current canvas size each frame.
+        if (_bgInitialized &&
+            Math.Abs(e.NewSize.Width - _bgInitWidth) < 12 &&
+            Math.Abs(e.NewSize.Height - _bgInitHeight) < 12)
+        {
+            return;
+        }
         _bgInitialized = false;
+    }
+
+    private bool IsStartBgAnimationApplicable()
+    {
+        if (WindowState == WindowState.Minimized || !IsVisible)
+        {
+            return false;
+        }
+
+        if (!string.Equals(_dataStore.Settings.Background, "Default", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return _activeTab is { Kind: BrowserTabKind.Start } &&
+               BrowserPane.StartOverlay.Visibility == Visibility.Visible;
     }
 }

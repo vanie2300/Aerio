@@ -24,6 +24,39 @@ public partial class BrowserPaneControl : UserControl
 
     public BrowserPaneControl() => InitializeComponent();
 
+    private bool _loadingSpinnerActive;
+
+    /// <summary>
+    /// Starts/stops the infinite loading spinner rotation. The animation clock
+    /// is only running while the loading overlay is visible so it doesn't burn
+    /// frames for the process lifetime.
+    /// </summary>
+    public void SetLoadingSpinnerActive(bool active)
+    {
+        if (active == _loadingSpinnerActive)
+        {
+            return;
+        }
+
+        _loadingSpinnerActive = active;
+        if (LoadingSpinner.RenderTransform is RotateTransform transform)
+        {
+            if (active)
+            {
+                var spin = new DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(800))
+                {
+                    RepeatBehavior = RepeatBehavior.Forever
+                };
+                transform.BeginAnimation(RotateTransform.AngleProperty, spin);
+            }
+            else
+            {
+                transform.BeginAnimation(RotateTransform.AngleProperty, null);
+                transform.Angle = 0;
+            }
+        }
+    }
+
     public event MouseButtonEventHandler? StartSearchSurfaceMouseDown;
     public event KeyEventHandler? StartSearchKeyDown;
     public event RoutedEventHandler? StartSearchGo;
@@ -45,15 +78,7 @@ public partial class BrowserPaneControl : UserControl
 
     public void SetNewTabShortcuts(IEnumerable<NewTabShortcut>? shortcuts)
         {
-            _shortcuts = (shortcuts ?? BrowserSettings.DefaultNewTabShortcuts)
-                .Select(shortcut => shortcut with
-                {
-                    Name = shortcut.Name?.Trim() ?? "",
-                    Url = shortcut.Url?.Trim() ?? ""
-                })
-                .Where(shortcut => !string.IsNullOrWhiteSpace(shortcut.Name) &&
-                                   IsValidShortcutUrl(shortcut.Url))
-                .ToList();
+            _shortcuts = NewTabShortcutPolicy.Normalize(shortcuts);
             RenderNewTabShortcuts();
         }
 
@@ -143,35 +168,6 @@ public partial class BrowserPaneControl : UserControl
                 ((StackPanel)NewTabShortcutsPanel.Children[^1]).Children.Add(tile);
                 _ = LoadShortcutIconAsync(icon, fallback, shortcut.Url, shortcut.Name);
             }
-        }
-
-        private static bool IsValidShortcutUrl(string value) =>
-            Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
-            uri.Scheme is ("http" or "https") &&
-            !string.IsNullOrWhiteSpace(uri.Host);
-
-        private static bool TryNormalizeShortcutUrl(string value, out string normalized)
-        {
-            normalized = value.Trim();
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return false;
-            }
-
-            if (!normalized.Contains("://", StringComparison.Ordinal))
-            {
-                normalized = "https://" + normalized;
-            }
-
-            if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri) ||
-                uri.Scheme is not ("http" or "https") ||
-                string.IsNullOrWhiteSpace(uri.Host))
-            {
-                return false;
-            }
-
-            normalized = uri.ToString();
-            return true;
         }
 
         private void CustomizeShortcuts_Click(object sender, RoutedEventArgs e)
@@ -309,7 +305,7 @@ public partial class BrowserPaneControl : UserControl
         {
             var name = ShortcutNameInput.Text.Trim();
             if (string.IsNullOrWhiteSpace(name) ||
-                !TryNormalizeShortcutUrl(ShortcutUrlInput.Text, out var url))
+                !NewTabShortcutPolicy.TryNormalizeShortcutUrl(ShortcutUrlInput.Text, out var url))
             {
                 ShortcutManagerStatus.Text = "Enter a shortcut name and a valid website URL.";
                 return;
@@ -337,7 +333,7 @@ public partial class BrowserPaneControl : UserControl
             foreach (var shortcut in _shortcutDraft)
             {
                 if (string.IsNullOrWhiteSpace(shortcut.Name) ||
-                    !TryNormalizeShortcutUrl(shortcut.Url, out var url))
+                    !NewTabShortcutPolicy.TryNormalizeShortcutUrl(shortcut.Url, out var url))
                 {
                     ShortcutManagerStatus.Text = "Each shortcut needs a name and a valid website URL.";
                     return;
