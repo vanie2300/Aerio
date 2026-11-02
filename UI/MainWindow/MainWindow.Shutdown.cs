@@ -31,6 +31,7 @@ public partial class MainWindow
 {
 private bool _isClosing;
 private bool _allowClose;
+private bool _crtShutdownInProgress;
 private Task? _deferredCloseTask;
 
 private void MainWindow_Closing(object? sender, CancelEventArgs e)
@@ -83,57 +84,155 @@ private async Task DeferredCloseAsync()
 
     private async Task PlayCrtShutdownAnimationAsync()
     {
-        WindowContentHost.Background = Brushes.Black;
-        CrtShutdownOverlay.Visibility = Visibility.Visible;
-        CrtShutdownOverlay.Opacity = 0;
-        CrtShutdownLine.Opacity = 0;
+        if (_crtShutdownInProgress)
+            return;
 
-        await AnimateElementPropertyAsync(
-            CrtShutdownOverlay,
-            UIElement.OpacityProperty,
-            0,
-            1,
-            TimeSpan.FromMilliseconds(140),
-            Motion.OutCubic);
+        _crtShutdownInProgress = true;
+        try
+        {
+            if (RootGrid.ActualWidth <= 0 || RootGrid.ActualHeight <= 0)
+                return;
 
-        RootGrid.Visibility = Visibility.Collapsed;
+            BitmapSource? snapshot = null;
+            try
+            {
+                var dpi = VisualTreeHelper.GetDpi(RootGrid);
+                var pixelWidth = Math.Max(1, (int)Math.Ceiling(RootGrid.ActualWidth * dpi.DpiScaleX));
+                var pixelHeight = Math.Max(1, (int)Math.Ceiling(RootGrid.ActualHeight * dpi.DpiScaleY));
+                var renderedFrame = new RenderTargetBitmap(
+                    pixelWidth,
+                    pixelHeight,
+                    dpi.PixelsPerInchX,
+                    dpi.PixelsPerInchY,
+                    PixelFormats.Pbgra32);
+                renderedFrame.Render(RootGrid);
+                renderedFrame.Freeze();
+                snapshot = renderedFrame;
+            }
+            catch (Exception ex)
+            {
+                Log.Debug(ex, "Could not capture WPF frame for CRT shutdown; using the neutral CRT fallback");
+            }
 
-        MinHeight = 0;
-        var currentHeight = ActualHeight;
-        var targetHeight = 2.0;
-        var verticalOffset = (currentHeight - targetHeight) / 2;
-        var verticalEasing = new SineEase { EasingMode = EasingMode.EaseInOut };
+            CrtFrameScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            CrtBeamScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            CrtSnapshot.BeginAnimation(UIElement.OpacityProperty, null);
+            CrtBeam.BeginAnimation(UIElement.OpacityProperty, null);
+            CrtWebViewFrameHost.Children.Clear();
+            CrtFrame.Source = snapshot;
+            CrtSnapshot.Opacity = 1;
+            CrtFrameScale.ScaleX = 1;
+            CrtFrameScale.ScaleY = 1;
+            CrtBeam.Opacity = 0;
+            CrtBeamScale.ScaleX = 1;
 
-        var lineFadeIn = AnimateElementPropertyAsync(
-            CrtShutdownLine,
-            UIElement.OpacityProperty,
-            0,
-            1,
-            TimeSpan.FromMilliseconds(110),
-            Motion.OutCubic);
-        var verticalCompletion = AnimateElementPropertyAsync(
-            this, HeightProperty, currentHeight, targetHeight, TimeSpan.FromMilliseconds(440), verticalEasing);
-        var topCompletion = AnimateElementPropertyAsync(
-            this, TopProperty, Top, Top + verticalOffset, TimeSpan.FromMilliseconds(440), verticalEasing);
-        await Task.WhenAll(lineFadeIn, verticalCompletion, topCompletion);
+            await CaptureActiveWebViewFrameAsync();
 
-        MinWidth = 0;
-        var currentWidth = ActualWidth;
-        var targetWidth = 1.0;
-        var horizontalOffset = (currentWidth - targetWidth) / 2;
-        var horizontalEasing = new CubicEase { EasingMode = EasingMode.EaseInOut };
-        var lineFadeOut = AnimateElementPropertyAsync(
-            CrtShutdownLine,
-            UIElement.OpacityProperty,
-            1,
-            0,
-            TimeSpan.FromMilliseconds(220),
-            horizontalEasing);
-        var horizontalCompletion = AnimateElementPropertyAsync(
-            this, WidthProperty, currentWidth, targetWidth, TimeSpan.FromMilliseconds(260), horizontalEasing);
-        var leftCompletion = AnimateElementPropertyAsync(
-            this, LeftProperty, Left, Left + horizontalOffset, TimeSpan.FromMilliseconds(260), horizontalEasing);
-        await Task.WhenAll(lineFadeOut, horizontalCompletion, leftCompletion);
+            WindowContentHost.Background = Brushes.Black;
+            CrtShutdownOverlay.Visibility = Visibility.Visible;
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+            await Task.Delay(TimeSpan.FromMilliseconds(16));
+            RootGrid.Visibility = Visibility.Collapsed;
+
+            var collapseEase = new CubicEase { EasingMode = EasingMode.EaseIn };
+            var smoothEase = new SineEase { EasingMode = EasingMode.EaseInOut };
+            var fadeEase = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+            await Task.WhenAll(
+                AnimateElementPropertyAsync(
+                    CrtFrameScale,
+                    ScaleTransform.ScaleYProperty,
+                    1,
+                    0.004,
+                    TimeSpan.FromMilliseconds(480),
+                    collapseEase),
+                AnimateElementPropertyAsync(
+                    CrtBeam,
+                    UIElement.OpacityProperty,
+                    0,
+                    1,
+                    TimeSpan.FromMilliseconds(190),
+                    fadeEase,
+                    TimeSpan.FromMilliseconds(290)),
+                AnimateElementPropertyAsync(
+                    CrtSnapshot,
+                    UIElement.OpacityProperty,
+                    1,
+                    0,
+                    TimeSpan.FromMilliseconds(130),
+                    fadeEase,
+                    TimeSpan.FromMilliseconds(350)));
+
+            await Task.WhenAll(
+                AnimateElementPropertyAsync(
+                    CrtBeamScale,
+                    ScaleTransform.ScaleXProperty,
+                    1,
+                    0.002,
+                    TimeSpan.FromMilliseconds(330),
+                    smoothEase),
+                AnimateElementPropertyAsync(
+                    CrtBeam,
+                    UIElement.OpacityProperty,
+                    1,
+                    0,
+                    TimeSpan.FromMilliseconds(130),
+                    fadeEase,
+                    TimeSpan.FromMilliseconds(300)));
+
+            CrtFrame.Source = null;
+            CrtWebViewFrameHost.Children.Clear();
+        }
+        finally
+        {
+            _crtShutdownInProgress = false;
+        }
+    }
+
+    private async Task CaptureActiveWebViewFrameAsync()
+    {
+        var coreWebView = _activeTab?.WebView?.CoreWebView2;
+        var webView = _activeTab?.WebView;
+        if (coreWebView is null || webView is null ||
+            BrowserPane.WebViewHost.Visibility != Visibility.Visible ||
+            webView.ActualWidth <= 0 || webView.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            using var stream = new MemoryStream();
+            await coreWebView.CapturePreviewAsync(
+                CoreWebView2CapturePreviewImageFormat.Png,
+                stream).WaitAsync(TimeSpan.FromSeconds(1));
+            stream.Position = 0;
+
+            var pageFrame = new BitmapImage();
+            pageFrame.BeginInit();
+            pageFrame.CacheOption = BitmapCacheOption.OnLoad;
+            pageFrame.StreamSource = stream;
+            pageFrame.EndInit();
+            pageFrame.Freeze();
+
+            var pageOrigin = webView.TransformToAncestor(RootGrid).Transform(new Point(0, 0));
+            var rootOrigin = RootGrid.TransformToAncestor(WindowContentHost).Transform(new Point(0, 0));
+            var pageImage = new Image
+            {
+                Source = pageFrame,
+                Width = webView.ActualWidth,
+                Height = webView.ActualHeight,
+                Stretch = Stretch.Fill
+            };
+            Canvas.SetLeft(pageImage, rootOrigin.X + pageOrigin.X);
+            Canvas.SetTop(pageImage, rootOrigin.Y + pageOrigin.Y);
+            CrtWebViewFrameHost.Children.Add(pageImage);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Could not capture WebView2 for CRT shutdown; using the WPF frame fallback");
+            CrtWebViewFrameHost.Children.Clear();
+        }
     }
 
     private Task AnimateElementPropertyAsync(
@@ -142,11 +241,16 @@ private async Task DeferredCloseAsync()
         double from,
         double to,
         TimeSpan duration,
-        IEasingFunction easing)
+        IEasingFunction easing,
+        TimeSpan? delay = null)
     {
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var animation = new DoubleAnimation(from, to, duration)
+        var animation = new DoubleAnimation
         {
+            From = from,
+            To = to,
+            Duration = new Duration(duration),
+            BeginTime = delay ?? TimeSpan.Zero,
             EasingFunction = easing,
             FillBehavior = FillBehavior.HoldEnd
         };
