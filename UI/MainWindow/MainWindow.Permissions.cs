@@ -165,7 +165,7 @@ public partial class MainWindow
             IsHitTestVisible = false,
             Opacity = 0
         };
-        Grid.SetRowSpan(overlay, rootGrid.RowDefinitions.Count);
+        Grid.SetRowSpan(overlay, Math.Max(1, rootGrid.RowDefinitions.Count));
         rootGrid.Children.Add(overlay);
         overlay.BeginAnimation(Grid.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15)));
 
@@ -689,5 +689,4 @@ public partial class MainWindow
         }
     }
 }
-
 

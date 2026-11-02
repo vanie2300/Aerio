@@ -75,7 +75,7 @@ public static class UiFx
 
         if (card.Child is Grid grid)
         {
-            Grid.SetRowSpan(overlay, grid.RowDefinitions.Count);
+            Grid.SetRowSpan(overlay, Math.Max(1, grid.RowDefinitions.Count));
             grid.Children.Insert(0, overlay);
         }
         else

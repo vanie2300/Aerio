@@ -681,7 +681,7 @@ public partial class MainWindow : Window
                 IsHitTestVisible = false,
                 Opacity = 0
             };
-            Grid.SetRowSpan(_popupOverlay, rootGrid.RowDefinitions.Count);
+            Grid.SetRowSpan(_popupOverlay, Math.Max(1, rootGrid.RowDefinitions.Count));
             rootGrid.Children.Add(_popupOverlay);
 
             var overlayFade = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15));
