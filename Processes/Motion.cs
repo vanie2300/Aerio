@@ -10,16 +10,16 @@ namespace TabloidBrowser;
 public static class Motion
 {
     /// <summary>Micro feedback: press, hover-tint, small state flips.</summary>
-    public static readonly TimeSpan Fast = TimeSpan.FromSeconds(0.10);
+    public static readonly TimeSpan Fast = TimeSpan.FromSeconds(0.14);
 
     /// <summary>Standard transitions: fades, slides, popup entrances.</summary>
-    public static readonly TimeSpan Base = TimeSpan.FromSeconds(0.15);
+    public static readonly TimeSpan Base = TimeSpan.FromSeconds(0.22);
 
     /// <summary>Larger movements: sidebar, panes, staged content.</summary>
-    public static readonly TimeSpan Slow = TimeSpan.FromSeconds(0.25);
+    public static readonly TimeSpan Slow = TimeSpan.FromSeconds(0.36);
 
     /// <summary>Hero moments: start page entrance.</summary>
-    public static readonly TimeSpan Hero = TimeSpan.FromSeconds(0.60);
+    public static readonly TimeSpan Hero = TimeSpan.FromSeconds(0.72);
 
     /// <summary>Shared EaseOut circle — the app's default easing.</summary>
     public static CircleEase Out { get; } = new() { EasingMode = EasingMode.EaseOut };

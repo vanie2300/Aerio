@@ -23,7 +23,6 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using Microsoft.Web.WebView2.Core;
-using Microsoft.Web.WebView2.Wpf;
 
 namespace TabloidBrowser;
 
@@ -38,6 +37,13 @@ public partial class MainWindow
     private bool _browserChromeHidden;
     private bool _autoHideBrowserChromeActive;
     private bool _browserChromeSettingInitialized;
+    private bool _chromeManuallyPinnedVisible;
+    private bool _chromeHiddenBeforeFullScreen;
+    private double _chromeProgress;
+    private double _chromeTransitionFrom;
+    private double _chromeTransitionTo;
+    private long _chromeTransitionStarted;
+    private TimeSpan _chromeTransitionDuration;
     private Point _findBarDragStart;
     private bool _suppressFindTextChanged;
     private volatile BrowserTab? _pendingReaderTab;
@@ -49,7 +55,7 @@ public partial class MainWindow
     private void ChromeAutoHideTimer_Tick(object? sender, EventArgs e)
     {
         if (!IsVisible || WindowState == WindowState.Minimized ||
-            !_autoHideBrowserChromeActive || _isFullScreen)
+            _isFullScreen || !IsActive)
         {
             return;
         }
@@ -83,12 +89,23 @@ public partial class MainWindow
             if (insideWindow && cursor.Y <= windowRect.Top + 12)
             {
                 SetBrowserChromeVisible(true);
+                _chromeManuallyPinnedVisible = false;
+                if (_isFullScreen)
+                    _chromeHiddenBeforeFullScreen = false;
                 _chromeHideAt = DateTime.MaxValue;
             }
             return;
         }
 
+        if (!_autoHideBrowserChromeActive || _chromeManuallyPinnedVisible)
+            return;
+
         if (TitleBar.IsKeyboardFocusWithin || NavToolbar.IsKeyboardFocusWithin ||
+            NavToolbar.MenuButton.ContextMenu?.IsOpen == true ||
+            NavToolbar.AddressSuggestionsPopup.IsOpen || FindBar.FindPopup.IsOpen ||
+            BrowserPane.NewTabDialog.IsOpen || BrowserPane.ShortcutManagerDialog.IsOpen ||
+            _aiSetupPopup?.IsOpen == true || _sitePermissionsPopup?.IsOpen == true ||
+            _changelogPopup?.IsOpen == true || _isPermissionsPopupOpen ||
             (insideWindow && cursor.Y <= windowRect.Top + 84))
         {
             _chromeHideAt = DateTime.MaxValue;
@@ -109,83 +126,91 @@ public partial class MainWindow
 
     private void SetBrowserChromeVisible(bool visible)
     {
-        if (_browserChromeHidden == !visible)
+        var targetProgress = visible ? 0.0 : 1.0;
+        if (_browserChromeHidden == !visible && Math.Abs(_chromeProgress - targetProgress) < 0.001)
+            return;
+
+        _browserChromeHidden = !visible;
+
+        _chromeTransitionFrom = _chromeProgress;
+        _chromeTransitionTo = targetProgress;
+        var distance = Math.Abs(_chromeTransitionTo - _chromeTransitionFrom);
+        _chromeTransitionDuration = TimeSpan.FromMilliseconds(230 * distance);
+
+        if (!SystemParameters.ClientAreaAnimation || distance < 0.001)
         {
+            StopChromeAnimation();
+            ApplyChromeProgress(targetProgress);
+            FinishChromeTransition();
             return;
         }
 
-        _browserChromeHidden = !visible;
-        var chromeElements = new FrameworkElement[] { TitleBar, NavToolbar, StatusBar };
-        // A touch longer than Motion.Base: this transition moves layout, and
-        // the extra travel reads as smooth rather than sluggish.
-        var duration = TimeSpan.FromMilliseconds(260);
-        var easing = Motion.InOut;
+        _chromeTransitionStarted = Stopwatch.GetTimestamp();
+        CompositionTarget.Rendering -= ChromeAnimation_Rendering;
+        CompositionTarget.Rendering += ChromeAnimation_Rendering;
+    }
 
-        // Row heights animate alongside the fades (WPF has no built-in
-        // GridLength animation, hence GridLengthAnimation). The "from" value
-        // is the row's current effective height, so reversing mid-flight
-        // continues from where the row actually is instead of jumping. The
-        // base value becomes this state's resting height and FillBehavior
-        // hands back to it seamlessly when the animation ends.
-        (RowDefinition Row, double Height)[] rows =
-        [
-            (RootGrid.RowDefinitions[0], 40),
-            (RootGrid.RowDefinitions[1], 40),
-            (RootGrid.RowDefinitions[3], 22)
-        ];
+    private void ChromeAnimation_Rendering(object? sender, EventArgs e)
+    {
+        var elapsed = Stopwatch.GetElapsedTime(_chromeTransitionStarted);
+        var fraction = _chromeTransitionDuration <= TimeSpan.Zero
+            ? 1
+            : Math.Clamp(elapsed.TotalMilliseconds / _chromeTransitionDuration.TotalMilliseconds, 0, 1);
+        _chromeProgress = ChromeMotion.EaseOutCubic(_chromeTransitionFrom, _chromeTransitionTo, fraction);
+        ApplyChromeProgress(_chromeProgress);
 
-        foreach (var (row, height) in rows)
-        {
-            var target = visible ? height : 0;
-            var current = (GridLength)row.GetValue(RowDefinition.HeightProperty);
-            var from = current.IsAbsolute && current.Value > 0 ? current.Value : 0;
+        if (fraction >= 1)
+            FinishChromeTransition();
+    }
 
-            row.Height = new GridLength(target);
-            var rowAnimation = new GridLengthAnimation
-            {
-                From = from,
-                To = target,
-                Duration = duration,
-                EasingFunction = easing,
-                FillBehavior = FillBehavior.Stop
-            };
-            if (!visible)
-            {
-                // Let the fade lead slightly so the collapse feels
-                // orchestrated rather than mechanical.
-                rowAnimation.BeginTime = TimeSpan.FromMilliseconds(50);
-            }
+    private void ApplyChromeProgress(double progress)
+    {
+        _chromeProgress = Math.Clamp(progress, 0, 1);
+        var opacity = 1 - _chromeProgress;
+        var visibleChromeHeight = opacity;
+        TitleBarRow.Height = new GridLength(40 * visibleChromeHeight);
+        NavToolbarRow.Height = new GridLength(40 * visibleChromeHeight);
+        StatusBarRow.Height = new GridLength(22 * visibleChromeHeight);
+        TitleBar.Opacity = opacity;
+        NavToolbar.Opacity = opacity;
+        StatusBar.Opacity = opacity;
+        var hitTestVisible = opacity > 0.01;
+        TitleBar.IsHitTestVisible = hitTestVisible;
+        NavToolbar.IsHitTestVisible = hitTestVisible;
+        StatusBar.IsHitTestVisible = hitTestVisible;
+    }
 
-            row.BeginAnimation(RowDefinition.HeightProperty, rowAnimation);
-        }
+    private void FinishChromeTransition()
+    {
+        StopChromeAnimation();
+        _chromeProgress = _chromeTransitionTo;
+        ApplyChromeProgress(_chromeProgress);
+    }
 
-        foreach (var element in chromeElements)
-        {
-            var transform = element.RenderTransform as TranslateTransform;
-            if (transform is null)
-            {
-                transform = new TranslateTransform();
-                element.RenderTransform = transform;
-            }
+    private void StopChromeAnimation() =>
+        CompositionTarget.Rendering -= ChromeAnimation_Rendering;
 
-            element.BeginAnimation(OpacityProperty, null);
-            transform.BeginAnimation(TranslateTransform.YProperty, null);
-            element.Opacity = visible ? 1 : 0;
-            transform.Y = visible ? 0 : -8;
+    private void ToggleBrowserChrome()
+    {
+        var show = _browserChromeHidden;
+        _chromeManuallyPinnedVisible = show;
+        if (_isFullScreen)
+            _chromeHiddenBeforeFullScreen = !show;
+        SetBrowserChromeVisible(show);
+        _chromeHideAt = DateTime.MaxValue;
+    }
 
-            element.BeginAnimation(OpacityProperty, new DoubleAnimation(visible ? 0 : 1, visible ? 1 : 0, duration)
-            {
-                EasingFunction = easing,
-                FillBehavior = FillBehavior.Stop
-            });
-            transform.BeginAnimation(
-                TranslateTransform.YProperty,
-                new DoubleAnimation(visible ? -8 : 0, visible ? 0 : -8, duration)
-                {
-                    EasingFunction = easing,
-                    FillBehavior = FillBehavior.Stop
-                });
-        }
+    private void ToggleBrowserChrome_Click(object sender, RoutedEventArgs e) => ToggleBrowserChrome();
+
+    private void RevealBrowserChrome()
+    {
+        if (!_browserChromeHidden)
+            return;
+
+        SetBrowserChromeVisible(true);
+        if (_isFullScreen)
+            _chromeHiddenBeforeFullScreen = false;
+        _chromeHideAt = DateTime.MaxValue;
     }
 
     private void ApplyBrowserChromeVisibilitySetting()
@@ -848,6 +873,8 @@ public partial class MainWindow
         _isFullScreen = !_isFullScreen;
         if (_isFullScreen)
         {
+            _chromeHiddenBeforeFullScreen = _browserChromeHidden;
+            _chromeManuallyPinnedVisible = false;
             _previousWindowState = WindowState;
             WindowState = WindowState.Maximized;
             WindowStyle = WindowStyle.None;
@@ -856,8 +883,12 @@ public partial class MainWindow
         else
         {
             WindowStyle = WindowStyle.None;
-            SetBrowserChromeVisible(true);
             WindowState = _previousWindowState;
+            _chromeManuallyPinnedVisible = false;
+            SetBrowserChromeVisible(!_chromeHiddenBeforeFullScreen);
+            _chromeHideAt = _autoHideBrowserChromeActive
+                ? DateTime.UtcNow.AddSeconds(2)
+                : DateTime.MaxValue;
         }
     }
 

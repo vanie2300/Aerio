@@ -68,10 +68,65 @@ private async Task DeferredCloseAsync()
 
         try
         {
+            if (!Dispatcher.HasShutdownStarted)
+                await PlayCrtShutdownAnimationAsync();
+        }
+        catch (Exception ex) { Log.Error(ex, "CRT shutdown animation failed"); }
+
+        try
+        {
             _allowClose = true;
             await Dispatcher.InvokeAsync(Close);
         }
         catch (Exception ex) { Log.Error(ex, "Dispatcher.Close failed during shutdown"); Environment.Exit(1); }
+    }
+
+    private async Task PlayCrtShutdownAnimationAsync()
+    {
+        WindowContentHost.Background = Brushes.Black;
+        RootGrid.Visibility = Visibility.Collapsed;
+        CrtShutdownOverlay.Visibility = Visibility.Visible;
+        CrtShutdownLine.Opacity = 1;
+
+        MinHeight = 0;
+        var currentHeight = ActualHeight;
+        var targetHeight = 2.0;
+        var verticalOffset = (currentHeight - targetHeight) / 2;
+        var easing = new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        var verticalCompletion = AnimateWindowPropertyAsync(
+            HeightProperty, currentHeight, targetHeight, TimeSpan.FromMilliseconds(320), easing);
+        var topCompletion = AnimateWindowPropertyAsync(
+            TopProperty, Top, Top + verticalOffset, TimeSpan.FromMilliseconds(320), easing);
+        await Task.WhenAll(verticalCompletion, topCompletion);
+
+        MinWidth = 0;
+        var currentWidth = ActualWidth;
+        var targetWidth = 1.0;
+        var horizontalOffset = (currentWidth - targetWidth) / 2;
+        var horizontalCompletion = AnimateWindowPropertyAsync(
+            WidthProperty, currentWidth, targetWidth, TimeSpan.FromMilliseconds(140), easing);
+        var leftCompletion = AnimateWindowPropertyAsync(
+            LeftProperty, Left, Left + horizontalOffset, TimeSpan.FromMilliseconds(140), easing);
+        await Task.WhenAll(horizontalCompletion, leftCompletion);
+    }
+
+    private Task AnimateWindowPropertyAsync(
+        DependencyProperty property,
+        double from,
+        double to,
+        TimeSpan duration,
+        IEasingFunction easing)
+    {
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var animation = new DoubleAnimation(from, to, duration)
+        {
+            EasingFunction = easing,
+            FillBehavior = FillBehavior.HoldEnd
+        };
+        animation.Completed += (_, _) => completion.TrySetResult(true);
+        BeginAnimation(property, animation);
+        return completion.Task;
     }
 
 private void DisposeWebViewsAndExit()

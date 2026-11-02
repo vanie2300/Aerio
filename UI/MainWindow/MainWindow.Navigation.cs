@@ -77,9 +77,9 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(() =>
         {
             if (!BrowserPane.InternalPageHost.Children.Contains(page)) return;
-            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15))
+            var fadeIn = new DoubleAnimation(0, 1, Motion.Base)
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.OutCubic
             };
             page.BeginAnimation(OpacityProperty, fadeIn);
         }, DispatcherPriority.Loaded);

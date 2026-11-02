@@ -1009,6 +1009,7 @@ public sealed record BrowserSettings(
         ["new_tab"] = "Ctrl+T",
         ["close_tab"] = "Ctrl+W",
         ["focus_address"] = "Ctrl+L",
+        ["hide_ui"] = "Ctrl+Shift+H",
         ["reload"] = "Ctrl+R",
         ["history"] = "Ctrl+H",
         ["find"] = "Ctrl+F",

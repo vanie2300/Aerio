@@ -219,6 +219,7 @@ public partial class MainWindow : Window
         NavToolbar.Menu += Menu_Click;
         NavToolbar.NewTab += NewTab_Click;
         NavToolbar.FullScreen += FullScreen_Click;
+        NavToolbar.ToggleBrowserChrome += ToggleBrowserChrome_Click;
         NavToolbar.ForceDarkChecked += ForceDarkMenu_Checked;
         NavToolbar.ForceDarkUnchecked += ForceDarkMenu_Unchecked;
         NavToolbar.FindInPage += FindInPage_Click;
@@ -252,7 +253,11 @@ public partial class MainWindow : Window
         PreviewKeyDown += MainWindow_PreviewKeyDown;
         _chromeAutoHideTimer.Tick += ChromeAutoHideTimer_Tick;
         _chromeAutoHideTimer.Start();
-        Closed += (_, _) => _chromeAutoHideTimer.Stop();
+        Closed += (_, _) =>
+        {
+            _chromeAutoHideTimer.Stop();
+            StopChromeAnimation();
+        };
         _sleepTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _sleepTimer.Tick += SleepTimer_Tick;
         _sleepTimer.Start();
@@ -284,6 +289,7 @@ public partial class MainWindow : Window
                 int preference = 2; // DWMWCP_ROUND
                 DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
             }
+
         }
         catch (Exception ex) { Log.Debug(ex, "Rounded corner preference not applied"); }
     }

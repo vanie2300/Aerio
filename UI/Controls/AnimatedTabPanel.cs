@@ -161,9 +161,9 @@ public class AnimatedTabPanel : Panel
         Dispatcher.BeginInvoke(() =>
         {
             if (!Children.Contains(child)) return;
-            var slide = new DoubleAnimation(fromX - toX, 0, TimeSpan.FromSeconds(0.12))
+            var slide = new DoubleAnimation(fromX - toX, 0, Motion.Base)
             {
-                EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.OutCubic
             };
             slide.Completed += (_, _) =>
             {
@@ -179,19 +179,20 @@ public class AnimatedTabPanel : Panel
         if (_animatedIn.Contains(child)) return;
         _animatedIn.Add(child);
         child.Opacity = 0;
-        child.RenderTransform = new ScaleTransform(0.85, 0.85);
+        child.RenderTransform = new ScaleTransform(0.96, 0.96);
         child.RenderTransformOrigin = new Point(0.5, 0.5);
         Dispatcher.BeginInvoke(() =>
         {
             if (!Children.Contains(child)) return;
-            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.2))
+            var fadeIn = new DoubleAnimation(0, 1, Motion.Base)
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.OutCubic
             };
-            var scaleUp = new DoubleAnimation(0.85, 1, TimeSpan.FromSeconds(0.25))
+            var scaleUp = new DoubleAnimation(0.96, 1, Motion.Slow)
             {
-                EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.OutCubic
             };
+            child.RenderTransform = new ScaleTransform(0.96, 0.96);
             child.BeginAnimation(OpacityProperty, fadeIn);
             child.RenderTransformOrigin = new Point(0.5, 0.5);
             var transform = child.RenderTransform as ScaleTransform;

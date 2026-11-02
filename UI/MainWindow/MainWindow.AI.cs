@@ -26,6 +26,7 @@ public partial class MainWindow
     private CancellationTokenSource? _aiCts;
     private CancellationTokenSource? _fetchCts;
     private double _aiSidebarWidth = 340;
+    private int _aiSidebarTransitionId;
     private bool _isAiProcessing;
     private Border? _streamingBubble;
     private StringBuilder? _streamingContent;
@@ -376,21 +377,39 @@ public partial class MainWindow
         EnsureAiService(settings);
         ClearAiMessages();
         LoadAiMessages();
-        AiSidebarColumn.MinWidth = 200; // keep the open sidebar from being dragged to a sliver
+        var transitionId = ++_aiSidebarTransitionId;
+        var currentWidth = AiSidebarColumn.ActualWidth;
+        AiSidebarColumn.BeginAnimation(ColumnDefinition.WidthProperty, null);
+        AiSidebarColumn.MinWidth = 0;
         AiSidebarColumn.Width = new GridLength(_aiSidebarWidth);
         AiSidebar.Visibility = Visibility.Visible;
         AiSidebar.Opacity = 0;
         AiSidebar.RenderTransform = new TranslateTransform(20, 0);
         AiSplitter.Visibility = Visibility.Visible;
 
-        var slideFade = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.25))
+        var columnAnimation = new GridLengthAnimation
         {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            From = currentWidth,
+            To = _aiSidebarWidth,
+            Duration = Motion.Slow,
+            EasingFunction = Motion.InOut,
+            FillBehavior = FillBehavior.Stop
+        };
+        columnAnimation.Completed += (_, _) =>
+        {
+            if (transitionId == _aiSidebarTransitionId)
+                AiSidebarColumn.MinWidth = 200;
+        };
+        AiSidebarColumn.BeginAnimation(ColumnDefinition.WidthProperty, columnAnimation);
+
+        var slideFade = new DoubleAnimation(0, 1, Motion.Slow)
+        {
+            EasingFunction = Motion.OutCubic
         };
         AiSidebar.BeginAnimation(OpacityProperty, slideFade);
-        var slideX = new DoubleAnimation(20, 0, TimeSpan.FromSeconds(0.3))
+        var slideX = new DoubleAnimation(20, 0, Motion.Slow)
         {
-            EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut }
+            EasingFunction = Motion.OutCubic
         };
         (AiSidebar.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, slideX);
 
@@ -768,6 +787,45 @@ public partial class MainWindow
     {
         try
         {
+            var transitionId = ++_aiSidebarTransitionId;
+            var actualWidth = AiSidebarColumn.ActualWidth;
+            if (actualWidth > 10)
+                _aiSidebarWidth = actualWidth;
+            AiSidebarColumn.BeginAnimation(ColumnDefinition.WidthProperty, null);
+            AiSidebarColumn.MinWidth = 0;
+            AiSidebarColumn.Width = new GridLength(0);
+
+            var columnAnimation = new GridLengthAnimation
+            {
+                From = actualWidth,
+                To = 0,
+                Duration = Motion.Slow,
+                EasingFunction = Motion.InOut,
+                FillBehavior = FillBehavior.Stop
+            };
+            AiSidebarColumn.BeginAnimation(ColumnDefinition.WidthProperty, columnAnimation);
+
+            var fadeOut = new DoubleAnimation(1, 0, Motion.Slow)
+            {
+                EasingFunction = Motion.InOut
+            };
+            var slideX = new DoubleAnimation(0, 20, Motion.Slow)
+            {
+                EasingFunction = Motion.InOut
+            };
+            fadeOut.Completed += (_, _) =>
+            {
+                if (transitionId != _aiSidebarTransitionId)
+                    return;
+
+                AiSidebar.Visibility = Visibility.Collapsed;
+                AiSidebar.Opacity = 1;
+                AiSidebar.RenderTransform = null;
+                AiSplitter.Visibility = Visibility.Collapsed;
+            };
+            AiSidebar.BeginAnimation(OpacityProperty, fadeOut);
+            (AiSidebar.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, slideX);
+
             var ctsToDispose = _aiCts;
             var contextToClean = _currentAiContext;
 
@@ -790,30 +848,6 @@ public partial class MainWindow
                         ctx.Workspace.RemoveTab(tabId);
                 }
             }
-
-            var actualWidth = AiSidebarColumn.ActualWidth;
-            if (actualWidth > 10)
-                _aiSidebarWidth = actualWidth;
-            AiSidebarColumn.MinWidth = 0;
-
-            var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.2))
-            {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
-            };
-            var slideX = new DoubleAnimation(0, 20, TimeSpan.FromSeconds(0.2))
-            {
-                EasingFunction = new CircleEase { EasingMode = EasingMode.EaseIn }
-            };
-            fadeOut.Completed += (_, _) =>
-            {
-                AiSidebarColumn.Width = new GridLength(0);
-                AiSidebar.Visibility = Visibility.Collapsed;
-                AiSidebar.Opacity = 1;
-                AiSidebar.RenderTransform = null;
-                AiSplitter.Visibility = Visibility.Collapsed;
-            };
-            AiSidebar.BeginAnimation(OpacityProperty, fadeOut);
-            (AiSidebar.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, slideX);
 
             _dataStore.SaveSettings(_dataStore.Settings with { AiSidebarOpen = false });
         }

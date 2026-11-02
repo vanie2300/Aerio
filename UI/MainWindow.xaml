@@ -29,28 +29,30 @@
     </ResourceDictionary>
   </Window.Resources>
 
-  <Grid x:Name="RootGrid" Background="{DynamicResource AppBg}" Opacity="0">
+  <Grid x:Name="WindowContentHost" Background="{DynamicResource AppBg}">
+    <Grid x:Name="RootGrid" Background="{DynamicResource AppBg}" Opacity="0">
     <Grid.RowDefinitions>
-      <RowDefinition Height="40" />
-      <RowDefinition Height="40" />
-      <RowDefinition Height="*" />
-      <RowDefinition Height="22" />
+      <RowDefinition x:Name="TitleBarRow" Height="40" />
+      <RowDefinition x:Name="NavToolbarRow" Height="40" />
+      <RowDefinition x:Name="BrowserContentRow" Height="*" />
+      <RowDefinition x:Name="StatusBarRow" Height="22" />
     </Grid.RowDefinitions>
 
     <local:TitleBarControl Grid.Row="0" x:Name="TitleBar" />
-
     <local:NavToolbarControl Grid.Row="1" x:Name="NavToolbar" />
 
     <Grid Grid.Row="2"
           x:Name="BrowserHost"
-          Background="{DynamicResource AppBg}">
+          Panel.ZIndex="0"
+          Background="Transparent">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition x:Name="AiSidebarColumn" Width="0" />
       </Grid.ColumnDefinitions>
 
-      <local:BrowserPaneControl Grid.Column="0" x:Name="BrowserPane" />
+      <local:BrowserPaneControl Grid.Column="0"
+                                x:Name="BrowserPane" />
 
       <GridSplitter x:Name="AiSplitter"
                     Grid.Column="1"
@@ -75,7 +77,8 @@
         </GridSplitter.Style>
       </GridSplitter>
 
-      <local:AiSidebarControl Grid.Column="2" x:Name="AiSidebar" />
+      <local:AiSidebarControl Grid.Column="2"
+                              x:Name="AiSidebar" />
     </Grid>
 
     <local:StatusBarControl Grid.Row="3" x:Name="StatusBar" />
@@ -83,5 +86,22 @@
     <local:FindBarControl x:Name="FindBar" />
 
     <Canvas x:Name="TabDragOverlay" Grid.RowSpan="4" IsHitTestVisible="False" />
+    </Grid>
+    <Grid x:Name="CrtShutdownOverlay"
+          Background="Transparent"
+          IsHitTestVisible="False"
+          Visibility="Collapsed">
+      <Border x:Name="CrtShutdownLine"
+              Height="2"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Center"
+              Background="#EAFBFF"
+              Opacity="0"
+              RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform>
+          <ScaleTransform ScaleX="1" />
+        </Border.RenderTransform>
+      </Border>
+    </Grid>
   </Grid>
 </Window>

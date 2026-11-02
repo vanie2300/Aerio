@@ -1925,6 +1925,7 @@ public partial class MainWindow
             ("new_tab", "New tab"),
             ("close_tab", "Close tab"),
             ("focus_address", "Focus address bar"),
+            ("hide_ui", "Hide / restore browser UI"),
             ("reload", "Reload page"),
             ("history", "Open history"),
             ("find", "Find in page"),

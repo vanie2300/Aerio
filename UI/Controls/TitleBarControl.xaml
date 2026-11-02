@@ -4,6 +4,7 @@
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              xmlns:local="clr-namespace:TabloidBrowser">
   <Border Background="{DynamicResource ChromeBg}"
+          ClipToBounds="True"
           BorderThickness="0"
           PreviewMouseLeftButtonDown="TitleBar_PreviewMouseLeftButtonDown"
           PreviewMouseMove="TitleBar_PreviewMouseMove"

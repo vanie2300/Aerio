@@ -60,13 +60,13 @@ public partial class MainWindow
             {
                 if (TitleBar.TabStrip.ItemContainerGenerator.ContainerFromItem(tab) is FrameworkElement container)
                 {
-                    var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.12))
+                    var fadeOut = new DoubleAnimation(1, 0, Motion.Fast)
                     {
-                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+                        EasingFunction = Motion.InOut
                     };
-                    var scaleDown = new DoubleAnimation(1, 0.85, TimeSpan.FromSeconds(0.12))
+                    var scaleDown = new DoubleAnimation(1, 0.96, Motion.Fast)
                     {
-                        EasingFunction = new CircleEase { EasingMode = EasingMode.EaseIn }
+                        EasingFunction = Motion.InOut
                     };
                     container.BeginAnimation(OpacityProperty, fadeOut);
                     if (container.RenderTransform is ScaleTransform st)
@@ -74,7 +74,7 @@ public partial class MainWindow
                         st.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDown);
                         st.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDown);
                     }
-                    await Task.Delay(130);
+                    await Task.Delay(Motion.Fast);
                 }
                 await CloseTabAsync(tab);
             }
@@ -226,8 +226,16 @@ public partial class MainWindow
     {
         try
         {
+        if (MatchesShortcut(e, "hide_ui"))
+        {
+            ToggleBrowserChrome();
+            e.Handled = true;
+            return;
+        }
+
         if (MatchesShortcut(e, "focus_address"))
         {
+            RevealBrowserChrome();
             NavToolbar.AddressBox.Focus();
             NavToolbar.AddressBox.SelectAll();
             e.Handled = true;
