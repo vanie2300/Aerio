@@ -109,10 +109,31 @@ begin
     Exit;
   end;
 
-  // Fallback: look for any 10.x folder in the default machine-wide install
-  // location ({commonpf} resolves to the 64-bit Program Files in this install mode).
+  if RegValueExists(HKCU, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', '10.0') then begin
+    Result := True;
+    Exit;
+  end;
+
+  // Check machine-wide and per-user installations, including dotnet-install scripts.
   Result := False;
   base := ExpandConstant('{commonpf}\dotnet\shared\Microsoft.WindowsDesktop.App');
+  if DirExists(base) then begin
+    if FindFirst(base + '\10.*', findRec) then begin
+      try
+        repeat
+          if (findRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+            Result := True;
+        until Result or not FindNext(findRec);
+      finally
+        FindClose(findRec);
+      end;
+    end;
+  end;
+
+  if Result then
+    Exit;
+
+  base := ExpandConstant('{userprofile}\.dotnet\shared\Microsoft.WindowsDesktop.App');
   if DirExists(base) and FindFirst(base + '\10.*', findRec) then begin
     try
       repeat
