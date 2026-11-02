@@ -88,7 +88,8 @@
     <Canvas x:Name="TabDragOverlay" Grid.RowSpan="4" IsHitTestVisible="False" />
     </Grid>
     <Grid x:Name="CrtShutdownOverlay"
-          Background="Transparent"
+          Background="Black"
+          Opacity="0"
           IsHitTestVisible="False"
           Visibility="Collapsed">
       <Border x:Name="CrtShutdownLine"
