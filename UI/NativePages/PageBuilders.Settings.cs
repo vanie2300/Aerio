@@ -111,7 +111,7 @@ public partial class MainWindow
             var val = bgOpacity.Input.Value;
             if (bgPreview.Background is ImageBrush brush)
                 brush.Opacity = val;
-            if (BrowserPane.StartOverlay.Background is ImageBrush mainBrush)
+            if (BrowserPane.StartBackdrop.Background is ImageBrush mainBrush)
                 mainBrush.Opacity = val;
         };
         bgPreview.Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed;
@@ -324,7 +324,7 @@ public partial class MainWindow
 
         var aiApiKeyHint = new TextBlock
         {
-            Text = "Each provider keeps its own key â€” switch providers and your saved key returns automatically.",
+            Text = "Each provider keeps its own key - switch providers and your saved key returns automatically.",
             Foreground = GetBrush("Muted"),
             FontSize = 11.5,
             Margin = new Thickness(0, 7, 0, 0),
@@ -405,7 +405,7 @@ public partial class MainWindow
             _modelFetchToken?.Dispose();
             _modelFetchToken = new CancellationTokenSource();
             var testToken = _modelFetchToken.Token;
-            aiConnectionFeedback.Text = "Checking available modelsâ€¦";
+            aiConnectionFeedback.Text = "Checking available models...";
             aiConnectionFeedback.Visibility = Visibility.Visible;
             var op = Dispatcher.InvokeAsync(() =>
                 FetchModelsAsync(ep, aiApiKeyBox.Password, testToken, showFeedback: true));
@@ -652,7 +652,7 @@ public partial class MainWindow
         var savedSitesList = new StackPanel();
         var savedSitesStatus = new TextBlock
         {
-            Text = "Loading cookie domainsâ€¦",
+            Text = "Loading cookie domains...",
             Foreground = GetBrush("Text"),
             FontSize = 14,
             FontWeight = FontWeights.SemiBold
@@ -696,7 +696,7 @@ public partial class MainWindow
 
         async Task RefreshSavedSitesAsync()
         {
-            savedSitesStatus.Text = "Loading cookie domainsâ€¦";
+            savedSitesStatus.Text = "Loading cookie domains...";
             savedSitesList.Children.Clear();
             try
             {
@@ -897,7 +897,7 @@ public partial class MainWindow
 
             clearSavedSites.IsEnabled = false;
             refreshSavedSites.IsEnabled = false;
-            savedSitesStatus.Text = "Clearing cookiesâ€¦";
+            savedSitesStatus.Text = "Clearing cookies...";
             try
             {
                 await profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.Cookies);
@@ -919,7 +919,7 @@ public partial class MainWindow
 
         FireAndForget(RefreshSavedSitesAsync(), "Load saved-cookie sites in settings");
 
-        var resetAll = SettingsButton("Reset all settingsâ€¦", destructive: true);
+        var resetAll = SettingsButton("Reset all settings...", destructive: true);
         resetAll.Click += (_, _) =>
         {
             _dataStore.SaveSettings(BrowserSettings.Default);

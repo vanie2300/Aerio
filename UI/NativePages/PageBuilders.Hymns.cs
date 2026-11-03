@@ -218,7 +218,7 @@ public partial class MainWindow
             catch (Exception ex)
             {
                 Log.Error(ex, "Hymn search failed");
-                summary.Text = "Search failed â€” check your connection and try again.";
+                summary.Text = "Search failed - check your connection and try again.";
                 resultsPanel.Children.Clear();
                 resultsPanel.Children.Add(EmptyText(ex.Message));
             }

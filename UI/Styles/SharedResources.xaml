@@ -12,7 +12,7 @@
 
   <!-- Implicit dark tooltip: replaces the stock light system chrome. -->
   <Style TargetType="ToolTip">
-    <Setter Property="Background" Value="{DynamicResource ChromeBg}" />
+    <Setter Property="Background" Value="{DynamicResource GlassSurface}" />
     <Setter Property="Foreground" Value="{DynamicResource Text}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
     <Setter Property="BorderThickness" Value="1" />

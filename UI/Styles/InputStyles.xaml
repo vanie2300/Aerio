@@ -4,7 +4,7 @@
   <!-- ══════════════════ TextBox ══════════════════ -->
   <Style TargetType="TextBox">
     <Setter Property="Foreground" Value="{DynamicResource Text}" />
-    <Setter Property="Background" Value="{DynamicResource InputBg}" />
+    <Setter Property="Background" Value="{DynamicResource GlassInset}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CaretBrush" Value="{DynamicResource Accent}" />
@@ -18,7 +18,7 @@
                   Background="{TemplateBinding Background}"
                   BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}"
-                  CornerRadius="6">
+                  CornerRadius="9">
             <ScrollViewer x:Name="PART_ContentHost"
                           Margin="{TemplateBinding Padding}"
                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
@@ -43,7 +43,7 @@
   <!-- ══════════════════ PasswordBox ══════════════════ -->
   <Style TargetType="PasswordBox">
     <Setter Property="Foreground" Value="{DynamicResource Text}" />
-    <Setter Property="Background" Value="{DynamicResource InputBg}" />
+    <Setter Property="Background" Value="{DynamicResource GlassInset}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CaretBrush" Value="{DynamicResource Accent}" />
@@ -57,7 +57,7 @@
                   Background="{TemplateBinding Background}"
                   BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}"
-                  CornerRadius="6">
+                  CornerRadius="9">
             <ScrollViewer x:Name="PART_ContentHost"
                           Margin="{TemplateBinding Padding}"
                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"

@@ -32,10 +32,9 @@
   <Grid x:Name="WindowContentHost" Background="{DynamicResource AppBg}">
     <Grid x:Name="RootGrid" Background="{DynamicResource AppBg}" Opacity="0">
     <Grid.RowDefinitions>
-      <RowDefinition x:Name="TitleBarRow" Height="40" />
-      <RowDefinition x:Name="NavToolbarRow" Height="40" />
+      <RowDefinition x:Name="TitleBarRow" Height="38" />
+      <RowDefinition x:Name="NavToolbarRow" Height="42" />
       <RowDefinition x:Name="BrowserContentRow" Height="*" />
-      <RowDefinition x:Name="StatusBarRow" Height="22" />
     </Grid.RowDefinitions>
 
     <local:TitleBarControl Grid.Row="0" x:Name="TitleBar" />
@@ -81,62 +80,24 @@
                               x:Name="AiSidebar" />
     </Grid>
 
-    <local:StatusBarControl Grid.Row="3" x:Name="StatusBar" />
+    <local:StatusBarControl Grid.Row="2"
+                            x:Name="StatusBar"
+                            Panel.ZIndex="4"
+                            VerticalAlignment="Bottom"
+                            HorizontalAlignment="Center"
+                            Margin="0,0,0,18"
+                            IsHitTestVisible="False" />
 
     <local:FindBarControl x:Name="FindBar" />
 
-    <Canvas x:Name="TabDragOverlay" Grid.RowSpan="4" IsHitTestVisible="False" />
-    </Grid>
-    <Grid x:Name="CrtShutdownOverlay"
-          Background="Black"
-          IsHitTestVisible="False"
-          ClipToBounds="True"
-          Panel.ZIndex="999"
-          Visibility="Collapsed">
-      <Grid x:Name="CrtSnapshot"
-            Opacity="1"
-            RenderTransformOrigin="0.5,0.5">
-        <Grid.RenderTransform>
-          <ScaleTransform x:Name="CrtFrameScale"
-                          ScaleX="1"
-                          ScaleY="1" />
-        </Grid.RenderTransform>
-        <Image x:Name="CrtFrame"
-               Stretch="Fill"
-               Opacity="1" />
+    <Canvas x:Name="TabDragOverlay" Grid.RowSpan="3" IsHitTestVisible="False" />
 
-        <Canvas x:Name="CrtWebViewFrameHost"
-                IsHitTestVisible="False" />
-      </Grid>
-
-      <Grid x:Name="CrtBeam"
-            Height="20"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Center"
-            RenderTransformOrigin="0.5,0.5"
-            Opacity="0">
-        <Grid.RenderTransform>
-          <ScaleTransform x:Name="CrtBeamScale" ScaleX="1" />
-        </Grid.RenderTransform>
-        <Border Height="8"
-                Background="#9DEAFF"
-                VerticalAlignment="Center"
-                Opacity="0.7">
-          <Border.Effect>
-            <BlurEffect Radius="12" />
-          </Border.Effect>
-        </Border>
-        <Border Height="2"
-                Background="#F4FFFF"
-                VerticalAlignment="Center">
-          <Border.Effect>
-            <DropShadowEffect Color="#C9F8FF"
-                              BlurRadius="9"
-                              ShadowDepth="0"
-                              Opacity="0.9" />
-          </Border.Effect>
-        </Border>
-      </Grid>
+    <Popup x:Name="SidebarRailPopup"
+           Placement="Relative"
+           AllowsTransparency="True"
+           StaysOpen="True">
+      <local:SidebarRailControl x:Name="SidebarRail" />
+    </Popup>
     </Grid>
   </Grid>
 </Window>

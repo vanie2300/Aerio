@@ -307,7 +307,7 @@ public partial class MainWindow
             controls.Children.Add(removeBtn);
 
             stack.Children.Add(SettingsRow2(ext.Name,
-                ext.IsBuiltIn ? "Built-in extension â€” updated automatically." : "Loaded from a local folder.",
+                ext.IsBuiltIn ? "Built-in extension - updated automatically." : "Loaded from a local folder.",
                 controls));
         }
 

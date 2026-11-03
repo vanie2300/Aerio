@@ -67,40 +67,47 @@ public sealed record Theme
         resources["StrokeStrong"] = new SolidColorBrush(StrokeStrong);
         resources["Danger"] = new SolidColorBrush(Danger);
         resources["Positive"] = new SolidColorBrush(Positive);
+        var isDark = Name.Equals("Dark", StringComparison.OrdinalIgnoreCase);
+        resources["GlassSurface"] = new SolidColorBrush(
+            Color.FromArgb(isDark ? (byte)226 : (byte)246, isDark ? (byte)27 : (byte)255, isDark ? (byte)28 : (byte)255, isDark ? (byte)32 : (byte)255));
+        resources["GlassInset"] = new SolidColorBrush(
+            Color.FromArgb(isDark ? (byte)217 : (byte)240, isDark ? (byte)24 : (byte)249, isDark ? (byte)25 : (byte)249, isDark ? (byte)29 : (byte)249));
+        resources["GlassEdge"] = new SolidColorBrush(
+            Color.FromArgb(isDark ? (byte)58 : (byte)180, isDark ? (byte)58 : (byte)190, isDark ? (byte)59 : (byte)190, isDark ? (byte)66 : (byte)185));
     }
 
     public static Theme Dark { get; } = new()
     {
         Name = "Dark",
-        AppBg = Color.FromRgb(11, 11, 13),
-        ChromeBg = Color.FromRgb(18, 18, 22),
-        ChromeAlt = Color.FromRgb(24, 24, 30),
-        InputBg = Color.FromRgb(14, 14, 18),
-        TitleBg = Color.FromRgb(8, 8, 12),
-        ButtonBg = Color.FromRgb(22, 22, 28),
-        ButtonHover = Color.FromRgb(30, 30, 38),
-        ButtonPressed = Color.FromRgb(36, 36, 46),
-        Stroke = Color.FromRgb(45, 45, 55),
-        SubtleStroke = Color.FromRgb(28, 28, 38),
-        Text = Color.FromRgb(235, 235, 245),
-        Muted = Color.FromRgb(130, 130, 145),
+        AppBg = Color.FromRgb(16, 17, 20),
+        ChromeBg = Color.FromRgb(23, 24, 28),
+        ChromeAlt = Color.FromRgb(32, 33, 38),
+        InputBg = Color.FromRgb(24, 25, 29),
+        TitleBg = Color.FromRgb(17, 18, 22),
+        ButtonBg = Color.FromRgb(27, 28, 32),
+        ButtonHover = Color.FromRgb(41, 42, 48),
+        ButtonPressed = Color.FromRgb(50, 51, 58),
+        Stroke = Color.FromRgb(56, 57, 63),
+        SubtleStroke = Color.FromRgb(42, 43, 48),
+        Text = Color.FromRgb(241, 240, 243),
+        Muted = Color.FromRgb(162, 160, 168),
         Lime = Color.FromRgb(80, 200, 80),
         Pink = Color.FromRgb(200, 180, 220),
-        Accent = Color.FromRgb(152, 119, 232),
-        SidebarBg = Color.FromRgb(20, 21, 25),
-        SurfaceBg = Color.FromRgb(25, 26, 32),
-        SurfaceRaised = Color.FromRgb(32, 33, 39),
-        FieldBg = Color.FromRgb(23, 24, 30),
-        InkSecondary = Color.FromRgb(184, 184, 195),
-        StrokeStrong = Color.FromRgb(61, 62, 73),
+        Accent = Color.FromRgb(149, 134, 200),
+        SidebarBg = Color.FromRgb(23, 24, 28),
+        SurfaceBg = Color.FromRgb(27, 28, 32),
+        SurfaceRaised = Color.FromRgb(37, 38, 43),
+        FieldBg = Color.FromRgb(24, 25, 29),
+        InkSecondary = Color.FromRgb(192, 190, 197),
+        StrokeStrong = Color.FromRgb(69, 70, 77),
         Danger = Color.FromRgb(237, 147, 153),
         Positive = Color.FromRgb(98, 196, 162),
-        TabActive = Color.FromRgb(22, 22, 28),
-        TabInactive = Color.FromRgb(15, 15, 20),
-        TabAudio = Color.FromRgb(38, 26, 42),
-        TabActiveAccent = Color.FromRgb(114, 77, 223),
-        TabInactiveAccent = Color.FromRgb(55, 55, 65),
-        TabSleepingAccent = Color.FromRgb(90, 90, 100),
+        TabActive = Color.FromRgb(34, 35, 40),
+        TabInactive = Color.FromRgb(23, 24, 28),
+        TabAudio = Color.FromRgb(39, 34, 43),
+        TabActiveAccent = Color.FromRgb(149, 134, 200),
+        TabInactiveAccent = Color.FromRgb(75, 76, 83),
+        TabSleepingAccent = Color.FromRgb(112, 111, 119),
         TabAudioAccent = Color.FromRgb(0, 200, 83)
     };
 

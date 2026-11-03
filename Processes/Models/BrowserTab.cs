@@ -280,7 +280,7 @@ public class BrowserTab : INotifyPropertyChanged
         }
     }
 
-    public Thickness TabBorderThickness => _isActive ? new Thickness(1.5) : new Thickness(1);
+    public Thickness TabBorderThickness => _isActive ? new Thickness(0, 0, 0, 2) : new Thickness(0);
 
     private Brush? _cachedAccentBrush;
 

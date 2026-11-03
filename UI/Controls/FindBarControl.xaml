@@ -6,10 +6,10 @@
          Focusable="False"
          IsOpen="False">
     <Border x:Name="FindPopupContent"
-            Background="{DynamicResource ChromeBg}"
-            BorderBrush="{DynamicResource Stroke}"
+            Background="{DynamicResource GlassSurface}"
+            BorderBrush="{DynamicResource GlassEdge}"
             BorderThickness="1"
-            CornerRadius="0,0,8,8"
+            CornerRadius="0,0,12,12"
             Padding="0"
             Width="260">
       <Grid>
@@ -34,7 +34,7 @@
         </Border>
         <TextBox x:Name="FindTextBox"
                  Grid.Column="1"
-                 Background="{DynamicResource InputBg}"
+                 Background="{DynamicResource GlassInset}"
                  BorderBrush="{DynamicResource Stroke}"
                  BorderThickness="1"
                  Foreground="{DynamicResource Text}"

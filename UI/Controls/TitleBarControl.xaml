@@ -3,9 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              xmlns:local="clr-namespace:TabloidBrowser">
-  <Border Background="{DynamicResource ChromeBg}"
+  <Border Background="{DynamicResource GlassSurface}"
           ClipToBounds="True"
-          BorderThickness="0"
+          BorderBrush="{DynamicResource GlassEdge}"
+          BorderThickness="0,0,0,1"
           PreviewMouseLeftButtonDown="TitleBar_PreviewMouseLeftButtonDown"
           PreviewMouseMove="TitleBar_PreviewMouseMove"
           PreviewMouseLeftButtonUp="TitleBar_PreviewMouseLeftButtonUp">
@@ -29,7 +30,7 @@
       </StackPanel>
 
       <Grid Grid.Column="1"
-            Margin="0,5,8,5"
+            Margin="0,3,8,3"
             shell:WindowChrome.IsHitTestVisibleInChrome="True">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
@@ -66,7 +67,7 @@
                         Background="{Binding TabBrush}"
                         BorderBrush="{Binding AccentBrush}"
                         BorderThickness="{Binding TabBorderThickness}"
-                        CornerRadius="4"
+                        CornerRadius="5,5,0,0"
                         MouseLeftButtonDown="Tab_MouseLeftButtonDown"
                         Tag="{Binding}">
                   <Border.ToolTip>
@@ -111,40 +112,6 @@
                                 Tag="{Binding}" />
                     </ContextMenu>
                   </Border.ContextMenu>
-                  <Border.Style>
-                    <Style TargetType="Border">
-                      <Setter Property="RenderTransform">
-                        <Setter.Value>
-                          <ScaleTransform ScaleX="1" ScaleY="1" />
-                        </Setter.Value>
-                      </Setter>
-                      <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-                      <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsActive}" Value="True">
-                          <DataTrigger.EnterActions>
-                            <BeginStoryboard>
-                              <Storyboard>
-                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                                 From="0.97" To="1.0" Duration="0:0:0.2" />
-                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                                 From="0.97" To="1.0" Duration="0:0:0.2" />
-                              </Storyboard>
-                            </BeginStoryboard>
-                          </DataTrigger.EnterActions>
-                          <DataTrigger.ExitActions>
-                            <BeginStoryboard>
-                              <Storyboard>
-                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                                 To="1.0" Duration="0:0:0.15" />
-                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                                 To="1.0" Duration="0:0:0.15" />
-                              </Storyboard>
-                            </BeginStoryboard>
-                          </DataTrigger.ExitActions>
-                        </DataTrigger>
-                      </Style.Triggers>
-                    </Style>
-                  </Border.Style>
                   <Grid>
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="Auto" />

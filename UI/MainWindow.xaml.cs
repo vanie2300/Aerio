@@ -19,6 +19,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using LiquidGlass.Wpf;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
@@ -26,6 +27,22 @@ namespace TabloidBrowser;
 
 public partial class MainWindow : Window
 {
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoActivate = 0x0010;
+    private SidebarEdgeToggleWindow _sidebarEdgeToggleWindow = null!;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int width,
+        int height,
+        uint flags);
+
     private const string ScrollTrackingScript =
         """
         (() => {
@@ -169,6 +186,29 @@ public partial class MainWindow : Window
             : null;
 
         InitializeComponent();
+        SidebarRailPopup.PlacementTarget = RootGrid;
+        _sidebarEdgeToggleWindow = new SidebarEdgeToggleWindow();
+        _sidebarEdgeToggleWindow.ToggleRequested += SidebarRailToggle_Click;
+        Loaded += (_, _) =>
+        {
+            _sidebarEdgeToggleWindow.Owner = this;
+            ShowSidebarEdgeToggleWindow();
+        };
+        SidebarRail.RailDragStarted += SidebarRail_RailDragStarted;
+        SidebarRail.RailDragMoved += SidebarRail_RailDragMoved;
+        SidebarRail.RailDragEnded += SidebarRail_RailDragEnded;
+        SidebarRail.SizeChanged += (_, _) => UpdateSidebarRailPosition();
+        SidebarRailPopup.Opened += (_, _) => UpdateSidebarRailPosition();
+        RootGrid.SizeChanged += (_, _) => UpdateSidebarRailPosition();
+        BrowserHost.SizeChanged += (_, _) => UpdateSidebarRailPosition();
+        LocationChanged += (_, _) => PositionSidebarEdgeToggleWindow();
+        Activated += (_, _) =>
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
+            {
+                ShowSidebarEdgeToggleWindow();
+                UpdateSidebarRailVisibility();
+            }));
+        Deactivated += (_, _) => HideSidebarOverlays();
         _windowHandle = new WindowInteropHelper(this).EnsureHandle();
         var hwnd = _windowHandle;
         var source = HwndSource.FromHwnd(hwnd);
@@ -177,7 +217,9 @@ public partial class MainWindow : Window
         var hr = DwmSetWindowAttribute(hwnd, DWMWA_SNAP_LAYOUT, ref snapLayoutEnabled, 4u);
         if (hr != 0) Log.Debug($"DwmSetWindowAttribute failed: 0x{hr:X8}");
         TitleBar.TabStrip.ItemsSource = _tabs;
-        BrowserPane.SetNewTabShortcuts(_dataStore.Settings.NewTabShortcuts);
+        BrowserPane.SetNewTabShortcuts(
+            _dataStore.Settings.NewTabShortcuts,
+            _dataStore.Settings.ShowQuickLinks);
         TitleBar.NewTab += NewTab_Click;
         TitleBar.TabPopOut += PopOutTab_Click;
         TitleBar.MuteToggle += MuteButton_Click;
@@ -236,6 +278,12 @@ public partial class MainWindow : Window
         NavToolbar.SiteData += SiteData_Click;
         NavToolbar.UblockToggle += UblockToggle_Click;
         NavToolbar.ShowSettings += ShowSettings_Click;
+        SidebarRail.HomeRequested += Home_Click;
+        SidebarRail.BookmarksRequested += ShowBookmarks_Click;
+        SidebarRail.HistoryRequested += ShowHistory_Click;
+        SidebarRail.DownloadsRequested += ShowDownloads_Click;
+        SidebarRail.ExtensionsRequested += ShowExtensions_Click;
+        SidebarRail.SettingsRequested += ShowSettings_Click;
         BrowserPane.StartSearchSurfaceMouseDown += StartSearchSurface_PreviewMouseDown;
         BrowserPane.StartSearchKeyDown += StartSearchBox_PreviewKeyDown;
         BrowserPane.StartSearchGo += StartSearchGo_Click;
@@ -294,10 +342,97 @@ public partial class MainWindow : Window
         catch (Exception ex) { Log.Debug(ex, "Rounded corner preference not applied"); }
     }
 
+    private void UpdateSidebarRailPosition()
+    {
+        if (RootGrid.ActualWidth <= 0 || RootGrid.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        if (!_sidebarRailPositionInitialized)
+        {
+            _sidebarRailPosition = new Point(16, TitleBarRow.ActualHeight + NavToolbarRow.ActualHeight + 14);
+            _sidebarRailPositionInitialized = true;
+        }
+
+        var minY = TitleBarRow.ActualHeight + NavToolbarRow.ActualHeight;
+        var maxX = Math.Max(0, RootGrid.ActualWidth - SidebarRail.Width);
+        var maxY = Math.Max(minY, RootGrid.ActualHeight - SidebarRail.Height);
+        _sidebarRailPosition = new Point(
+            Math.Clamp(_sidebarRailPosition.X, 0, maxX),
+            Math.Clamp(_sidebarRailPosition.Y, minY, maxY));
+        SidebarRailPopup.HorizontalOffset = _sidebarRailPosition.X;
+        SidebarRailPopup.VerticalOffset = _sidebarRailPosition.Y;
+        var toggleHeight = SidebarRail.ActualHeight > 0
+            ? SidebarRail.ActualHeight
+            : SidebarRail.Height;
+        if (Math.Abs(_sidebarEdgeToggleWindow.Height - toggleHeight) > 0.1)
+        {
+            _sidebarEdgeToggleWindow.Height = toggleHeight;
+        }
+        PositionSidebarEdgeToggleWindow();
+    }
+
+    private void ShowSidebarEdgeToggleWindow()
+    {
+        if (_sidebarEdgeToggleWindow.Owner != this ||
+            !IsVisible ||
+            WindowState == WindowState.Minimized ||
+            !IsActive)
+        {
+            _sidebarEdgeToggleWindow.Hide();
+            return;
+        }
+
+        if (!_sidebarEdgeToggleWindow.IsVisible)
+        {
+            _sidebarEdgeToggleWindow.Show();
+        }
+
+        PositionSidebarEdgeToggleWindow();
+    }
+
+    private void PositionSidebarEdgeToggleWindow()
+    {
+        if (!_sidebarEdgeToggleWindow.IsVisible ||
+            RootGrid.ActualWidth <= 0 ||
+            RootGrid.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        var screenOrigin = RootGrid.PointToScreen(new Point(-_sidebarEdgeToggleWindow.Width / 2, _sidebarRailPosition.Y));
+        var toggleHandle = new WindowInteropHelper(_sidebarEdgeToggleWindow).Handle;
+        if (toggleHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        if (SetWindowPos(
+                toggleHandle,
+                IntPtr.Zero,
+                (int)Math.Round(screenOrigin.X),
+                (int)Math.Round(screenOrigin.Y),
+                0,
+                0,
+                SwpNoSize | SwpNoZOrder | SwpNoActivate))
+        {
+            _sidebarEdgeTogglePositionFailureLogged = false;
+        }
+        else if (!_sidebarEdgeTogglePositionFailureLogged)
+        {
+            _sidebarEdgeTogglePositionFailureLogged = true;
+            Log.Warn(
+                "Unable to position owned sidebar edge toggle window (Win32 error {Error})",
+                Marshal.GetLastWin32Error());
+        }
+    }
+
     private async void OnWindowLoaded(object? sender, RoutedEventArgs e)
     {
         try
         {
+            UpdateSidebarRailPosition();
             var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.3))
             {
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
@@ -465,11 +600,11 @@ public partial class MainWindow : Window
         return _dataStore.Settings.Accent switch
         {
             "Blue" => Color.FromRgb(0, 122, 204),
-            "Purple" => Color.FromRgb(114, 77, 223),
+            "Purple" => Color.FromRgb(145, 101, 245),
             "Gray" => Color.FromRgb(128, 128, 128),
             "Green" => Color.FromRgb(106, 153, 85),
             "White" => Color.FromRgb(255, 255, 255),
-            _ => Color.FromRgb(114, 77, 223)
+            _ => Color.FromRgb(145, 101, 245)
         };
     }
 
@@ -479,10 +614,8 @@ public partial class MainWindow : Window
         ApplyTheme();
         ApplyBackground();
         UpdatePrivacyIndicator();
-        UpdateBookmarkButton();
         ApplyForceDarkToExistingTabs();
         if (IsLoaded) NotifySettingsChanged();
-        PopulateBookmarkBar();
     }
 
 
@@ -548,16 +681,30 @@ public partial class MainWindow : Window
     private void ApplyBackground()
     {
         var bg = _dataStore.Settings.Background;
+        GlassScene.SetAppearance(
+            BrowserPane.StartOverlay,
+            string.Equals(_dataStore.Settings.Theme, "Light", StringComparison.OrdinalIgnoreCase)
+                ? GlassAppearance.Light
+                : GlassAppearance.Dark);
+        BrowserPane.StartHeroScrim.Visibility =
+            string.Equals(_dataStore.Settings.Theme, "Light", StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
 
         if (string.Equals(bg, "Default", StringComparison.OrdinalIgnoreCase))
         {
+            BrowserPane.StartScene.Visibility =
+                string.Equals(_dataStore.Settings.Theme, "Light", StringComparison.OrdinalIgnoreCase)
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
             BrowserPane.StartBgCanvas.Visibility = Visibility.Visible;
-            BrowserPane.StartOverlay.ClearValue(BackgroundProperty);
+            BrowserPane.StartBackdrop.SetResourceReference(BackgroundProperty, "AppBg");
             _startBgTimer?.Start();
             return;
         }
 
         _startBgTimer?.Stop();
+        BrowserPane.StartScene.Visibility = Visibility.Collapsed;
         BrowserPane.StartBgCanvas.Visibility = Visibility.Collapsed;
 
         if (File.Exists(bg))
@@ -566,7 +713,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        BrowserPane.StartOverlay.ClearValue(BackgroundProperty);
+        BrowserPane.StartScene.Visibility = Visibility.Visible;
+        BrowserPane.StartBackdrop.SetResourceReference(BackgroundProperty, "AppBg");
     }
 
     private async Task LoadCustomBackgroundAsync(string imagePath, double opacity)
@@ -593,7 +741,7 @@ public partial class MainWindow : Window
 
             _ = Dispatcher.BeginInvoke(() =>
             {
-                BrowserPane.StartOverlay.Background = new ImageBrush(bitmap)
+                BrowserPane.StartBackdrop.Background = new ImageBrush(bitmap)
                 {
                     Stretch = Stretch.UniformToFill,
                     Opacity = opacity

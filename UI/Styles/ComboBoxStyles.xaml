@@ -2,7 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Style TargetType="ComboBoxItem">
       <Setter Property="Foreground" Value="{DynamicResource Text}" />
-      <Setter Property="Background" Value="{DynamicResource ChromeBg}" />
+      <Setter Property="Background" Value="{DynamicResource GlassSurface}" />
       <Setter Property="Padding" Value="8,6" />
       <Setter Property="Template">
         <Setter.Value>
@@ -54,7 +54,7 @@
 
     <Style TargetType="ComboBox">
       <Setter Property="Foreground" Value="{DynamicResource Text}" />
-      <Setter Property="Background" Value="{DynamicResource InputBg}" />
+      <Setter Property="Background" Value="{DynamicResource GlassInset}" />
       <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="8,0,30,0" />
@@ -88,7 +88,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                       <Trigger Property="IsMouseOver" Value="True">
-                        <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ChromeBg}" />
+                        <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource GlassSurface}" />
                       </Trigger>
                       <Trigger Property="IsPressed" Value="True">
                         <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ButtonPressed}" />
@@ -127,8 +127,8 @@
                 <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                         MaxHeight="{TemplateBinding MaxDropDownHeight}"
                         Margin="0,4,12,12"
-                        Background="{DynamicResource ChromeBg}"
-                        BorderBrush="{DynamicResource Stroke}"
+                        Background="{DynamicResource GlassSurface}"
+                        BorderBrush="{DynamicResource GlassEdge}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Effect="{DynamicResource PopupShadow}">

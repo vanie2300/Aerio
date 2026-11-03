@@ -101,11 +101,11 @@ public partial class MainWindow
             {
                 _currentAiContext?.Workspace.KeepTab(tab.Id);
                 RefreshWorkspaceUi();
-                SetStatusTextSafe($"Kept tab \"{tab.Title}\" â€” it's now yours.");
+                SetStatusTextSafe($"Kept tab \"{tab.Title}\" - it's now yours.");
             }
             else
             {
-                SetStatusTextSafe("Couldn't keep that tab â€” it's no longer AI-owned.");
+                SetStatusTextSafe("Couldn't keep that tab - it's no longer AI-owned.");
             }
         }
         catch (Exception ex) { Log.Error(ex, "KeepAiTab failed"); }

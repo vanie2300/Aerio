@@ -2,8 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Border x:Name="AiSidebarRoot"
-          Background="{DynamicResource ChromeBg}"
-          BorderBrush="{DynamicResource Stroke}"
+          Background="{DynamicResource GlassSurface}"
+          BorderBrush="{DynamicResource GlassEdge}"
           BorderThickness="1,0,0,0">
     <Grid>
       <Grid.RowDefinitions>
@@ -52,7 +52,7 @@
       <Border x:Name="WorkspacePanel"
               Grid.Row="1"
               Visibility="Collapsed"
-              Background="{DynamicResource ChromeBg}"
+              Background="{DynamicResource GlassSurface}"
               BorderBrush="{DynamicResource SubtleStroke}"
               BorderThickness="0,0,0,1"
               Padding="10,8,10,8">
@@ -131,7 +131,7 @@
       <Border x:Name="AiActivityStrip"
               Grid.Row="3"
               Visibility="Collapsed"
-              Background="{DynamicResource InputBg}"
+              Background="{DynamicResource GlassInset}"
               BorderBrush="{DynamicResource SubtleStroke}"
               BorderThickness="1"
               CornerRadius="12"
@@ -185,10 +185,10 @@
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0"
-                    Background="{DynamicResource InputBg}"
+                    Background="{DynamicResource GlassInset}"
                     BorderBrush="{DynamicResource Stroke}"
                     BorderThickness="1"
-                    CornerRadius="6"
+                    CornerRadius="9"
                     VerticalAlignment="Center">
               <TextBox x:Name="AiInputBox"
                        Background="Transparent"

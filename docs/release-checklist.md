@@ -10,7 +10,6 @@ builds both installers automatically on every push to `main`; tagged pushes run
 - [ ] `dotnet list package --vulnerable --include-transitive` — clean.
 - [ ] Version bumped in `TabloidBrowser.csproj` (`<Version>`) and installer
       default in `installer/Aerio.iss` (`AppVersion`).
-- [ ] `Aerio_Optimization_Roadmap.md` phase notes are current.
 
 ## 2. Build verification (CI artifacts, or locally)
 

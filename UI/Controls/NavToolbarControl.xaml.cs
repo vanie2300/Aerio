@@ -57,6 +57,12 @@ public partial class NavToolbarControl : UserControl
 
     private void AddressBox_TextChanged(object s, TextChangedEventArgs e) => AddressTextChanged?.Invoke(s, EventArgs.Empty);
 
+    private void AddressBox_GotKeyboardFocus(object s, KeyboardFocusChangedEventArgs e) =>
+        GoBtn.Visibility = Visibility.Visible;
+
+    private void AddressBox_LostKeyboardFocus(object s, KeyboardFocusChangedEventArgs e) =>
+        GoBtn.Visibility = Visibility.Collapsed;
+
     private void AddressBox_PreviewMouseLeftButtonDown(object s, MouseButtonEventArgs e)
     {
         if (AddressBox.IsKeyboardFocusWithin)

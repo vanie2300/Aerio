@@ -925,7 +925,7 @@ public sealed record SitePermissionRule(string Host, string Permission, string S
 
 public sealed record SearchEngineDef(string Name, string UrlTemplate, string Keyword = "");
 
-public sealed record NewTabShortcut(string Name, string Url);
+public sealed record NewTabShortcut(string Name, string Url, string? IconUrl = null);
 
 public sealed record BrowserSettings(
     string SearchEngine,

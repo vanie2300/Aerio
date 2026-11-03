@@ -36,7 +36,7 @@ public partial class MainWindow
         BrowserPane.WebViewHost.Children.Clear();
         _attachedWebView = null;
         BrowserPane.WebViewHost.Visibility = Visibility.Hidden;
-        BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
+        BrowserPane.LoadingOverlay.SetLoadingSpinnerActive(false);
 
         if (tab.Kind == BrowserTabKind.Start)
         {
@@ -101,6 +101,11 @@ public partial class MainWindow
         }
 
         tab.Kind = BrowserTabKind.Web;
+        if (_activeTab == tab)
+        {
+            _sidebarRailManuallyPinned = false;
+            UpdateSidebarRailVisibility();
+        }
         tab.Address = target;
         tab.Title = "Loading...";
         tab.IsLoading = true;
@@ -159,6 +164,8 @@ public partial class MainWindow
     {
         var isChangingNativePage = tab.Kind != kind;
         tab.Kind = kind;
+        if (_activeTab == tab)
+            UpdateSidebarRailVisibility();
         tab.Title = GetNativePageTitle(kind);
         tab.Address = GetNativePageAddress(kind);
         tab.IsLoading = false;
@@ -179,7 +186,6 @@ public partial class MainWindow
             RenderNativeSurface(tab);
             UpdateAddressBar();
             UpdateNavigationButtons();
-            UpdateBookmarkButton();
         }
     }
 

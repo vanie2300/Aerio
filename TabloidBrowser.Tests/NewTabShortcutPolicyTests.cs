@@ -35,11 +35,21 @@ public class NewTabShortcutPolicyTests
     }
 
     [Fact]
+    public void TryNormalizeIconUrl_AllowsEmptyAndNormalizesHttpUrls()
+    {
+        Assert.True(NewTabShortcutPolicy.TryNormalizeIconUrl(" ", out var empty));
+        Assert.Null(empty);
+        Assert.True(NewTabShortcutPolicy.TryNormalizeIconUrl(" icons.example.com/a.png ", out var normalized));
+        Assert.Equal("https://icons.example.com/a.png", normalized);
+        Assert.False(NewTabShortcutPolicy.TryNormalizeIconUrl("file:///C:/icon.png", out _));
+    }
+
+    [Fact]
     public void Normalize_TrimsAndDropsInvalidEntries()
     {
         var shortcuts = new[]
         {
-            new NewTabShortcut("  Wiki  ", "  https://wikipedia.org  "),
+            new NewTabShortcut("  Wiki  ", "  https://wikipedia.org  ", " https://icons.example.com/wiki.png "),
             new NewTabShortcut("Bad", "ftp://files.example.com"),
             new NewTabShortcut("   ", "https://example.com"),
             new NewTabShortcut("Blank url", "   ")
@@ -50,6 +60,7 @@ public class NewTabShortcutPolicyTests
         var entry = Assert.Single(normalized);
         Assert.Equal("Wiki", entry.Name);
         Assert.Equal("https://wikipedia.org", entry.Url);
+        Assert.Equal("https://icons.example.com/wiki.png", entry.IconUrl);
     }
 
     [Fact]

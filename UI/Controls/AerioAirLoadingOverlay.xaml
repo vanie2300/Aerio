@@ -1,0 +1,150 @@
+<UserControl x:Class="TabloidBrowser.AerioAirLoadingOverlay"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsHitTestVisible="False"
+             Opacity="1"
+             Visibility="Collapsed">
+  <!-- A self-contained, click-through overlay. No app-wide resources or packages required. -->
+  <Grid ClipToBounds="True">
+    <Grid.Background>
+      <RadialGradientBrush Center="0.5,0.46" GradientOrigin="0.5,0.46"
+                           RadiusX="0.85" RadiusY="0.85">
+        <GradientStop Color="#1D192C" Offset="0" />
+        <GradientStop Color="#110F1A" Offset="1" />
+      </RadialGradientBrush>
+    </Grid.Background>
+
+    <!-- The artwork stays centered and proportionate at every window size. -->
+    <StackPanel HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Margin="20">
+      <TextBlock Text="A E R I O"
+                 Foreground="#A9A0CD"
+                 FontFamily="Segoe UI"
+                 FontSize="11"
+                 FontWeight="SemiBold"
+                 TextAlignment="Center"
+                 Margin="0,0,0,16" />
+
+      <Grid Width="280" Height="160"
+            HorizontalAlignment="Center"
+            Margin="0,0,0,8">
+        <!-- One cached soft glow; animating its scale is cheaper than animating blur radius. -->
+        <Ellipse Width="170" Height="108"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center"
+                 Fill="#665B4BD5"
+                 Opacity="0.67"
+                 CacheMode="BitmapCache"
+                 RenderTransformOrigin="0.5,0.5">
+          <Ellipse.Effect>
+            <BlurEffect Radius="30" />
+          </Ellipse.Effect>
+          <Ellipse.RenderTransform>
+            <ScaleTransform x:Name="GlowScale" ScaleX="1" ScaleY="1" />
+          </Ellipse.RenderTransform>
+        </Ellipse>
+
+        <Canvas Width="260" Height="146"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+          <!-- Softer, translucent cloud silhouettes. The original transform names are kept. -->
+          <Path Data="M 50,103 C 40,97 39,88 44,80 C 48,73 55,70 63,70
+                      C 66,51 81,40 97,42 C 108,23 135,24 144,44
+                      C 161,37 179,48 180,65 C 197,64 209,78 208,92
+                      C 207,107 194,116 178,116 L 70,116 C 60,116 53,112 50,103 Z"
+                Fill="#493F3A69"
+                Stroke="#8A7DBB"
+                StrokeThickness="1.2"
+                StrokeLineJoin="Round">
+            <Path.RenderTransform>
+              <TranslateTransform x:Name="CloudLeftMove" />
+            </Path.RenderTransform>
+          </Path>
+          <Path Data="M 104,117 C 95,110 96,100 102,94 C 109,88 113,87 121,87
+                      C 123,74 134,68 145,70 C 154,57 175,57 183,74
+                      C 196,69 208,79 209,89 C 224,89 231,101 228,112
+                      C 226,123 217,129 203,129 L 124,129 C 114,129 108,126 104,117 Z"
+                Fill="#353E4268"
+                Stroke="#746FC5"
+                StrokeThickness="1.1"
+                StrokeLineJoin="Round">
+            <Path.RenderTransform>
+              <TranslateTransform x:Name="CloudRightMove" />
+            </Path.RenderTransform>
+          </Path>
+
+          <!-- Localized airflow, rather than three lines stretched across the entire window. -->
+          <Path x:Name="WindPath1"
+                Data="M 26,73 C 61,73 84,73 109,73 C 135,73 143,48 167,48
+                      C 185,48 193,61 193,72 C 193,87 180,95 170,89"
+                Stroke="#C3B2FF"
+                StrokeThickness="3"
+                StrokeStartLineCap="Round"
+                StrokeEndLineCap="Round"
+                StrokeLineJoin="Round"
+                Opacity="0">
+            <Path.RenderTransform>
+              <TranslateTransform />
+            </Path.RenderTransform>
+          </Path>
+          <Path x:Name="WindPath2"
+                Data="M 42,92 C 72,92 90,92 117,92 C 143,92 150,116 179,116
+                      C 198,116 208,103 208,92 C 208,79 198,75 188,79"
+                Stroke="#9B8DEF"
+                StrokeThickness="2.4"
+                StrokeStartLineCap="Round"
+                StrokeEndLineCap="Round"
+                StrokeLineJoin="Round"
+                Opacity="0">
+            <Path.RenderTransform>
+              <TranslateTransform />
+            </Path.RenderTransform>
+          </Path>
+          <Path x:Name="WindPath3"
+                Data="M 55,58 C 76,58 91,58 110,58 C 133,58 139,34 158,34"
+                Stroke="#82CBE5"
+                StrokeThickness="1.7"
+                StrokeStartLineCap="Round"
+                StrokeEndLineCap="Round"
+                StrokeLineJoin="Round"
+                Opacity="0">
+            <Path.RenderTransform>
+              <TranslateTransform />
+            </Path.RenderTransform>
+          </Path>
+        </Canvas>
+      </Grid>
+
+      <!-- This name is used by SetLoadingMessage; do not rename it. -->
+      <TextBlock x:Name="LoadingTitleText"
+                 Text="Opening your space"
+                 Foreground="#F9F7FF"
+                 FontFamily="Segoe UI"
+                 FontSize="22"
+                 FontWeight="SemiBold"
+                 TextAlignment="Center"
+                 HorizontalAlignment="Center"
+                 TextWrapping="Wrap"
+                 MaxWidth="360"
+                 Margin="0,0,0,7" />
+      <TextBlock Text="Preparing your page"
+                 Foreground="#ABA5C0"
+                 FontFamily="Segoe UI"
+                 FontSize="12"
+                 TextAlignment="Center"
+                 HorizontalAlignment="Center" />
+
+      <StackPanel Orientation="Horizontal"
+                  HorizontalAlignment="Center"
+                  Margin="0,20,0,0">
+        <Ellipse x:Name="LoadingDot1" Width="4" Height="4"
+                 Fill="#B5A4FA" Opacity="0.3" Margin="0,0,6,0" />
+        <Ellipse x:Name="LoadingDot2" Width="4" Height="4"
+                 Fill="#B5A4FA" Opacity="0.3" Margin="0,0,6,0" />
+        <Ellipse x:Name="LoadingDot3" Width="4" Height="4"
+                 Fill="#B5A4FA" Opacity="0.3" />
+      </StackPanel>
+    </StackPanel>
+  </Grid>
+</UserControl>

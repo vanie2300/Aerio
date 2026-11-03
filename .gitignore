@@ -8,6 +8,9 @@ artifacts/
 *.userosscache
 *.sln.docstates
 
+# Local-only planning and audit notes
+/local-only/
+
 # WebView2 local profile data
 WebView2/
 

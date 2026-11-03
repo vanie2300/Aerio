@@ -142,8 +142,7 @@ public partial class MainWindow
         BrowserPane.StartOverlay.Visibility = Visibility.Visible;
         BrowserPane.InternalPageHost.Visibility = Visibility.Collapsed;
         BrowserPane.WebViewHost.Visibility = Visibility.Hidden;
-        BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
-        BrowserPane.SetLoadingSpinnerActive(false);
+        BrowserPane.LoadingOverlay.SetLoadingSpinnerActive(false);
 
         var result = MessageBox.Show(
             $"Aerio could not start.\n\n{exception.Message}\n\nOpen the WebView2 download page?",
@@ -625,7 +624,6 @@ public partial class MainWindow
                     ? historySaveFailed ? "Couldn't save this page to history" : "Ready"
                     : StatusBar.StatusText.Text;
                 UpdateNavigationButtons();
-                UpdateBookmarkButton();
                 UpdateLoadingOverlay();
                 UpdateReaderUi(tab.IsReaderMode);
                 UpdateReloadStopButton();

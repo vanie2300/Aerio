@@ -209,6 +209,10 @@ public partial class MainWindow
 
             HideFindBar();
             _activeTab = tab;
+            if (tab.Kind == BrowserTabKind.Web)
+                _sidebarRailManuallyPinned = false;
+            SidebarRail.SetActivePage(tab);
+            UpdateSidebarRailVisibility();
 
             tab.IsActive = true;
             tab.IsSleeping = false;
@@ -236,7 +240,6 @@ public partial class MainWindow
 
             UpdateAddressBar();
             UpdateNavigationButtons();
-            UpdateBookmarkButton();
             UpdateMemoryStatus();
             UpdateReaderUi(tab.IsReaderMode);
             UpdateReloadStopButton();
@@ -300,7 +303,11 @@ public partial class MainWindow
         BrowserPane.WebViewHost.Visibility = Visibility.Visible;
         BrowserPane.StartOverlay.Visibility = Visibility.Collapsed;
         BrowserPane.InternalPageHost.Visibility = Visibility.Collapsed;
-        BrowserPane.LoadingOverlay.Visibility = tab.IsLoading ? Visibility.Visible : Visibility.Collapsed;
+        if (tab.IsLoading)
+        {
+            BrowserPane.LoadingOverlay.SetLoadingMessage($"Loading {TrimUrl(tab.Address)}");
+        }
+        BrowserPane.LoadingOverlay.SetLoadingSpinnerActive(tab.IsLoading);
 
         Dispatcher.BeginInvoke(() => webView.Focus(), DispatcherPriority.ApplicationIdle);
 

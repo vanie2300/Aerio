@@ -44,6 +44,15 @@ public partial class MainWindow
     private double _chromeTransitionTo;
     private long _chromeTransitionStarted;
     private TimeSpan _chromeTransitionDuration;
+    private int _sidebarRailAnimationVersion;
+    private bool _sidebarRailTargetVisible;
+    private bool _sidebarRailManuallyPinned;
+    private bool _sidebarRailPositionInitialized;
+    private bool _isSidebarRailDragging;
+    private Point _sidebarRailPosition;
+    private Point _sidebarRailDragPointer;
+    private Point _sidebarRailDragOrigin;
+    private bool _sidebarEdgeTogglePositionFailureLogged;
     private Point _findBarDragStart;
     private bool _suppressFindTextChanged;
     private volatile BrowserTab? _pendingReaderTab;
@@ -54,11 +63,20 @@ public partial class MainWindow
 
     private void ChromeAutoHideTimer_Tick(object? sender, EventArgs e)
     {
-        if (!IsVisible || WindowState == WindowState.Minimized ||
-            _isFullScreen || !IsActive)
+        if (!IsVisible || WindowState == WindowState.Minimized)
         {
+            HideSidebarOverlays();
             return;
         }
+
+        if (!IsActive)
+        {
+            HideSidebarOverlays();
+            return;
+        }
+
+        ShowSidebarEdgeToggleWindow();
+        UpdateSidebarRailVisibility();
 
         if (!GetCursorPos(out var cursor))
         {
@@ -83,6 +101,9 @@ public partial class MainWindow
                            cursor.X <= windowRect.Right &&
                            cursor.Y >= windowRect.Top &&
                            cursor.Y <= windowRect.Bottom;
+
+        if (_isFullScreen)
+            return;
 
         if (_browserChromeHidden)
         {
@@ -122,6 +143,149 @@ public partial class MainWindow
         {
             SetBrowserChromeVisible(false);
         }
+    }
+
+    private void UpdateSidebarRailVisibility()
+    {
+        if (_sidebarRailManuallyPinned)
+            ShowSidebarRail();
+        else
+            HideSidebarRail();
+    }
+
+    private void HideSidebarOverlays()
+    {
+        _sidebarEdgeToggleWindow.Hide();
+        _sidebarRailTargetVisible = false;
+        _sidebarRailAnimationVersion++;
+        SidebarRail.BeginAnimation(UIElement.OpacityProperty, null);
+        SidebarRail.RailTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+        SidebarRail.Opacity = 0;
+        SidebarRail.RailTranslate.X = -10;
+        SidebarRail.IsHitTestVisible = false;
+        SidebarRailPopup.IsOpen = false;
+    }
+
+    private void SidebarRailToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _sidebarRailManuallyPinned = !_sidebarRailManuallyPinned;
+        UpdateSidebarRailVisibility();
+    }
+
+    private void SidebarRail_RailDragStarted(object sender, MouseButtonEventArgs e)
+    {
+        if (!SidebarRailPopup.IsOpen || !GetCursorPos(out var cursor))
+            return;
+
+        _isSidebarRailDragging = true;
+        _sidebarRailDragPointer = RootGrid.PointFromScreen(new Point(cursor.X, cursor.Y));
+        _sidebarRailDragOrigin = _sidebarRailPosition;
+        e.Handled = true;
+    }
+
+    private void SidebarRail_RailDragMoved(object sender, MouseEventArgs e)
+    {
+        if (!_isSidebarRailDragging || !GetCursorPos(out var cursor))
+            return;
+
+        var pointer = RootGrid.PointFromScreen(new Point(cursor.X, cursor.Y));
+        var minY = TitleBarRow.ActualHeight + NavToolbarRow.ActualHeight;
+        var maxX = Math.Max(0, RootGrid.ActualWidth - SidebarRail.Width);
+        var maxY = Math.Max(minY, RootGrid.ActualHeight - SidebarRail.Height);
+        _sidebarRailPosition = new Point(
+            Math.Clamp(_sidebarRailDragOrigin.X + pointer.X - _sidebarRailDragPointer.X, 0, maxX),
+            Math.Clamp(_sidebarRailDragOrigin.Y + pointer.Y - _sidebarRailDragPointer.Y, minY, maxY));
+        UpdateSidebarRailPosition();
+        e.Handled = true;
+    }
+
+    private void SidebarRail_RailDragEnded(object sender, RoutedEventArgs e)
+    {
+        _isSidebarRailDragging = false;
+    }
+
+    private void ShowSidebarRail()
+    {
+        if (_sidebarRailTargetVisible)
+            return;
+
+        _sidebarRailTargetVisible = true;
+        if (!SidebarRailPopup.IsOpen)
+        {
+            UpdateSidebarRailPosition();
+            SidebarRailPopup.IsOpen = true;
+            SidebarRail.Opacity = 0;
+            SidebarRail.RailTranslate.X = -10;
+        }
+
+        SidebarRail.IsHitTestVisible = true;
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            SidebarRail.Opacity = 1;
+            SidebarRail.RailTranslate.X = 0;
+            return;
+        }
+
+        _sidebarRailAnimationVersion++;
+        var fadeIn = new DoubleAnimation(
+            SidebarRail.Opacity,
+            1,
+            TimeSpan.FromMilliseconds(220))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        var slideIn = new DoubleAnimation(
+            SidebarRail.RailTranslate.X,
+            0,
+            TimeSpan.FromMilliseconds(260))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        SidebarRail.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+        SidebarRail.RailTranslate.BeginAnimation(TranslateTransform.XProperty, slideIn);
+    }
+
+    private void HideSidebarRail()
+    {
+        if (!SidebarRailPopup.IsOpen || !_sidebarRailTargetVisible)
+            return;
+
+        _sidebarRailTargetVisible = false;
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            SidebarRail.IsHitTestVisible = false;
+            SidebarRailPopup.IsOpen = false;
+            return;
+        }
+
+        var animationVersion = ++_sidebarRailAnimationVersion;
+        var fadeOut = new DoubleAnimation(
+            SidebarRail.Opacity,
+            0,
+            TimeSpan.FromMilliseconds(180))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+        var slideOut = new DoubleAnimation(
+            SidebarRail.RailTranslate.X,
+            -10,
+            TimeSpan.FromMilliseconds(200))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+        fadeOut.Completed += (_, _) =>
+        {
+            if (animationVersion != _sidebarRailAnimationVersion ||
+                _sidebarRailTargetVisible)
+            {
+                return;
+            }
+
+            SidebarRail.IsHitTestVisible = false;
+            SidebarRailPopup.IsOpen = false;
+        };
+        SidebarRail.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+        SidebarRail.RailTranslate.BeginAnimation(TranslateTransform.XProperty, slideOut);
     }
 
     private void SetBrowserChromeVisible(bool visible)
@@ -168,16 +332,13 @@ public partial class MainWindow
         _chromeProgress = Math.Clamp(progress, 0, 1);
         var opacity = 1 - _chromeProgress;
         var visibleChromeHeight = opacity;
-        TitleBarRow.Height = new GridLength(40 * visibleChromeHeight);
-        NavToolbarRow.Height = new GridLength(40 * visibleChromeHeight);
-        StatusBarRow.Height = new GridLength(22 * visibleChromeHeight);
+        TitleBarRow.Height = new GridLength(38 * visibleChromeHeight);
+        NavToolbarRow.Height = new GridLength(42 * visibleChromeHeight);
         TitleBar.Opacity = opacity;
         NavToolbar.Opacity = opacity;
-        StatusBar.Opacity = opacity;
         var hitTestVisible = opacity > 0.01;
         TitleBar.IsHitTestVisible = hitTestVisible;
         NavToolbar.IsHitTestVisible = hitTestVisible;
-        StatusBar.IsHitTestVisible = hitTestVisible;
     }
 
     private void FinishChromeTransition()
@@ -236,13 +397,10 @@ public partial class MainWindow
     {
         if (!_isPrivate)
         {
-            StatusBar.LocalDataText.Text = "Local";
             return;
         }
 
         Title = "Aerio - Private";
-        StatusBar.LocalDataText.Text = "Private";
-        StatusBar.LocalDataText.Foreground = GetBrush("Pink");
         NavToolbar.PrivateButton.Content = "PVT";
         NavToolbar.PrivateButton.ToolTip = "Private window";
         NavToolbar.PrivateButton.IsEnabled = false;
@@ -283,56 +441,18 @@ public partial class MainWindow
         NavToolbar.ForwardButton.IsEnabled = webView?.CanGoForward == true;
     }
 
-    private void UpdateBookmarkButton()
-    {
-        var tab = _activeTab;
-        var canBookmark = tab is { Kind: BrowserTabKind.Web } && BrowserDataStore.IsHttpUrl(tab.Address);
-        NavToolbar.BookmarkButton.IsEnabled = canBookmark;
-
-        if (!canBookmark || tab is null)
-        {
-            if (NavToolbar.BookmarkButton.Content?.ToString() != "\uE734")
-                NavToolbar.BookmarkButton.Content = "\uE734";
-            NavToolbar.BookmarkButton.BorderBrush = GetBrush("Stroke");
-            NavToolbar.BookmarkButton.ToolTip = "Open a web page to bookmark";
-            return;
-        }
-
-        var isBookmarked = _dataStore.IsBookmarked(tab.Address);
-        NavToolbar.BookmarkButton.Content = isBookmarked ? "\uE735" : "\uE734";
-        NavToolbar.BookmarkButton.BorderBrush = isBookmarked ? GetBrush("Pink") : GetBrush("Stroke");
-        NavToolbar.BookmarkButton.ToolTip = isBookmarked ? "Remove bookmark" : "Add bookmark";
-    }
-
     private void UpdateLoadingOverlay()
     {
         var tab = _activeTab;
         var show = tab?.IsLoading == true;
         if (show)
         {
-            BrowserPane.LoadingOverlay.Visibility = Visibility.Visible;
-            BrowserPane.SetLoadingSpinnerActive(true);
-            BrowserPane.LoadingOverlay.Opacity = 0;
-            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.15))
-            {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-            };
-            BrowserPane.LoadingOverlay.BeginAnimation(OpacityProperty, fadeIn);
-            BrowserPane.LoadingTitleText.Text = $"Loading {TrimUrl(tab?.Address ?? string.Empty)}";
+            BrowserPane.LoadingOverlay.SetLoadingMessage($"Loading {TrimUrl(tab?.Address ?? string.Empty)}");
+            BrowserPane.LoadingOverlay.SetLoadingSpinnerActive(true);
         }
-        else if (BrowserPane.LoadingOverlay.Visibility == Visibility.Visible)
+        else
         {
-            var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.1))
-            {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
-            };
-            fadeOut.Completed += (_, _) =>
-            {
-                BrowserPane.LoadingOverlay.Visibility = Visibility.Collapsed;
-                BrowserPane.SetLoadingSpinnerActive(false);
-                BrowserPane.LoadingOverlay.Opacity = 1;
-            };
-            BrowserPane.LoadingOverlay.BeginAnimation(OpacityProperty, fadeOut);
+            BrowserPane.LoadingOverlay.SetLoadingSpinnerActive(false);
         }
     }
 
@@ -376,15 +496,31 @@ public partial class MainWindow
         }
         _lastInactiveCount = inactive;
 
-        NavToolbar.MemoryButton.Content = inactive == 0 ? "RAM" : inactive.ToString();
-        NavToolbar.MemoryButton.ToolTip = inactive == 0
-            ? "Click to hibernate all inactive tabs"
-            : $"{hibernated} hibernated, {suspended} suspended â€” click to hibernate all";
-        StatusBar.MemoryStatusText.Text = inactive == 0
-            ? "0 hibernated â€” click RAM to hibernate"
-            : suspended == 0
-                ? $"{hibernated} hibernated â€” click RAM to hibernate"
-                : $"{hibernated} hibernated, {suspended} suspended â€” click RAM";
+        NavToolbar.MemoryButton.Content = "RAM";
+        NavToolbar.MemoryButton.ToolTip = new StackPanel
+        {
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "Tab memory",
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = GetBrush("Text")
+                },
+                new TextBlock
+                {
+                    Text = $"{hibernated} hibernated · {suspended} suspended",
+                    Foreground = GetBrush("InkSecondary"),
+                    Margin = new Thickness(0, 3, 0, 0)
+                },
+                new TextBlock
+                {
+                    Text = "Click RAM to hibernate inactive tabs",
+                    Foreground = GetBrush("Muted"),
+                    Margin = new Thickness(0, 3, 0, 0)
+                }
+            }
+        };
     }
 
     private void FocusStartSearchIfActive()
@@ -728,8 +864,6 @@ public partial class MainWindow
             StatusBar.StatusText.Text = "Bookmarked";
         }
 
-        PopulateBookmarkBar();
-        UpdateBookmarkButton();
     }
 
     private async void ShowBookmarks_Click(object sender, RoutedEventArgs e)
@@ -840,7 +974,7 @@ public partial class MainWindow
         tab.ZoomLevel = Math.Clamp(tab.ZoomLevel + delta, 0.25, 5.0);
         if (tab.WebView is not null)
             tab.WebView.ZoomFactor = tab.ZoomLevel;
-        UpdateZoomDisplay();
+        UpdateZoomDisplay(showToast: true);
     }
 
     private void ResetZoom()
@@ -850,21 +984,15 @@ public partial class MainWindow
         tab.ZoomLevel = 1.0;
         if (tab.WebView is not null)
             tab.WebView.ZoomFactor = 1.0;
-        UpdateZoomDisplay();
+        UpdateZoomDisplay(showToast: true);
     }
 
-    private void UpdateZoomDisplay()
+    private void UpdateZoomDisplay(bool showToast = false)
     {
         var z = _activeTab?.ZoomLevel ?? 1.0;
-        if (StatusBar.ZoomText is null) return;
-        if (Math.Abs(z - 1.0) < 0.01)
+        if (showToast)
         {
-            StatusBar.ZoomText.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            StatusBar.ZoomText.Text = $"{(int)(z * 100)}%";
-            StatusBar.ZoomText.Visibility = Visibility.Visible;
+            StatusBar.StatusText.Text = $"Zoom: {(int)(z * 100)}%";
         }
     }
 
@@ -889,65 +1017,6 @@ public partial class MainWindow
             _chromeHideAt = _autoHideBrowserChromeActive
                 ? DateTime.UtcNow.AddSeconds(2)
                 : DateTime.MaxValue;
-        }
-    }
-
-    private void PopulateBookmarkBar()
-    {
-        NavToolbar.BookmarkBarItems.Children.Clear();
-        var bookmarks = _dataStore.Bookmarks;
-        if (bookmarks.Count == 0)
-        {
-            if (NavToolbar.BookmarkBar.Visibility == Visibility.Visible)
-            {
-                var slideOut = new DoubleAnimation(26, 0, TimeSpan.FromSeconds(0.15))
-                {
-                    EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
-                };
-                slideOut.Completed += (_, _) => NavToolbar.BookmarkBar.Visibility = Visibility.Collapsed;
-                NavToolbar.BookmarkBar.BeginAnimation(HeightProperty, slideOut);
-            }
-            return;
-        }
-        if (NavToolbar.BookmarkBar.Visibility != Visibility.Visible)
-        {
-            NavToolbar.BookmarkBar.Height = 0;
-            NavToolbar.BookmarkBar.Visibility = Visibility.Visible;
-            var slideIn = new DoubleAnimation(0, 26, TimeSpan.FromSeconds(0.2))
-            {
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
-            };
-            NavToolbar.BookmarkBar.BeginAnimation(HeightProperty, slideIn);
-        }
-        else
-        {
-            NavToolbar.BookmarkBar.ClearValue(HeightProperty);
-        }
-        foreach (var bm in bookmarks)
-        {
-            var btn = new Button
-            {
-                Content = bm.Title,
-                MaxWidth = 160,
-                Height = 22,
-                Margin = new Thickness(0, 0, 3, 0),
-                Padding = new Thickness(6, 0, 6, 0),
-                FontSize = 11,
-                Tag = bm.Url,
-                ToolTip = bm.Url,
-                Style = TryFindResource("MicroButton") as Style
-            };
-            btn.Click += async (_, _) =>
-            {
-                try
-                {
-                    var tab = _activeTab;
-                    if (tab is null) return;
-                    await NavigateWebAsync(tab, bm.Url);
-                }
-                catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-            };
-            NavToolbar.BookmarkBarItems.Children.Add(btn);
         }
     }
 
@@ -992,7 +1061,7 @@ public partial class MainWindow
 
             var siteCount = new TextBlock
             {
-                Text = "Loading saved sitesâ€¦",
+                Text = "Loading saved sites...",
                 Foreground = GetBrush("Text"),
                 FontSize = 12,
                 Margin = new Thickness(0, 0, 0, 6)
@@ -1013,7 +1082,7 @@ public partial class MainWindow
             siteListScroll.Resources.Add(typeof(ScrollBar), FindResource("DarkScrollBar"));
             siteList.Children.Add(new TextBlock
             {
-                Text = "Loading sitesâ€¦",
+                Text = "Loading sites...",
                 Foreground = GetBrush("Muted"),
                 FontSize = 12,
                 Margin = new Thickness(10, 14, 10, 14)
@@ -1025,12 +1094,12 @@ public partial class MainWindow
                 siteList.Children.Clear();
                 siteList.Children.Add(new TextBlock
                 {
-                    Text = "Loading sitesâ€¦",
+                    Text = "Loading sites...",
                     Foreground = GetBrush("Muted"),
                     FontSize = 12,
                     Margin = new Thickness(10, 14, 10, 14)
                 });
-                siteCount.Text = "Loading saved sitesâ€¦";
+                siteCount.Text = "Loading saved sites...";
                 try
                 {
                     var cookies = await cwv.CookieManager.GetCookiesAsync(string.Empty);

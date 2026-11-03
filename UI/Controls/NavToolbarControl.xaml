@@ -1,18 +1,18 @@
 <UserControl x:Class="TabloidBrowser.NavToolbarControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Border Background="{DynamicResource ChromeBg}"
+  <Border Background="{DynamicResource GlassSurface}"
           ClipToBounds="True"
-          BorderBrush="{DynamicResource SubtleStroke}"
+          BorderBrush="{DynamicResource GlassEdge}"
           BorderThickness="0,0,0,1">
-    <Grid Margin="8,5,8,5">
+    <Grid Margin="8,3,8,3">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
       <Grid.RowDefinitions>
-        <RowDefinition Height="30" />
+        <RowDefinition Height="36" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
 
@@ -49,11 +49,11 @@
       <Border Grid.Row="0"
               Grid.Column="1"
               Margin="0,0,0,0"
-              Background="{DynamicResource InputBg}"
-              BorderBrush="{DynamicResource Stroke}"
+              Background="{DynamicResource GlassInset}"
+              BorderBrush="{DynamicResource GlassEdge}"
               BorderThickness="1"
               CornerRadius="7"
-              Height="30"
+              Height="36"
               VerticalAlignment="Center">
         <Grid>
           <Grid.ColumnDefinitions>
@@ -82,6 +82,8 @@
                    Padding="2,0,8,0"
                    VerticalContentAlignment="Center"
                    TextChanged="AddressBox_TextChanged"
+                   GotKeyboardFocus="AddressBox_GotKeyboardFocus"
+                   LostKeyboardFocus="AddressBox_LostKeyboardFocus"
                    PreviewMouseLeftButtonDown="AddressBox_PreviewMouseLeftButtonDown"
                    PreviewKeyDown="AddressBox_PreviewKeyDown" />
           <Button x:Name="GoBtn"
@@ -92,8 +94,9 @@
                   Style="{StaticResource MicroButton}"
                   BorderBrush="{DynamicResource SubtleStroke}"
                   Margin="0,0,3,0"
-                  Height="22"
-                  ToolTip="Go to address" />
+                  Height="26"
+                  ToolTip="Go to address"
+                  Visibility="Collapsed" />
         </Grid>
       </Border>
 
@@ -104,8 +107,8 @@
              AllowsTransparency="True"
              PopupAnimation="Fade">
         <Border x:Name="AddressSuggestionsBorder"
-                Background="{DynamicResource ChromeBg}"
-                BorderBrush="{DynamicResource Stroke}"
+                Background="{DynamicResource GlassSurface}"
+                BorderBrush="{DynamicResource GlassEdge}"
                 BorderThickness="1"
                 CornerRadius="7"
                 Padding="4"
@@ -197,13 +200,6 @@
                   Orientation="Horizontal"
                   VerticalAlignment="Center"
                   Margin="8,0,0,0">
-        <Button x:Name="BookmarkButton"
-                Content="&#xE734;"
-                Click="Bookmark_Click"
-                Style="{StaticResource IconButton}"
-                BorderBrush="{DynamicResource Pink}"
-                ToolTip="Add bookmark"
-                Visibility="Visible" />
         <Button x:Name="ReaderButton"
                 Content="&#xE8B9;"
                 Click="ReaderMode_Click"
@@ -375,18 +371,6 @@
         </Button>
       </StackPanel>
 
-      <ScrollViewer x:Name="BookmarkBar"
-                    Grid.Row="1"
-                    Grid.ColumnSpan="3"
-                    HorizontalScrollBarVisibility="Hidden"
-                    VerticalScrollBarVisibility="Disabled"
-                    Height="26"
-                    Margin="0,4,0,0"
-                    Visibility="Collapsed">
-        <StackPanel x:Name="BookmarkBarItems"
-                    Orientation="Horizontal"
-                    VerticalAlignment="Center" />
-      </ScrollViewer>
     </Grid>
   </Border>
 </UserControl>

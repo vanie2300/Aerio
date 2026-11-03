@@ -48,10 +48,28 @@ public static class NewTabShortcutPolicy
             .Select(shortcut => shortcut with
             {
                 Name = shortcut.Name?.Trim() ?? "",
-                Url = shortcut.Url?.Trim() ?? ""
+                Url = shortcut.Url?.Trim() ?? "",
+                IconUrl = TryNormalizeIconUrl(shortcut.IconUrl, out var iconUrl) ? iconUrl : null
             })
             .Where(shortcut => !string.IsNullOrWhiteSpace(shortcut.Name) &&
                                IsValidShortcutUrl(shortcut.Url))
             .ToList();
+    }
+
+    public static bool TryNormalizeIconUrl(string? value, out string? normalized)
+    {
+        normalized = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        if (!TryNormalizeShortcutUrl(value, out var iconUrl))
+        {
+            return false;
+        }
+
+        normalized = iconUrl;
+        return true;
     }
 }
