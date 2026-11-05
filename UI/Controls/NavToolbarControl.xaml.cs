@@ -36,7 +36,6 @@ public partial class NavToolbarControl : UserControl
     public event RoutedEventHandler? ShowHistory;
     public event RoutedEventHandler? ShowDownloads;
     public event RoutedEventHandler? ShowExtensions;
-    public event RoutedEventHandler? ShowHymns;
     public event RoutedEventHandler? ZoomIn;
     public event RoutedEventHandler? ZoomOut;
     public event RoutedEventHandler? ResetZoom;
@@ -54,6 +53,24 @@ public partial class NavToolbarControl : UserControl
     }
 
     public void CloseAddressSuggestions() => AddressSuggestionsPopup.IsOpen = false;
+
+    /// <summary>Sets the site favicon shown at the left edge of the omnibox.</summary>
+    public void SetAddressBarFavicon(System.Windows.Media.ImageSource? favicon)
+    {
+        AddressFavicon.Source = favicon;
+        AddressFavicon.Visibility = favicon is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>Shows the bookmark star and its filled/outline state.</summary>
+    public void SetBookmarkState(bool visible, bool bookmarked)
+    {
+        BookmarkStarBtn.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        BookmarkStarBtn.Content = bookmarked ? "\uE735" : "\uE734";
+        BookmarkStarBtn.SetResourceReference(
+            Button.ForegroundProperty,
+            bookmarked ? "Accent" : "Muted");
+        BookmarkStarBtn.ToolTip = bookmarked ? "Remove from bookmarks" : "Bookmark this page";
+    }
 
     private void AddressBox_TextChanged(object s, TextChangedEventArgs e) => AddressTextChanged?.Invoke(s, EventArgs.Empty);
 
@@ -146,7 +163,6 @@ public partial class NavToolbarControl : UserControl
     private void ShowHistory_Click(object s, RoutedEventArgs e) => ShowHistory?.Invoke(s, e);
     private void ShowDownloads_Click(object s, RoutedEventArgs e) => ShowDownloads?.Invoke(s, e);
     private void ShowExtensions_Click(object s, RoutedEventArgs e) => ShowExtensions?.Invoke(s, e);
-    private void ShowHymns_Click(object s, RoutedEventArgs e) => ShowHymns?.Invoke(s, e);
     private void ZoomIn_Click(object s, RoutedEventArgs e) => ZoomIn?.Invoke(s, e);
     private void ZoomOut_Click(object s, RoutedEventArgs e) => ZoomOut?.Invoke(s, e);
     private void ResetZoom_Click(object s, RoutedEventArgs e) => ResetZoom?.Invoke(s, e);

@@ -29,10 +29,10 @@
                 <h2>Tech Stack</h2>
                 <table>
                     <tr><th>Layer</th><th>Technology</th></tr>
-                    <tr><td>UI Framework</td><td>WPF (.NET 8)</td></tr>
+                    <tr><td>UI Framework</td><td>WPF (.NET 10)</td></tr>
                     <tr><td>Browser Engine</td><td>Microsoft WebView2</td></tr>
                     <tr><td>Target</td><td>Windows 10 (19041+) / Windows 11</td></tr>
-                    <tr><td>Dependencies</td><td>Microsoft.Web.WebView2, System.Security.Cryptography.ProtectedData</td></tr>
+                    <tr><td>Dependencies</td><td>Microsoft.Web.WebView2, Serilog, Serilog.Sinks.File, LiquidGlassEngineering.Wpf</td></tr>
                 </table>
             </div>
 
@@ -78,16 +78,21 @@
 
             <div class="section">
                 <h2>Main Window (Partial Classes)</h2>
-                <p>The <code>MainWindow</code> class is split across eight concern-specific partial files in addition to its main XAML/code-behind files:</p>
+                <p>The <code>MainWindow</code> class is split across thirteen concern-specific partial files in addition to its main XAML/code-behind files:</p>
                 <table>
                     <tr><th>File</th><th>Responsibility</th><th>Key Methods</th></tr>
                     <tr><td><code>.cs</code></td><td>Constructor, startup</td><td><code>MainWindow()</code>, <code>OnLoaded</code>, <code>ApplySettings</code></td></tr>
                     <tr><td><code>.AI.cs</code></td><td>AI sidebar</td><td><code>AgentLoopAsync</code>, <code>AiSend_Click</code>, <code>ToggleAiSidebar</code></td></tr>
+                    <tr><td><code>.Extensions.cs</code></td><td>Extensions and uBlock management</td><td>Extension install/remove, blocker settings</td></tr>
+                    <tr><td><code>.FindAndNav.cs</code></td><td>Navigation buttons, find bar, print</td><td><code>FindInPage</code>, <code>ToggleFullScreenAsync</code></td></tr>
                     <tr><td><code>.Navigation.cs</code></td><td>URL handling</td><td><code>NormalizeInput</code></td></tr>
                     <tr><td><code>.Particles.cs</code></td><td>Start page</td><td><code>InitBgParticles</code>, <code>AnimateBgParticles</code></td></tr>
                     <tr><td><code>.Permissions.cs</code></td><td>Site permissions</td><td><code>PermissionRequested</code>, <code>BuildPermissionPopup</code></td></tr>
+                    <tr><td><code>.Reader.cs</code></td><td>Reader mode</td><td>Readability extraction and toggle</td></tr>
+                    <tr><td><code>.Shutdown.cs</code></td><td>Close/save/dispose flow</td><td><code>SaveStateBeforeCloseAsync</code></td></tr>
+                    <tr><td><code>.TabActions.cs</code></td><td>Tab keyboard/mouse actions, shortcuts</td><td><code>MainWindow_PreviewKeyDown</code></td></tr>
                     <tr><td><code>.Tabs.cs</code></td><td>Tab management</td><td><code>AddWebTabAsync</code>, <code>ActivateTabAsync</code>, <code>CloseTabAsync</code></td></tr>
-                    <tr><td><code>.UI.cs</code></td><td>Settings, menus</td><td><code>BuildSettingsPage</code>, <code>FindInPage</code></td></tr>
+                    <tr><td><code>.UI.cs</code></td><td>Settings, menus, window chrome</td><td><code>BuildSettingsPage</code>, <code>ToggleMaximizeRestoreAsync</code></td></tr>
                     <tr><td><code>.Updates.cs</code></td><td>GitHub update checks</td><td>Check latest release and open release page</td></tr>
                     <tr><td><code>.WebView2.cs</code></td><td>WebView2 events</td><td><code>InitializeEnvironmentAsync</code>, <code>EnsureWebViewAsync</code></td></tr>
                 </table>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,6 +14,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -24,6 +25,10 @@ public partial class MainWindow
 {
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ReleaseCapture();
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
@@ -79,9 +84,25 @@ public partial class MainWindow
     private const uint SC_RESTORE = 0xF120;
     private const uint MONITOR_DEFAULTTONEAREST = 2;
     private const uint DWMWA_SNAP_LAYOUT = 0x100;
+    private const int WM_NCHITTEST = 0x0084;
+    private const uint WM_NCLBUTTONDOWN = 0x00A1;
+    private const int HTLEFT = 10;
+    private const int HTRIGHT = 11;
+    private const int HTTOP = 12;
+    private const int HTTOPLEFT = 13;
+    private const int HTTOPRIGHT = 14;
+    private const int HTBOTTOM = 15;
+    private const int HTBOTTOMLEFT = 16;
+    private const int HTBOTTOMRIGHT = 17;
     private const uint WM_DPICHANGED = 0x02E0;
 
-    private readonly HttpClient _crxHttpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private readonly HttpClient _crxHttpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(30),
+
+        // CRX payloads are bounded; refuse to buffer absurd responses.
+        MaxResponseContentBufferSize = 128 * 1024 * 1024
+    };
 
     private CoreWebView2Environment? _environment;
     private volatile CoreWebView2Profile? _profile;
@@ -126,6 +147,30 @@ public partial class MainWindow
             if (t.Exception is not null)
                 Log.Error(t.Exception, $"Fire-and-forget failed{(string.IsNullOrEmpty(context) ? "" : $" ({context})")}");
         }, TaskContinuationOptions.OnlyOnFaulted);
+    }
+
+    private static readonly Regex ChromeExtensionIdPattern = new("^[a-p]{32}$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Chrome Web Store extension ids are exactly 32 lowercase letters a-p.
+    /// Validating here keeps attacker-supplied ids out of the download URL's
+    /// query string and out of file paths.
+    /// </summary>
+    private static bool IsValidChromeExtensionId(string? extensionId) =>
+        !string.IsNullOrWhiteSpace(extensionId) && ChromeExtensionIdPattern.IsMatch(extensionId);
+
+    /// <summary>
+    /// Only http(s) (and the inert about:blank initial document) may become a
+    /// top-level document. Everything else â€” file:, javascript:, data:, custom
+    /// external protocols â€” is cancelled before it can load.
+    /// </summary>
+    private static bool IsAllowedTopLevelNavigationUri(string? uriString)
+    {
+        if (string.IsNullOrWhiteSpace(uriString)) return true;
+        if (!Uri.TryCreate(uriString, UriKind.Absolute, out var uri)) return false;
+        return uri.Scheme == Uri.UriSchemeHttp ||
+               uri.Scheme == Uri.UriSchemeHttps ||
+               string.Equals(uri.Scheme, "about", StringComparison.OrdinalIgnoreCase);
     }
 
     private void SetStatusTextSafe(string text)
@@ -192,7 +237,7 @@ public partial class MainWindow
             if (_pendingInitTasks.TryGetValue(tab, out var pending))
             {
                 // Another call is already initializing this tab. Await it rather
-                // than returning early — an early return silently drops the
+                // than returning early â€” an early return silently drops the
                 // caller's pending navigation (blank restored tabs, ignored URLs).
                 initTask = pending;
             }
@@ -262,6 +307,7 @@ public partial class MainWindow
             cwv.ContextMenuRequested += OnContextMenuRequested;
 
             await cwv.AddScriptToExecuteOnDocumentCreatedAsync(ScrollTrackingScript);
+            await cwv.AddScriptToExecuteOnDocumentCreatedAsync(LinkClickScript);
             await cwv.AddScriptToExecuteOnDocumentCreatedAsync(
                 "window.__tblBridge=window.chrome.webview;");
             if (_dataStore.Settings.ForceDarkPage)
@@ -289,6 +335,7 @@ public partial class MainWindow
             cwv.PermissionRequested += OnPermissionRequested;
             cwv.IsDocumentPlayingAudioChanged += OnIsDocumentPlayingAudioChanged;
             cwv.IsMutedChanged += OnIsMutedChanged;
+            cwv.FaviconChanged += OnFaviconChanged;
 
             tab.CleanupActions.Add(() =>
             {
@@ -306,6 +353,7 @@ public partial class MainWindow
                 cwv.PermissionRequested -= OnPermissionRequested;
                 cwv.IsDocumentPlayingAudioChanged -= OnIsDocumentPlayingAudioChanged;
                 cwv.IsMutedChanged -= OnIsMutedChanged;
+                cwv.FaviconChanged -= OnFaviconChanged;
                 _webViewToTabMap.TryRemove(cwv, out _);
             });
 
@@ -317,11 +365,15 @@ public partial class MainWindow
             settings.AreBrowserAcceleratorKeysEnabled = false;
             settings.IsStatusBarEnabled = false;
 
+            // No host objects are ever registered; deny them outright so a
+            // future regression cannot silently expose one to web content.
+            settings.AreHostObjectsAllowed = false;
+
             tab.IsWebViewInitialized = true;
             }
             catch
             {
-                // Initialization failed midway — unsubscribe anything registered
+                // Initialization failed midway â€” unsubscribe anything registered
                 // so far so a retry doesn't double-subscribe event handlers.
                 var registered = tab.CleanupActions.Skip(cleanupCountBefore).ToArray();
                 tab.CleanupActions.RemoveRange(cleanupCountBefore, tab.CleanupActions.Count - cleanupCountBefore);
@@ -387,6 +439,18 @@ public partial class MainWindow
             return;
         }
 
+        // Local-network guard: a page from the public internet must not be able
+        // to reach the user's LAN or intranet (router CSRF, device
+        // fingerprinting). Requests the user initiates themselves (top-level
+        // documents) are exempt, and allowlisted sites count as trusted.
+        if (settings.BlockLocalNetworkAccessEffective &&
+            !IsLocalAddress(host) &&
+            IsLocalAddress(reqHost))
+        {
+            BlockWebRequest(cwv, e);
+            return;
+        }
+
         if (settings.EnableAdBlock && AdBlockEngine.Active.Current.ShouldBlock(e.Request.Uri))
         {
             BlockWebRequest(cwv, e);
@@ -409,7 +473,19 @@ public partial class MainWindow
 
     private void BlockWebRequest(CoreWebView2 cwv, CoreWebView2WebResourceRequestedEventArgs e)
     {
-        Interlocked.Increment(ref _blockedTrackerCount);
+        var count = Interlocked.Increment(ref _blockedTrackerCount);
+
+        // Forensic breadcrumb, throttled so ad-heavy pages cannot flood the log:
+        // at most one line every 5 seconds shows what was last blocked and the
+        // running total, proving the blocker is active in the field.
+        var nowTicks = DateTime.UtcNow.Ticks;
+        var lastTicks = Interlocked.Read(ref _lastBlockLogTicks);
+        if (nowTicks - lastTicks >= TimeSpan.FromSeconds(5).Ticks &&
+            Interlocked.Exchange(ref _lastBlockLogTicks, nowTicks) == lastTicks)
+        {
+            Log.Debug("Blocked {Url} (total {Count})", TrimUrl(e.Request.Uri), count);
+        }
+
         if (Interlocked.Exchange(ref _privacyIndicatorPending, 1) == 0)
         {
             Dispatcher.BeginInvoke(() =>
@@ -425,6 +501,8 @@ public partial class MainWindow
             "No Content",
             "Content-Type: text/plain");
     }
+
+    private long _lastBlockLogTicks;
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
@@ -472,8 +550,11 @@ public partial class MainWindow
                 return;
             }
             var extId = e.Uri["tabloid://install-crx/".Length..];
-            if (string.IsNullOrWhiteSpace(extId))
+            if (!IsValidChromeExtensionId(extId))
+            {
+                SetStatusTextSafe("Invalid Chrome Web Store extension id.");
                 return;
+            }
             var extConfirm = MessageBox.Show(
                 $"Install extension {extId} from the Chrome Web Store?",
                 "Confirm Extension Install",
@@ -488,6 +569,17 @@ public partial class MainWindow
         if (TryHandleTabloidUri(tab, e.Uri))
         {
             e.Cancel = true;
+            return;
+        }
+
+        // Top-level navigations are restricted to web content. file:/javascript:/
+        // data: and unknown schemes must never load as a top-level document â€”
+        // pages (or AI-driven navigation) could otherwise read local files and
+        // exfiltrate them to remote endpoints.
+        if (!IsAllowedTopLevelNavigationUri(e.Uri))
+        {
+            e.Cancel = true;
+            SetStatusTextSafe($"Blocked navigation to {TrimUrl(e.Uri)}");
             return;
         }
 
@@ -550,8 +642,11 @@ public partial class MainWindow
                 return;
             }
             var extId = e.Uri["tabloid://install-crx/".Length..];
-            if (string.IsNullOrWhiteSpace(extId))
+            if (!IsValidChromeExtensionId(extId))
+            {
+                SetStatusTextSafe("Invalid Chrome Web Store extension id.");
                 return;
+            }
             var extConfirm = MessageBox.Show(
                 $"Install extension {extId} from the Chrome Web Store?",
                 "Confirm Extension Install",
@@ -588,6 +683,13 @@ public partial class MainWindow
                 tab.PageVersion++;
                 var title = cwv.DocumentTitle;
                 tab.Title = string.IsNullOrWhiteSpace(title) ? TrimUrl(tab.Address) : title;
+
+                FireAndForget(LoadFaviconAsync(tab), "LoadFaviconAsync navigation");
+
+                if (tab.IsPlayingAudio)
+                {
+                    FireAndForget(ResolveSiteAccentAsync(tab), "ResolveSiteAccentAsync navigation");
+                }
 
                 if (!_isPrivate && BrowserDataStore.IsHttpUrl(tab.Address))
                 {
@@ -651,6 +753,7 @@ public partial class MainWindow
             {
                 var title = cwv.DocumentTitle;
                 if (!string.IsNullOrWhiteSpace(title)) tab.Title = title;
+                if (_activeTab == tab) UpdateWindowTitle();
             }
             catch (Exception ex) { Log.Error(ex, "Error occurred"); }
         }
@@ -660,6 +763,11 @@ public partial class MainWindow
     private async void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
     {
         e.Handled = true;
+        if (!IsAllowedTopLevelNavigationUri(e.Uri))
+        {
+            SetStatusTextSafe($"Blocked popup to {TrimUrl(e.Uri)}");
+            return;
+        }
         await Dispatcher.InvokeAsync(async () =>
         {
             try { await AddWebTabAsync(e.Uri); }
@@ -683,12 +791,150 @@ public partial class MainWindow
                 var playing = cwv.IsDocumentPlayingAudio;
                 if (playing) tab.HasAudio = true;
                 tab.IsPlayingAudio = playing;
+                if (playing) FireAndForget(ResolveSiteAccentAsync(tab), "ResolveSiteAccentAsync");
             }
             catch (Exception ex) { Log.Error(ex, "Error occurred"); }
         }
         if (Dispatcher.CheckAccess()) handler();
         else Dispatcher.Invoke(handler);
     }
+
+    private static async Task ResolveSiteAccentAsync(BrowserTab tab, bool forceRefresh = false)
+    {
+        var address = tab.Address;
+        var core = tab.WebView?.CoreWebView2;
+        if (core is null) return;
+
+        var color = await SiteAccentService.ResolveAsync(core, address, forceRefresh);
+
+        // A favicon or theme-color tag can appear shortly after playback
+        // starts. Give it one more chance before settling on the fallback.
+        if (color is null && !forceRefresh)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1.5));
+            if (!tab.IsPlayingAudio) return;
+            if (!string.Equals(tab.Address, address, StringComparison.Ordinal)) return;
+
+            core = tab.WebView?.CoreWebView2;
+            if (core is null) return;
+
+            color = await SiteAccentService.ResolveAsync(core, address, forceRefresh: true);
+        }
+
+        if (color is not { } resolved) return;
+
+        // Navigation may have happened while the color was being resolved, or
+        // playback may have stopped; only apply the result to the same page.
+        if (!tab.IsPlayingAudio) return;
+        if (!string.Equals(tab.Address, address, StringComparison.Ordinal)) return;
+
+        tab.SiteAccentColor = resolved;
+    }
+
+    private async Task LoadFaviconAsync(BrowserTab tab)
+    {
+        if (tab.Kind != BrowserTabKind.Web) return;
+
+        var core = tab.WebView?.CoreWebView2;
+        if (core is null) return;
+
+        var address = tab.Address;
+        string faviconUri;
+        try
+        {
+            faviconUri = core.FaviconUri;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Reading favicon URI failed for {Url}", address);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(faviconUri))
+        {
+            tab.Favicon = null;
+            tab.FaviconUri = null;
+            return;
+        }
+
+        if (tab.Favicon is not null &&
+            string.Equals(tab.FaviconUri, faviconUri, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            using var stream = await core.GetFaviconAsync(CoreWebView2FaviconImageFormat.Png);
+            if (stream is null) return;
+
+            var image = FaviconImageDecoder.Decode(stream);
+            if (image is null) return;
+
+            // A newer navigation or favicon may have superseded this request.
+            if (!string.Equals(tab.Address, address, StringComparison.Ordinal)) return;
+            if (!string.Equals(tab.WebView?.CoreWebView2?.FaviconUri, faviconUri, StringComparison.Ordinal)) return;
+
+            tab.Favicon = image;
+            tab.FaviconUri = faviconUri;
+            RefreshAddressBarChromeIfActive(tab);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Loading favicon failed for {Url}", address);
+        }
+    }
+
+    /// <summary>
+    /// The address bar shows the active tab's favicon; it often arrives after
+    /// the address was rendered, so refresh the chrome when it lands.
+    /// </summary>
+    private void RefreshAddressBarChromeIfActive(BrowserTab tab)
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            if (_activeTab == tab) UpdateAddressBarChrome();
+        }
+        else
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (_activeTab == tab) UpdateAddressBarChrome();
+            });
+        }
+    }
+
+    private void OnFaviconChanged(object? sender, object? e)
+    {
+        if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
+        void handler()
+        {
+            try
+            {
+                FireAndForget(LoadFaviconAsync(tab), "LoadFaviconAsync favicon");
+
+                if (!tab.IsPlayingAudio) return;
+
+                // Already resolved (brand/theme/favicon); no need to chase
+                // later favicon changes.
+                if (tab.SiteAccentColor is not null) return;
+
+                // Animated favicons can raise this repeatedly; debounce.
+                var now = DateTimeOffset.UtcNow;
+                if (now - tab.LastFaviconAccentAttemptUtc < TimeSpan.FromSeconds(5)) return;
+                tab.LastFaviconAccentAttemptUtc = now;
+
+                // The icon that just arrived may be the only color source for
+                // this site, so drop any cached miss and resolve again.
+                SiteAccentService.Invalidate(tab.Address);
+                FireAndForget(ResolveSiteAccentAsync(tab, forceRefresh: true), "ResolveSiteAccentAsync favicon");
+            }
+            catch (Exception ex) { Log.Error(ex, "FaviconChanged handler failed"); }
+        }
+        if (Dispatcher.CheckAccess()) handler();
+        else Dispatcher.Invoke(handler);
+    }
+
     private void OnIsMutedChanged(object? sender, object? e)
     {
         if (sender is not CoreWebView2 cwv || !_webViewToTabMap.TryGetValue(cwv, out var tab)) return;
@@ -711,8 +957,14 @@ public partial class MainWindow
         if (TrackerPolicy.IsDangerousDownloadExtension(ext))
         {
             var fileName = Path.GetFileName(new Uri(url).LocalPath);
+            var insecureTransport = Uri.TryCreate(url, UriKind.Absolute, out var downloadUri) &&
+                                    downloadUri.Scheme == Uri.UriSchemeHttp;
+            var warning = insecureTransport
+                ? $"\n\nThis file type ({ext}) can harm your computer, and it is downloaded over an " +
+                  "UNENCRYPTED connection (HTTP) — it could be modified in transit."
+                : $"\n\nThis file type ({ext}) can harm your computer.";
             var result = MessageBox.Show(
-                $"Download \"{fileName}\"?\n\nThis file type ({ext}) can harm your computer.",
+                $"Download \"{fileName}\"?{warning}",
                 "Confirm Download",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
@@ -723,9 +975,15 @@ public partial class MainWindow
             }
         }
 
-        var isCrxUrl = url.Contains(".crx", StringComparison.OrdinalIgnoreCase) ||
-                        url.Contains("clients2.google.com/service/update2/crx", StringComparison.OrdinalIgnoreCase);
-        if (!isCrxUrl)
+        // Only auto-install CRX payloads that come from the pinned Chrome Web
+        // Store update service. A ".crx" download from any other host is just
+        // tracked as a regular download â€” never offered for silent install.
+        var isTrustedCrxUrl =
+            Uri.TryCreate(url, UriKind.Absolute, out var crxUri) &&
+            crxUri.Scheme == Uri.UriSchemeHttps &&
+            string.Equals(crxUri.Host, "clients2.google.com", StringComparison.OrdinalIgnoreCase) &&
+            crxUri.AbsolutePath.StartsWith("/service/update2/crx", StringComparison.OrdinalIgnoreCase);
+        if (!isTrustedCrxUrl)
         {
             TrackDownload(args);
             return;
@@ -781,22 +1039,38 @@ public partial class MainWindow
     {
         try
         {
+            if (!IsValidChromeExtensionId(extensionId))
+            {
+                SetStatusTextSafe("Invalid Chrome Web Store extension id.");
+                return;
+            }
+
             var url = $"https://clients2.google.com/service/update2/crx?response=redirect&prodversion=106.0.0.0&acceptformat=crx3&x=id%3D{extensionId}%26installsource%3Dondemand%26uc";
 
             var tempDir = Path.Combine(Path.GetTempPath(), "TabloidBrowser", "CrxDownloads");
             Directory.CreateDirectory(tempDir);
             var crxPath = Path.Combine(tempDir, $"{extensionId}.crx");
 
+            // Defense in depth: the id is regex-validated above, but never let a
+            // composed path escape the download directory.
+            var fullCrxPath = Path.GetFullPath(crxPath);
+            var fullTempDir = Path.GetFullPath(tempDir);
+            if (!fullCrxPath.StartsWith(fullTempDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                Log.Error("CRX download path escaped the temp directory; refusing to write");
+                return;
+            }
+
             using var response = await _crxHttpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
 
-            await using (var fs = new FileStream(crxPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            await using (var fs = new FileStream(fullCrxPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 await response.Content.CopyToAsync(fs);
             }
 
-            await InstallCrxAsync(crxPath);
-            try { File.Delete(crxPath); } catch (Exception ex) { Log.Debug(ex, "Failed to delete CRX temp file"); }
+            await InstallCrxAsync(fullCrxPath, extensionId);
+            try { File.Delete(fullCrxPath); } catch (Exception ex) { Log.Debug(ex, "Failed to delete CRX temp file"); }
         }
         catch (Exception ex)
         {
@@ -806,10 +1080,25 @@ public partial class MainWindow
 
     private void UpdatePrivacyIndicator()
     {
-        NavToolbar.PrivacyButton.Foreground = _dataStore.Settings.BlockTrackers ? GetBrush("Lime") : GetBrush("Muted");
-        NavToolbar.PrivacyButton.ToolTip = _dataStore.Settings.BlockTrackers || _dataStore.Settings.EnableAdBlock
+        // The shield doubles as the connection indicator: red while viewing a
+        // plain-HTTP site, otherwise the usual tracker-blocking color.
+        var tab = _activeTab;
+        var insecureHttp = tab?.Kind == BrowserTabKind.Web &&
+                           BrowserDataStore.IsHttpUrl(tab.Address) &&
+                           Uri.TryCreate(tab.Address, UriKind.Absolute, out var uri) &&
+                           uri.Scheme != Uri.UriSchemeHttps;
+
+        var tracking = _dataStore.Settings.BlockTrackers;
+        var privacyText = tracking || _dataStore.Settings.EnableAdBlock
             ? $"Ad & tracker blocking on. Blocked {_blockedTrackerCount} requests."
             : "Ad & tracker blocking off";
+
+        NavToolbar.PrivacyButton.Foreground = insecureHttp
+            ? GetBrush("Danger")
+            : tracking ? GetBrush("Lime") : GetBrush("Muted");
+        NavToolbar.PrivacyButton.ToolTip = insecureHttp
+            ? $"Not secure â€” unencrypted HTTP connection. {privacyText}"
+            : privacyText;
     }
 
     private void TrackDownload(CoreWebView2DownloadStartingEventArgs args)

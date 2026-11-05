@@ -42,9 +42,9 @@ public class GridLengthAnimation : AnimationTimeline
 
     protected override Freezable CreateInstanceCore() => new GridLengthAnimation();
 
-    public override object GetCurrentValue(object defaultOriginValue, object defaultDestinationValue, AnimationClock clock)
+    public override object GetCurrentValue(object defaultOriginValue, object defaultDestinationValue, AnimationClock animationClock)
     {
-        var progress = clock.CurrentProgress ?? 0;
+        var progress = animationClock.CurrentProgress ?? 0;
         var eased = EasingFunction?.Ease(progress) ?? progress;
         return new GridLength(From + ((To - From) * eased), GridUnitType.Pixel);
     }

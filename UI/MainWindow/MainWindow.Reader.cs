@@ -237,15 +237,20 @@ public partial class MainWindow
         try
         {
             if (_readabilityCache is not null) return _readabilityCache;
-            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "readability.min.js");
-            if (File.Exists(path))
-            {
-                _readabilityCache = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-                if (string.IsNullOrWhiteSpace(_readabilityCache))
-                    throw new InvalidOperationException($"Readability script at '{path}' is empty");
-                return _readabilityCache;
-            }
-            throw new FileNotFoundException($"Readability script not found at '{path}'", path);
+
+            // The script is embedded in the assembly: a file on disk could be
+            // swapped by any same-user process and would then execute inside
+            // every reader-mode page.
+            const string resourceName = "TabloidBrowser.readability.min.js";
+            var assembly = typeof(MainWindow).Assembly;
+            await using var stream = assembly.GetManifestResourceStream(resourceName)
+                ?? throw new FileNotFoundException(
+                    $"Embedded resource '{resourceName}' is missing from {assembly.GetName().Name}.");
+            using var reader = new StreamReader(stream);
+            _readabilityCache = await reader.ReadToEndAsync().ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(_readabilityCache))
+                throw new InvalidOperationException($"Embedded resource '{resourceName}' is empty");
+            return _readabilityCache;
         }
         finally { _readabilityCacheLock.Release(); }
     }

@@ -13,6 +13,8 @@ public partial class TitleBarControl : UserControl
     public event RoutedEventHandler? MuteToggle;
     public event RoutedEventHandler? TabClose;
     public event RoutedEventHandler? KeepAiTab;
+    public event RoutedEventHandler? ReopenClosedTab;
+    public event MouseButtonEventHandler? TabMiddleClick;
     public event RoutedEventHandler? Minimize;
     public event RoutedEventHandler? MaximizeRestore;
     public event RoutedEventHandler? CloseWindow;
@@ -34,6 +36,16 @@ public partial class TitleBarControl : UserControl
     private void CloseTab_Click(object sender, RoutedEventArgs e) => TabClose?.Invoke(sender, e);
 
     private void KeepAiTab_Click(object sender, RoutedEventArgs e) => KeepAiTab?.Invoke(sender, e);
+
+    private void ReopenClosedTab_Click(object sender, RoutedEventArgs e) => ReopenClosedTab?.Invoke(sender, e);
+
+    private void Tab_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Middle)
+        {
+            TabMiddleClick?.Invoke(sender, e);
+        }
+    }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => Minimize?.Invoke(sender, e);
 

@@ -63,7 +63,14 @@ jobs:
         run: dotnet restore TabloidBrowser.Tests\TabloidBrowser.Tests.csproj
 
       - name: Check for vulnerable packages
-        run: dotnet list TabloidBrowser.csproj package --vulnerable --include-transitive
+        shell: pwsh
+        run: |
+          $result = dotnet list TabloidBrowser.csproj package --vulnerable --include-transitive | Out-String
+          Write-Output $result
+          if ($result -notmatch "no vulnerable packages") {
+            Write-Error "Vulnerable NuGet packages detected - update before merging."
+            exit 1
+          }
 
       - name: Build
         run: dotnet build TabloidBrowser.Tests\TabloidBrowser.Tests.csproj --no-restore --configuration Release
@@ -114,8 +121,7 @@ jobs:
         run: |
           $requiredFiles = @(
             "Aerio.exe",
-            "readability.min.js",
-            "Assets\the app icon.ico"
+            "Assets\Aerio.ico"
           )
           foreach ($dir in @("artifacts\Aerio-win-x64", "artifacts\Aerio-win-x64-offline")) {
             foreach ($file in $requiredFiles) {

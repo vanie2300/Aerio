@@ -40,6 +40,21 @@ public sealed class BrowserDataStore : IDisposable
         DownloadsInternal = Load<DownloadItem>(_downloadsPath);
         TrimLoadedData();
         Settings = LoadSettings();
+
+        if (PlaintextKeyDetectedOnLoad)
+        {
+            // Migrate legacy plaintext API keys to DPAPI-encrypted form
+            // immediately instead of waiting for the user's next save.
+            try
+            {
+                SaveSettings(Settings);
+                Log.Info("Legacy plaintext API keys were re-encrypted on load");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to re-encrypt legacy plaintext API keys; they stay plaintext until the next successful save");
+            }
+        }
     }
 
     public IReadOnlyList<BookmarkItem> Bookmarks 
@@ -152,6 +167,13 @@ public sealed class BrowserDataStore : IDisposable
 
     public void AddBookmark(string title, string url)
     {
+        // Same scheme gate as AddHistory: only web URLs are bookmarkable, so a
+        // crafted bookmark entry can never be used to re-open file:// URIs.
+        if (!IsHttpUrl(url))
+        {
+            return;
+        }
+
         _lock.EnterWriteLock();
         try
         {
@@ -684,6 +706,8 @@ public sealed class BrowserDataStore : IDisposable
 
     private BrowserSettings LoadSettings()
     {
+        PlaintextKeyDetectedOnLoad = false;
+
         if (!File.Exists(_settingsPath))
         {
             return BrowserSettings.Default;
@@ -695,6 +719,15 @@ public sealed class BrowserDataStore : IDisposable
                 ?? BrowserSettings.Default;
 
             var legacyDecrypted = DecryptKeyTracked("", settings.AiApiKey ?? "");
+
+            // Remember whether the file still carries pre-DPAPI plaintext keys
+            // so the constructor can migrate them to encrypted form right away.
+            PlaintextKeyDetectedOnLoad =
+                (!string.IsNullOrEmpty(settings.AiApiKey) &&
+                 !settings.AiApiKey.StartsWith(EncryptedApiKeyPrefix, StringComparison.Ordinal)) ||
+                (settings.AiApiKeys?.Values.Any(value =>
+                    !string.IsNullOrEmpty(value) &&
+                    !value.StartsWith(EncryptedApiKeyPrefix, StringComparison.Ordinal)) == true);
             return settings with
             {
                 SearchEngine = string.IsNullOrWhiteSpace(settings.SearchEngine) ? BrowserSettings.Default.SearchEngine : settings.SearchEngine,
@@ -792,8 +825,12 @@ public sealed class BrowserDataStore : IDisposable
         }
     }
 
-    internal string DecryptKeyTracked(string slotKey, string stored)
-    {
+    /// <summary>
+    /// Set when LoadSettings found pre-DPAPI plaintext API keys on disk.
+    /// </summary>
+    internal bool PlaintextKeyDetectedOnLoad { get; private set; }
+
+    internal string DecryptKeyTracked(string slotKey, string stored)    {
         var decrypted = DecryptApiKey(stored);
         if (string.IsNullOrEmpty(decrypted) &&
             stored.StartsWith(EncryptedApiKeyPrefix, StringComparison.Ordinal))
@@ -973,8 +1010,17 @@ public sealed record BrowserSettings(
     AiBrowserPolicy? AiPolicy = null,
     Dictionary<string, string>? SearchKeywords = null,
     bool AutoHideBrowserChrome = false,
-    List<NewTabShortcut>? NewTabShortcuts = null)
+    List<NewTabShortcut>? NewTabShortcuts = null,
+    bool? BlockLocalNetworkAccess = null)
 {
+    /// <summary>
+    /// Whether web content from public sites may fetch LAN/intranet resources.
+    /// Stored as nullable so that absent (older settings files) means ON —
+    /// protection is the default; only an explicit false disables it.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool BlockLocalNetworkAccessEffective => BlockLocalNetworkAccess ?? true;
+
     public static Dictionary<string, string> DefaultSearchKeywords { get; } = new(StringComparer.OrdinalIgnoreCase)
     {
         ["YouTube"] = "yt",
@@ -1004,11 +1050,12 @@ public sealed record BrowserSettings(
         new("Gmail", "https://mail.google.com")
     ];
 
-    public static Dictionary<string, string> DefaultShortcuts { get; } = new()
-    {
-        ["new_tab"] = "Ctrl+T",
-        ["close_tab"] = "Ctrl+W",
-        ["focus_address"] = "Ctrl+L",
+      public static Dictionary<string, string> DefaultShortcuts { get; } = new()
+      {
+          ["new_tab"] = "Ctrl+T",
+          ["close_tab"] = "Ctrl+W",
+          ["reopen_closed_tab"] = "Ctrl+Shift+T",
+          ["focus_address"] = "Ctrl+L",
         ["hide_ui"] = "Ctrl+Shift+H",
         ["reload"] = "Ctrl+R",
         ["history"] = "Ctrl+H",

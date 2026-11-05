@@ -58,7 +58,9 @@
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
 
@@ -72,8 +74,17 @@
                   BorderThickness="0"
                   Width="30"
                   ToolTip="Privacy permissions" />
+          <Image x:Name="AddressFavicon"
+                 Grid.Column="1"
+                 Width="16"
+                 Height="16"
+                 Stretch="Uniform"
+                 VerticalAlignment="Center"
+                 Margin="2,0,0,0"
+                 Visibility="Collapsed"
+                 IsHitTestVisible="False" />
           <TextBox x:Name="AddressBox"
-                   Grid.Column="1"
+                   Grid.Column="2"
                    Background="Transparent"
                    BorderThickness="0"
                    Foreground="{DynamicResource Text}"
@@ -86,8 +97,20 @@
                    LostKeyboardFocus="AddressBox_LostKeyboardFocus"
                    PreviewMouseLeftButtonDown="AddressBox_PreviewMouseLeftButtonDown"
                    PreviewKeyDown="AddressBox_PreviewKeyDown" />
+          <Button x:Name="BookmarkStarBtn"
+                  Grid.Column="3"
+                  Content="&#xE734;"
+                  Click="Bookmark_Click"
+                  Style="{StaticResource IconButton}"
+                  FontSize="12"
+                  BorderThickness="0"
+                  Width="26"
+                  Height="30"
+                  Margin="2,0,0,0"
+                  ToolTip="Bookmark this page"
+                  Visibility="Collapsed" />
           <Button x:Name="GoBtn"
-                  Grid.Column="2"
+                  Grid.Column="4"
                   Content="Go"
                   Click="Go_Click"
                   IsDefault="True"
@@ -310,9 +333,6 @@
                 <MenuItem Header="&#xE896;  Downloads"
                           Style="{StaticResource BrowserSubMenuItemStyle}"
                           Click="ShowDownloads_Click" />
-                <MenuItem Header="&#xE902;  Hymns"
-                          Style="{StaticResource BrowserSubMenuItemStyle}"
-                          Click="ShowHymns_Click" />
                 <MenuItem Header="&#xE7B9;  Extensions"
                           Style="{StaticResource BrowserSubMenuItemStyle}"
                           Click="ShowExtensions_Click" />

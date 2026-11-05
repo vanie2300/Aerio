@@ -111,11 +111,11 @@ public partial class MainWindow
         })();
         """;
 
-    private async Task<string?> GetPageContentAsync(int offset = 0, int limit = 32000)
+    private async Task<string?> GetPageContentAsync(int offset = 0, int limit = 32000, bool includeUserActiveTab = false)
     {
         try
         {
-            var tab = GetAiFocusTab();
+            var tab = includeUserActiveTab ? GetAiFocusTab() : GetAiToolFocusTab();
             if (tab?.WebView?.CoreWebView2 is null) return null;
 
             var script = BuildPageContextScript(offset, limit);
@@ -136,7 +136,7 @@ public partial class MainWindow
     {
         try
         {
-            var tab = GetAiFocusTab();
+            var tab = GetAiToolFocusTab();
             if (tab?.WebView?.CoreWebView2 is null) return null;
 
             var json = await tab.WebView.CoreWebView2.ExecuteScriptAsync(PageMetadataScript);
@@ -188,7 +188,7 @@ public partial class MainWindow
     {
         try
         {
-            var tab = GetAiFocusTab();
+            var tab = GetAiToolFocusTab();
             if (tab?.WebView?.CoreWebView2 is null) return null;
 
             var json = await tab.WebView.CoreWebView2.ExecuteScriptAsync(PageLinksScript);
@@ -619,7 +619,7 @@ public partial class MainWindow
                 await Task.Delay(500, ct);
                 ct.ThrowIfCancellationRequested();
                 if (!_isAiSetupOpen) return;
-                var models = await AiService.FetchModelsAsync(ep, key, providerCombo.Text, ct);
+                var models = await AiService.FetchModelsAsync(ep, key, providerCombo.Text, ct: ct);
                 ct.ThrowIfCancellationRequested();
                 if (!_isAiSetupOpen) return;
                 if (models.Count > 0)
@@ -708,7 +708,7 @@ public partial class MainWindow
             {
                 var ep = endpointBox.Text;
                 var key = apiKeyBox.Password;
-                var models = await AiService.FetchModelsAsync(ep, key, providerCombo.Text, CancellationToken.None);
+                var models = await AiService.FetchModelsAsync(ep, key, providerCombo.Text, ct: CancellationToken.None);
                 if (models.Count > 0)
                 {
                     var prev = modelCombo.Text;
@@ -903,18 +903,18 @@ public partial class MainWindow
 
             Func<string, Task<string?>> executeJs = async (script) =>
             {
-                var tab = GetAiFocusTab();
+                var tab = GetAiToolFocusTab();
                 if (tab?.WebView?.CoreWebView2 == null) return null;
                 return await tab.WebView.CoreWebView2.ExecuteScriptAsync(script);
             };
             Func<Task> waitForNav = async () =>
             {
-                var tab = GetAiFocusTab();
+                var tab = GetAiToolFocusTab();
                 if (tab != null) await WaitForNavigationAsync(tab);
             };
             var pageInteraction = new PageInteractionService(executeJs, waitForNav);
 
-            Func<BrowserTab?> focusTab = GetAiFocusTab;
+            Func<BrowserTab?> focusTab = GetAiToolFocusTab;
 
             _toolExecutor = new AiToolExecutor(
                 _searchService,
@@ -925,7 +925,7 @@ public partial class MainWindow
                     if (!string.IsNullOrWhiteSpace(url))
                     {
                         await NavigateToFocusOrActiveAsync(url);
-                        var tab = GetAiFocusTab();
+                        var tab = GetAiToolFocusTab();
                         if (tab is not null)
                         {
                             await WaitForNavigationAsync(tab);
@@ -943,7 +943,7 @@ public partial class MainWindow
                     if (!string.IsNullOrWhiteSpace(url))
                     {
                         await NavigateToFocusOrActiveAsync(url);
-                        var tab = GetAiFocusTab();
+                        var tab = GetAiToolFocusTab();
                         if (tab is not null)
                         {
                             await WaitForNavigationAsync(tab);
@@ -958,7 +958,7 @@ public partial class MainWindow
                     if (!string.IsNullOrWhiteSpace(url))
                     {
                         await NavigateToFocusOrActiveAsync(url);
-                        var tab = GetAiFocusTab();
+                        var tab = GetAiToolFocusTab();
                         if (tab is not null)
                         {
                             await WaitForNavigationAsync(tab);
@@ -973,7 +973,7 @@ public partial class MainWindow
                     await NavigateToFocusOrActiveAsync(url);
                     // Wait for the new page before the caller reads its content,
                     // otherwise the navigate tool returns the previous page.
-                    var tab = GetAiFocusTab();
+                    var tab = GetAiToolFocusTab();
                     if (tab is not null)
                     {
                         await WaitForNavigationAsync(tab);
@@ -1003,7 +1003,7 @@ public partial class MainWindow
 
     private async Task NavigateToFocusOrActiveAsync(string url)
     {
-        var tab = GetAiFocusTab();
+        var tab = GetAiToolFocusTab();
         if (tab is not null)
         {
             if (tab.Owner == TabOwner.AI)
@@ -1065,16 +1065,39 @@ public partial class MainWindow
         return _activeTab;
     }
 
+    /// <summary>
+    /// Tab selector for AI <em>tool</em> execution. Unlike
+    /// <see cref="GetAiFocusTab"/> (which falls back to the user's active tab for
+    /// the user-facing chat context), tool calls must never touch a user-owned
+    /// tab: page content could otherwise prompt-inject the model into reading a
+    /// logged-in personal page and exfiltrating it to the LLM endpoint.
+    /// </summary>
+    private BrowserTab? GetAiToolFocusTab()
+    {
+        var context = _currentAiContext;
+        if (context is null) return null;
+
+        if (context.Workspace.ActiveTabId is { } focusId)
+        {
+            var focusTab = _tabs.FirstOrDefault(t => t.Id == focusId);
+            if (focusTab is not null && focusTab.Owner == TabOwner.AI)
+                return focusTab;
+            context.Workspace.ActiveTabId = null;
+        }
+
+        return null;
+    }
+
     private string BuildWorkspaceContextMessage(AiTaskContext context, AiBrowserPolicy policy)
     {
         var wsTabIds = context.Workspace.TabIds;
-        var wsTabDetails = new List<string>();
-        foreach (var wsTabId in wsTabIds)
-        {
-            var wsTab = _tabs.FirstOrDefault(t => t.Id == wsTabId);
-            if (wsTab != null)
-                wsTabDetails.Add($"- {wsTabId}: {wsTab.Title ?? "untitled"} ({wsTab.Address ?? "no URL"})");
-        }
+            var wsTabDetails = new List<string>();
+            foreach (var wsTabId in wsTabIds)
+            {
+                var wsTab = _tabs.FirstOrDefault(t => t.Id == wsTabId);
+                if (wsTab != null)
+                    wsTabDetails.Add($"- {wsTabId}: {ContentSanitizer.Sanitize(wsTab.Title ?? "untitled")} ({wsTab.Address ?? "no URL"})");
+            }
 
         var focusId = context.Workspace.ActiveTabId;
         var focusLine = focusId is not null
@@ -1367,7 +1390,7 @@ public partial class MainWindow
 
             if (pageContextActive)
             {
-                var pageContent = await GetPageContentAsync();
+                var pageContent = await GetPageContentAsync(includeUserActiveTab: true);
                 if (pageContent is not null)
                 {
                     var sanitizedContent = ContentSanitizer.Sanitize(pageContent);

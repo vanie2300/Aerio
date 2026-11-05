@@ -304,7 +304,7 @@ public class AiToolExecutor
         var selected = results[resultIndex];
         var content = await OpenAndReadArticleAsync(selected, ct);
 
-        var output = $"Opened and read: {selected.Title} ({selected.Url})\n\n";
+        var output = $"Opened and read: {ContentSanitizer.Sanitize(selected.Title)} ({selected.Url})\n\n";
         output += content ?? "Failed to read page content.";
 
         return output;
@@ -435,6 +435,8 @@ private async Task<string> ExecuteNavigate(Dictionary<string, JsonElement>? args
         var tab = _getSelectedTab();
         if (tab == null)
             return "Error: No active tab to interact with";
+        if (tab.Owner != TabOwner.AI)
+            return "Error: AI tools can only interact with AI-owned tabs. Use open_tab first.";
 
         var versionBefore = tab.PageVersion;
 
@@ -468,6 +470,8 @@ private async Task<string> ExecuteNavigate(Dictionary<string, JsonElement>? args
         var tab = _getSelectedTab();
         if (tab == null)
             return "Error: No active tab to interact with";
+        if (tab.Owner != TabOwner.AI)
+            return "Error: AI tools can only interact with AI-owned tabs. Use open_tab first.";
 
         var filled = await _pageInteraction.FillFieldAsync(selector, value);
         if (!filled) return $"Field not found: {selector}";
@@ -514,8 +518,10 @@ private async Task<string> ExecuteNavigate(Dictionary<string, JsonElement>? args
 
     private static string FormatSearchResults(List<SearchResult> results)
     {
+        // Search results are third-party text that flows into the model
+        // conversation; sanitize them like any other page-derived content.
         return string.Join("\n\n", results.Select((r, i) =>
-            $"{i + 1}. {r.Title}\n   {r.Url}\n   {r.Snippet}"));
+            $"{i + 1}. {ContentSanitizer.Sanitize(r.Title)}\n   {r.Url}\n   {ContentSanitizer.Sanitize(r.Snippet)}"));
     }
 
     private static string? GetRequiredString(Dictionary<string, JsonElement>? args, string key)

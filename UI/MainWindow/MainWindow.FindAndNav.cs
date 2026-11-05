@@ -94,7 +94,17 @@ public partial class MainWindow
 
     private void ResetZoom_Click(object sender, RoutedEventArgs e) => ResetZoom();
 
-    private void FullScreen_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
+    private async void FullScreen_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await ToggleFullScreenAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to toggle fullscreen");
+        }
+    }
 
     private void SiteData_Click(object sender, RoutedEventArgs e) => ShowSiteDataPopup();
 

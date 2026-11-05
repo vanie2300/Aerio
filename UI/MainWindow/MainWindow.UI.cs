@@ -28,9 +28,15 @@ namespace TabloidBrowser;
 
 public partial class MainWindow
 {
+    private static readonly TimeSpan WindowBoundsTransitionDuration = TimeSpan.FromMilliseconds(180);
+
     private IntPtr _windowHandle;
     private bool _isFindBarDragging;
     private bool _isFullScreen;
+    private bool _fullScreenTransitionInProgress;
+    private RECT _fullScreenRestoreBounds;
+    private bool _windowBoundsTransitionInProgress;
+    private RECT _windowRestoreBounds;
     private WindowState _previousWindowState;
     private readonly DispatcherTimer _chromeAutoHideTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private DateTime _chromeHideAt = DateTime.UtcNow.AddSeconds(2);
@@ -431,6 +437,54 @@ public partial class MainWindow
     private void UpdateAddressBar()
     {
         NavToolbar.AddressBox.Text = _activeTab?.Address ?? string.Empty;
+        UpdateAddressBarChrome();
+        UpdateWindowTitle();
+    }
+
+    /// <summary>
+    /// Refreshes the omnibox chrome (favicon, security glyph, bookmark star)
+    /// from the active tab's current state.
+    /// </summary>
+    private void UpdateAddressBarChrome()
+    {
+        var tab = _activeTab;
+        NavToolbar.SetAddressBarFavicon(tab?.Favicon);
+
+        var isWebUrl = tab?.Kind == BrowserTabKind.Web &&
+                       BrowserDataStore.IsHttpUrl(tab.Address);
+        var bookmarked = isWebUrl && _dataStore.IsBookmarked(tab!.Address);
+        NavToolbar.SetBookmarkState(isWebUrl, bookmarked);
+
+        // The shield reflects both tracker blocking and connection security
+        // (red on plain-HTTP sites), so refresh it with every address change.
+        UpdatePrivacyIndicator();
+    }
+
+    /// <summary>
+    /// Mirrors the active page title into the OS window title (Alt-Tab,
+    /// taskbar) the way real browsers do.
+    /// </summary>
+    private void UpdateWindowTitle()
+    {
+        var title = _activeTab?.Title;
+        string windowTitle;
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            windowTitle = "Aerio";
+        }
+        else
+        {
+            if (title.Length > 90)
+            {
+                title = title[..90].TrimEnd() + "…";
+            }
+            windowTitle = $"{title} - Aerio";
+        }
+
+        if (!string.Equals(Title, windowTitle, StringComparison.Ordinal))
+        {
+            Title = windowTitle;
+        }
     }
 
     private void UpdateNavigationButtons()
@@ -657,7 +711,7 @@ public partial class MainWindow
         return domains.Count == 0 ? [.. fallback] : domains;
     }
 
-    private void TitleBar_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private async void TitleBar_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (IsFromControl<Button>(e.OriginalSource))
             return;
@@ -665,7 +719,14 @@ public partial class MainWindow
         if (e.ClickCount == 2)
         {
             _dragReady = false;
-            ToggleMaximizeRestore();
+            try
+            {
+                await ToggleMaximizeRestoreAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to toggle maximize/restore from the title bar");
+            }
             return;
         }
 
@@ -707,21 +768,71 @@ public partial class MainWindow
 
     private void Minimize_Click(object sender, RoutedEventArgs e)
     {
-        SendMessage(_windowHandle, WM_SYSCOMMAND, new IntPtr(SC_MINIMIZE), IntPtr.Zero);
+        if (_minimizeTransitionInProgress)
+        {
+            return;
+        }
+
+        _minimizeTransitionInProgress = true;
+        RootGrid.RenderTransformOrigin = new Point(0.5, 0.5);
+        var scale = new ScaleTransform(1, 1);
+        RootGrid.RenderTransform = scale;
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0.9, Motion.Fast)
+        {
+            EasingFunction = Motion.InOut
+        });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 0.9, Motion.Fast)
+        {
+            EasingFunction = Motion.InOut
+        });
+        RootGrid.BeginAnimation(OpacityProperty, Motion.Fade(1, 0.45, Motion.Fast));
+        MinimizeAfterAnimationAsync();
     }
 
-    private void MaximizeRestore_Click(object sender, RoutedEventArgs e)
+    private async void MinimizeAfterAnimationAsync()
     {
-        if (WindowState == WindowState.Maximized)
-            SendMessage(_windowHandle, WM_SYSCOMMAND, new IntPtr(SC_RESTORE), IntPtr.Zero);
-        else
-            SendMessage(_windowHandle, WM_SYSCOMMAND, new IntPtr(SC_MAXIMIZE), IntPtr.Zero);
+        try
+        {
+            await Task.Delay(Motion.Fast);
+            SendMessage(_windowHandle, WM_SYSCOMMAND, new IntPtr(SC_MINIMIZE), IntPtr.Zero);
+        }
+        catch (Exception ex)
+        {
+            ResetMinimizeAnimation();
+            Log.Error(ex, "Failed to minimize the window after the transition animation");
+        }
+    }
+
+    private void ResetMinimizeAnimation()
+    {
+        if (!_minimizeTransitionInProgress)
+        {
+            return;
+        }
+
+        _minimizeTransitionInProgress = false;
+        RootGrid.BeginAnimation(OpacityProperty, null);
+        RootGrid.Opacity = 1;
+        RootGrid.RenderTransform = Transform.Identity;
+    }
+
+    private async void MaximizeRestore_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await ToggleMaximizeRestoreAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to toggle maximize/restore");
+        }
     }
 
     private void CloseWindow_Click(object? sender, RoutedEventArgs e) => Close();
 
     private void MainWindow_StateChanged(object? sender, EventArgs e)
     {
+        UpdateResizeGripVisibility();
         if (WindowState == WindowState.Minimized)
         {
             // Pause idle work while minimized: chrome auto-hide probing and the
@@ -731,6 +842,7 @@ public partial class MainWindow
             return;
         }
 
+        ResetMinimizeAnimation();
         _chromeAutoHideTimer.Start();
         if (IsStartBgAnimationApplicable())
         {
@@ -755,8 +867,83 @@ public partial class MainWindow
         }
     }
 
+    private void UpdateResizeGripVisibility()
+    {
+        ResizeGripLayer.Visibility =
+            WindowState == WindowState.Normal &&
+            !_isFullScreen &&
+            ResizeMode is ResizeMode.CanResize or ResizeMode.CanResizeWithGrip
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+    }
+
+    private void ResizeGrip_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (WindowState != WindowState.Normal ||
+            _isFullScreen ||
+            _windowBoundsTransitionInProgress ||
+            sender is not FrameworkElement grip)
+        {
+            return;
+        }
+
+        var hitTest = grip.Name switch
+        {
+            "ResizeLeftGrip" => HTLEFT,
+            "ResizeRightGrip" => HTRIGHT,
+            "ResizeTopGrip" => HTTOP,
+            "ResizeBottomGrip" => HTBOTTOM,
+            "ResizeTopLeftGrip" => HTTOPLEFT,
+            "ResizeTopRightGrip" => HTTOPRIGHT,
+            "ResizeBottomLeftGrip" => HTBOTTOMLEFT,
+            "ResizeBottomRightGrip" => HTBOTTOMRIGHT,
+            _ => 0
+        };
+        if (hitTest == 0)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (!ReleaseCapture())
+        {
+            Log.Debug("Mouse capture was not active before resizing window");
+        }
+
+        SendMessage(_windowHandle, WM_NCLBUTTONDOWN, new IntPtr(hitTest), IntPtr.Zero);
+    }
+
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == WM_NCHITTEST &&
+            WindowState == WindowState.Normal &&
+            !_isFullScreen &&
+            ResizeMode is ResizeMode.CanResize or ResizeMode.CanResizeWithGrip &&
+            GetWindowRect(hwnd, out var windowRect))
+        {
+            var hitTestPoint = lParam.ToInt64();
+            var cursorX = unchecked((short)(hitTestPoint & 0xFFFF));
+            var cursorY = unchecked((short)((hitTestPoint >> 16) & 0xFFFF));
+            var dpi = VisualTreeHelper.GetDpi(this);
+            var borderX = (int)Math.Ceiling(10 * dpi.DpiScaleX);
+            var borderY = (int)Math.Ceiling(10 * dpi.DpiScaleY);
+            var onLeft = cursorX >= windowRect.Left && cursorX < windowRect.Left + borderX;
+            var onRight = cursorX < windowRect.Right && cursorX >= windowRect.Right - borderX;
+            var onTop = cursorY >= windowRect.Top && cursorY < windowRect.Top + borderY;
+            var onBottom = cursorY < windowRect.Bottom && cursorY >= windowRect.Bottom - borderY;
+
+            var hitTest = onTop
+                ? onLeft ? HTTOPLEFT : onRight ? HTTOPRIGHT : HTTOP
+                : onBottom
+                    ? onLeft ? HTBOTTOMLEFT : onRight ? HTBOTTOMRIGHT : HTBOTTOM
+                    : onLeft ? HTLEFT : onRight ? HTRIGHT : 0;
+            if (hitTest != 0)
+            {
+                handled = true;
+                return new IntPtr(hitTest);
+            }
+        }
+
         if (msg == WM_DPICHANGED)
         {
             if (WindowState == WindowState.Maximized)
@@ -801,13 +988,104 @@ public partial class MainWindow
         RootGrid.Margin = new Thickness(left, top, right, bottom);
     }
 
-    private void ToggleMaximizeRestore()
+    private async Task ToggleMaximizeRestoreAsync()
     {
-        if (WindowState == WindowState.Maximized)
-            SendMessage(_windowHandle, WM_SYSCOMMAND, new IntPtr(SC_RESTORE), IntPtr.Zero);
-        else
-            SendMessage(_windowHandle, WM_SYSCOMMAND, new IntPtr(SC_MAXIMIZE), IntPtr.Zero);
+        if (_windowBoundsTransitionInProgress || _isFullScreen)
+        {
+            return;
+        }
+
+        _windowBoundsTransitionInProgress = true;
+        try
+        {
+            if (WindowState != WindowState.Maximized)
+            {
+                if (!GetWindowRect(_windowHandle, out _windowRestoreBounds))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                var monitor = MonitorFromWindow(_windowHandle, MONITOR_DEFAULTTONEAREST);
+                var monitorInfo = new MONITORINFO { cbSize = (uint)Marshal.SizeOf<MONITORINFO>() };
+                if (!GetMonitorInfoW(monitor, ref monitorInfo) ||
+                    !GetWindowRect(_windowHandle, out var currentBounds))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                await AnimateWindowBoundsAsync(currentBounds, monitorInfo.rcWork);
+                WindowState = WindowState.Maximized;
+            }
+            else
+            {
+                if (!GetWindowRect(_windowHandle, out var maximizedBounds))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                var restoreBounds = ResolveRestoreBounds(_windowRestoreBounds);
+                WindowState = WindowState.Normal;
+                if (!HasUsableSize(restoreBounds))
+                {
+                    // The window may have been maximized by the OS (Win+Up, Aero
+                    // Snap, system menu) before this handler ever captured restore
+                    // bounds. Let WPF restore to its own tracked bounds instead of
+                    // animating to an empty 0x0 rectangle.
+                    return;
+                }
+
+                SetWindowBounds(maximizedBounds);
+                await AnimateWindowBoundsAsync(maximizedBounds, restoreBounds);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Error(ex, "Maximize/restore transition failed");
+        }
+        catch (Win32Exception ex)
+        {
+            Log.Error(ex, "Maximize/restore transition failed");
+        }
+        finally
+        {
+            _windowBoundsTransitionInProgress = false;
+        }
     }
+
+    /// <summary>
+    /// Returns bounds that are safe to animate to. Prefers the rect captured
+    /// before an in-app maximize; falls back to WPF's OS-tracked restore bounds
+    /// (converted from DIPs to physical pixels) for externally maximized windows.
+    /// </summary>
+    private RECT ResolveRestoreBounds(RECT preferred)
+    {
+        if (HasUsableSize(preferred))
+        {
+            return preferred;
+        }
+
+        var restore = RestoreBounds;
+        if (!double.IsFinite(restore.Left) || !double.IsFinite(restore.Top) ||
+            !double.IsFinite(restore.Width) || !double.IsFinite(restore.Height) ||
+            restore.Width <= 0 || restore.Height <= 0)
+        {
+            return preferred;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var sx = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1.0;
+        var sy = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1.0;
+        return new RECT
+        {
+            Left = (int)Math.Round(restore.Left * sx),
+            Top = (int)Math.Round(restore.Top * sy),
+            Right = (int)Math.Round(restore.Right * sx),
+            Bottom = (int)Math.Round(restore.Bottom * sy)
+        };
+    }
+
+    private static bool HasUsableSize(RECT bounds) =>
+        bounds.Right - bounds.Left > 0 && bounds.Bottom - bounds.Top > 0;
 
     private void Home_Click(object sender, RoutedEventArgs e)
     {
@@ -864,6 +1142,7 @@ public partial class MainWindow
             StatusBar.StatusText.Text = "Bookmarked";
         }
 
+        UpdateAddressBarChrome();
     }
 
     private async void ShowBookmarks_Click(object sender, RoutedEventArgs e)
@@ -881,12 +1160,6 @@ public partial class MainWindow
     private async void ShowDownloads_Click(object sender, RoutedEventArgs e)
     {
         try { await AddNativePageTabAsync(BrowserTabKind.Downloads); }
-        catch (Exception ex) { Log.Error(ex, "Error occurred"); }
-    }
-
-    private async void ShowHymns_Click(object sender, RoutedEventArgs e)
-    {
-        try { await AddNativePageTabAsync(BrowserTabKind.Hymns); }
         catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
@@ -996,27 +1269,136 @@ public partial class MainWindow
         }
     }
 
-    private void ToggleFullScreen()
+    private async Task ToggleFullScreenAsync()
     {
-        _isFullScreen = !_isFullScreen;
-        if (_isFullScreen)
+        if (_fullScreenTransitionInProgress)
         {
-            _chromeHiddenBeforeFullScreen = _browserChromeHidden;
-            _chromeManuallyPinnedVisible = false;
-            _previousWindowState = WindowState;
-            WindowState = WindowState.Maximized;
-            WindowStyle = WindowStyle.None;
-            SetBrowserChromeVisible(false);
+            return;
         }
-        else
+
+        _fullScreenTransitionInProgress = true;
+        try
         {
-            WindowStyle = WindowStyle.None;
-            WindowState = _previousWindowState;
-            _chromeManuallyPinnedVisible = false;
-            SetBrowserChromeVisible(!_chromeHiddenBeforeFullScreen);
-            _chromeHideAt = _autoHideBrowserChromeActive
-                ? DateTime.UtcNow.AddSeconds(2)
-                : DateTime.MaxValue;
+            var tab = _activeTab;
+            var (scrollX, scrollY) = await CaptureScrollPositionForFullScreenAsync(tab);
+            if (!_isFullScreen)
+            {
+                _previousWindowState = WindowState;
+                if (!GetWindowRect(_windowHandle, out var currentBounds))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                _fullScreenRestoreBounds = currentBounds;
+                _isFullScreen = true;
+                UpdateResizeGripVisibility();
+                _chromeHiddenBeforeFullScreen = _browserChromeHidden;
+                _chromeManuallyPinnedVisible = false;
+                WindowState = WindowState.Normal;
+                SetWindowBounds(currentBounds);
+                WindowStyle = WindowStyle.None;
+                RootGrid.Margin = new Thickness(0);
+                SetBrowserChromeVisible(false);
+
+                var monitor = MonitorFromWindow(_windowHandle, MONITOR_DEFAULTTONEAREST);
+                var monitorInfo = new MONITORINFO { cbSize = (uint)Marshal.SizeOf<MONITORINFO>() };
+                if (!GetMonitorInfoW(monitor, ref monitorInfo))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                await AnimateWindowBoundsAsync(currentBounds, monitorInfo.rcMonitor);
+            }
+            else
+            {
+                if (!GetWindowRect(_windowHandle, out var currentBounds))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                await AnimateWindowBoundsAsync(currentBounds, _fullScreenRestoreBounds);
+                WindowState = _previousWindowState;
+                _isFullScreen = false;
+                UpdateResizeGripVisibility();
+                if (WindowState == WindowState.Maximized)
+                {
+                    UpdateMaximizedMargins();
+                }
+                else
+                {
+                    RootGrid.Margin = new Thickness(0);
+                }
+
+                _chromeManuallyPinnedVisible = false;
+                SetBrowserChromeVisible(!_chromeHiddenBeforeFullScreen);
+                _chromeHideAt = _autoHideBrowserChromeActive
+                    ? DateTime.UtcNow.AddSeconds(2)
+                    : DateTime.MaxValue;
+            }
+
+            if (tab?.Kind == BrowserTabKind.Web &&
+                tab.WebView?.CoreWebView2 is not null &&
+                (scrollX >= 1.0 || scrollY >= 1.0))
+            {
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+                await RestoreScrollPositionAsync(tab, scrollX, scrollY, preferTrackedElement: true);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Error(ex, "Fullscreen transition failed");
+        }
+        catch (COMException ex)
+        {
+            Log.Error(ex, "Fullscreen transition failed");
+        }
+        catch (TaskCanceledException ex)
+        {
+            Log.Error(ex, "Fullscreen transition failed");
+        }
+        catch (Win32Exception ex)
+        {
+            Log.Error(ex, "Fullscreen transition failed");
+        }
+        finally
+        {
+            _fullScreenTransitionInProgress = false;
+        }
+    }
+
+    private async Task AnimateWindowBoundsAsync(RECT from, RECT to)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < WindowBoundsTransitionDuration)
+        {
+            var progress = Math.Clamp(stopwatch.Elapsed.TotalMilliseconds / WindowBoundsTransitionDuration.TotalMilliseconds, 0, 1);
+            var eased = progress * progress * (3 - 2 * progress);
+            var bounds = new RECT
+            {
+                Left = (int)Math.Round(from.Left + (to.Left - from.Left) * eased),
+                Top = (int)Math.Round(from.Top + (to.Top - from.Top) * eased),
+                Right = (int)Math.Round(from.Right + (to.Right - from.Right) * eased),
+                Bottom = (int)Math.Round(from.Bottom + (to.Bottom - from.Bottom) * eased)
+            };
+            SetWindowBounds(bounds);
+            await Task.Delay(16);
+        }
+
+        SetWindowBounds(to);
+    }
+
+    private void SetWindowBounds(RECT bounds)
+    {
+        if (!SetWindowPos(
+                _windowHandle,
+                IntPtr.Zero,
+                bounds.Left,
+                bounds.Top,
+                bounds.Right - bounds.Left,
+                bounds.Bottom - bounds.Top,
+                SwpNoZOrder | SwpNoActivate))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
         }
     }
 

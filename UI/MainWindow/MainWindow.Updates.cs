@@ -115,6 +115,19 @@ public partial class MainWindow
         {
             try
             {
+                // Re-verify at launch time: the file could have been swapped
+                // between download and the user clicking "Run it now".
+                if (!AerioUpdateService.VerifyInstallerDigest(installerPath, release.InstallerSha256))
+                {
+                    Log.Error("Aerio update installer failed its integrity check before launch");
+                    status.Text = "The installer failed its integrity check and was not started.";
+                    StatusBar.StatusText.Text = "Aerio update blocked";
+                    try { File.Delete(installerPath); } catch (IOException ex) { Log.Debug(ex, "Failed to delete blocked installer"); }
+                    checkButton.IsEnabled = true;
+                    downloadButton.IsEnabled = true;
+                    return;
+                }
+
                 var installerProcess = Process.Start(new ProcessStartInfo(installerPath)
                 {
                     UseShellExecute = true

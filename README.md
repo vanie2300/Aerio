@@ -69,7 +69,6 @@ TabloidBrowser/
 │   ├── NativePages/                         — Native page builders (MainWindow partials)
 │   │   ├── PageBuilders.cs                 — Bookmarks, history, downloads, shared helpers
 │   │   ├── PageBuilders.Settings.cs        — Settings page
-│   │   ├── PageBuilders.Hymns.cs           — Hymn presenter
 │   │   ├── PageBuilders.SiteData.cs        — Site permissions popup
 │   │   ├── PageBuilders.Extensions.cs      — Extensions page
 │   │   └── PageBuilders.AiManagement.cs    — AI management page
@@ -94,7 +93,6 @@ TabloidBrowser/
 │       ├── TabSleepPolicy.cs               — Tab hibernation decisions
 │       ├── SystemMemoryPressure.cs         — Memory pressure signal
 │       ├── NewTabShortcutPolicy.cs         — Shortcut validation
-│       ├── HymnService.cs                  — Hymn data
 │       └── AerioUpdateService.cs           — GitHub release update checks
 ├── TabloidBrowser.Tests/                     — xUnit test project
 └── .github/workflows/                        — Build and tagged-release automation

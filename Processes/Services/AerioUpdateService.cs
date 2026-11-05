@@ -2,11 +2,17 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace TabloidBrowser;
 
-public sealed record AerioRelease(Version Version, Uri ReleasePageUri, Uri InstallerDownloadUri);
+public sealed record AerioRelease(
+    Version Version,
+    Uri ReleasePageUri,
+    Uri InstallerDownloadUri,
+    string? InstallerSha256 = null,
+    Uri? ChecksumManifestUri = null);
 
 public readonly record struct AerioDownloadProgress(long BytesReceived, long? TotalBytes);
 
@@ -14,6 +20,7 @@ public sealed class AerioUpdateService
 {
     private const string LatestReleaseApiUrl = "https://api.github.com/repos/vanie2300/Aerio/releases/latest";
     private const string InstallerAssetName = "Aerio-Setup-win-x64.exe";
+    private const string ChecksumManifestAssetName = "SHA256SUMS.txt";
     private static readonly HttpClient SharedHttpClient = CreateHttpClient();
     private readonly HttpClient _httpClient;
 
@@ -59,6 +66,8 @@ public sealed class AerioUpdateService
         }
 
         Uri? installerDownloadUri = null;
+        string? installerSha256 = null;
+        Uri? checksumManifestUri = null;
         foreach (var asset in assetsElement.EnumerateArray())
         {
             if (asset.ValueKind != JsonValueKind.Object)
@@ -67,21 +76,48 @@ public sealed class AerioUpdateService
             }
 
             if (!asset.TryGetProperty("name", out var nameElement) ||
-                nameElement.ValueKind != JsonValueKind.String ||
-                !string.Equals(nameElement.GetString(), InstallerAssetName, StringComparison.Ordinal))
+                nameElement.ValueKind != JsonValueKind.String)
             {
                 continue;
             }
 
-            if (!asset.TryGetProperty("browser_download_url", out var downloadUrlElement) ||
-                downloadUrlElement.ValueKind != JsonValueKind.String ||
-                !Uri.TryCreate(downloadUrlElement.GetString(), UriKind.Absolute, out installerDownloadUri) ||
-                !IsTrustedInstallerUri(installerDownloadUri))
+            var assetName = nameElement.GetString();
+            if (string.Equals(assetName, InstallerAssetName, StringComparison.Ordinal))
             {
-                throw new InvalidDataException("GitHub returned an invalid installer download URL.");
+                if (!asset.TryGetProperty("browser_download_url", out var downloadUrlElement) ||
+                    downloadUrlElement.ValueKind != JsonValueKind.String ||
+                    !Uri.TryCreate(downloadUrlElement.GetString(), UriKind.Absolute, out installerDownloadUri) ||
+                    !IsTrustedInstallerUri(installerDownloadUri))
+                {
+                    throw new InvalidDataException("GitHub returned an invalid installer download URL.");
+                }
+
+                // GitHub exposes a sha256 digest for release assets. When
+                // present it is carried through so the download can be
+                // integrity-checked before the installer is ever executed.
+                installerSha256 = null;
+                if (asset.TryGetProperty("digest", out var digestElement) &&
+                    digestElement.ValueKind == JsonValueKind.String)
+                {
+                    installerSha256 = NormalizeSha256Digest(digestElement.GetString());
+                }
+
+                continue;
             }
 
-            break;
+            if (string.Equals(assetName, ChecksumManifestAssetName, StringComparison.Ordinal) &&
+                checksumManifestUri is null)
+            {
+                // Older releases without per-asset digests can still be
+                // verified against the published SHA256SUMS.txt manifest.
+                if (asset.TryGetProperty("browser_download_url", out var checksumUrlElement) &&
+                    checksumUrlElement.ValueKind == JsonValueKind.String &&
+                    Uri.TryCreate(checksumUrlElement.GetString(), UriKind.Absolute, out var checksumUri) &&
+                    IsTrustedInstallerUri(checksumUri))
+                {
+                    checksumManifestUri = checksumUri;
+                }
+            }
         }
 
         if (installerDownloadUri is null)
@@ -89,7 +125,7 @@ public sealed class AerioUpdateService
             throw new InvalidDataException("GitHub release does not include the Aerio installer.");
         }
 
-        return new AerioRelease(version, releasePageUri, installerDownloadUri);
+        return new AerioRelease(version, releasePageUri, installerDownloadUri, installerSha256, checksumManifestUri);
     }
 
     public async Task DownloadInstallerAsync(
@@ -142,6 +178,21 @@ public sealed class AerioUpdateService
                 await destination.FlushAsync(cancellationToken);
             }
 
+            var expectedSha256 = release.InstallerSha256;
+            if (expectedSha256 is null && release.ChecksumManifestUri is not null)
+            {
+                expectedSha256 = await FetchChecksumFromManifestAsync(
+                    release.ChecksumManifestUri,
+                    Path.GetFileName(destinationPath),
+                    cancellationToken);
+            }
+
+            if (!VerifyInstallerDigest(temporaryPath, expectedSha256))
+            {
+                throw new InvalidDataException(
+                    "The downloaded installer failed its SHA-256 integrity check and was discarded.");
+            }
+
             File.Move(temporaryPath, destinationPath, overwrite: true);
         }
         finally
@@ -160,6 +211,96 @@ public sealed class AerioUpdateService
         uri.AbsolutePath.StartsWith(
             "/vanie2300/Aerio/releases/download/",
             StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Accepts GitHub asset digests of the form "sha256:<64 hex chars>"; anything
+    /// else is treated as absent rather than guessable.
+    /// </summary>
+    private static string? NormalizeSha256Digest(string? digest)
+    {
+        if (string.IsNullOrWhiteSpace(digest)) return null;
+
+        var separator = digest.IndexOf(':');
+        if (separator <= 0) return null;
+
+        var algorithm = digest[..separator].Trim();
+        if (!string.Equals(algorithm, "sha256", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return NormalizeSha256Hex(digest[(separator + 1)..]);
+    }
+
+    /// <summary>
+    /// Accepts a bare 64-character SHA-256 hex string (as found in a
+    /// sha256sum-style manifest); anything else is treated as absent rather
+    /// than guessable.
+    /// </summary>
+    private static string? NormalizeSha256Hex(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        var trimmed = value.Trim();
+        return trimmed.Length == 64 && trimmed.All(char.IsAsciiHexDigit)
+            ? trimmed.ToLowerInvariant()
+            : null;
+    }
+
+    /// <summary>
+    /// Verifies a downloaded installer against its expected SHA-256 digest.
+    /// A missing expectation is allowed (older releases); a present expectation
+    /// must match exactly.
+    /// </summary>
+    public static bool VerifyInstallerDigest(string filePath, string? expectedSha256)
+    {
+        if (string.IsNullOrWhiteSpace(expectedSha256)) return true;
+        if (!File.Exists(filePath)) return false;
+
+        using var stream = File.OpenRead(filePath);
+        var actual = Convert.ToHexString(SHA256.HashData(stream));
+        return string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Reads the installer's digest from a sha256sum-style SHA256SUMS.txt
+    /// manifest ("<64 hex>  <file name>" per line).
+    /// </summary>
+    private async Task<string?> FetchChecksumFromManifestAsync(
+        Uri manifestUri,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        if (!IsTrustedInstallerUri(manifestUri))
+        {
+            throw new InvalidDataException("The checksum manifest URL is not a trusted Aerio release asset.");
+        }
+
+        using var response = await _httpClient.GetAsync(manifestUri, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var text = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        foreach (var rawLine in text.Split('\n'))
+        {
+            var line = rawLine.TrimEnd('\r', ' ');
+            // sha256sum format: hash, two spaces, file name.
+            if (line.Length <= 66 || line[64] != ' ' || line[65] != ' ')
+            {
+                continue;
+            }
+
+            var hash = line[..64];
+            var name = line[66..].Trim();
+            if (!string.Equals(name, fileName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return NormalizeSha256Hex(hash);
+        }
+
+        return null;
+    }
 
     private static HttpClient CreateHttpClient()
     {

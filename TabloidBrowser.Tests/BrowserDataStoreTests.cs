@@ -53,6 +53,8 @@ public class BrowserDataStoreTests : IDisposable
         var shortcuts = BrowserSettings.DefaultShortcuts;
         Assert.True(shortcuts.ContainsKey("new_tab"));
         Assert.True(shortcuts.ContainsKey("close_tab"));
+        Assert.True(shortcuts.ContainsKey("reopen_closed_tab"));
+        Assert.Equal("Ctrl+Shift+T", shortcuts["reopen_closed_tab"]);
         Assert.True(shortcuts.ContainsKey("focus_address"));
         Assert.True(shortcuts.ContainsKey("ai_toggle"));
         Assert.Equal("Ctrl+T", shortcuts["new_tab"]);
@@ -413,6 +415,27 @@ public class BrowserDataStoreTests : IDisposable
         // legacy field is decrypted back into AiApiKey.
         using var reloadedStore = new BrowserDataStore(_tempDir);
         Assert.Equal(apiKey, reloadedStore.Settings.AiApiKey);
+    }
+
+    [Fact]
+    public void BrowserDataStore_LegacyPlaintextKeyOnDisk_IsReEncryptedAtLoad()
+    {
+        // Simulate a settings file written by a pre-DPAPI build.
+        var settingsPath = Path.Combine(_tempDir, "settings.json");
+        File.WriteAllText(settingsPath, """{"AiApiKey":"legacy-plain-secret"}""");
+
+        using var store = new BrowserDataStore(_tempDir);
+
+        // The key is decrypted for in-memory use...
+        Assert.Equal("legacy-plain-secret", store.Settings.AiApiKey);
+
+        // ...and the on-disk copy is migrated to DPAPI ciphertext immediately.
+        var raw = File.ReadAllText(settingsPath);
+        Assert.DoesNotContain("legacy-plain-secret", raw);
+        Assert.Contains(BrowserDataStore.EncryptedApiKeyPrefix, raw);
+
+        using var reloaded = new BrowserDataStore(_tempDir);
+        Assert.Equal("legacy-plain-secret", reloaded.Settings.AiApiKey);
     }
 
     [Fact]

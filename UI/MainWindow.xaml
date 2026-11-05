@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:local="clr-namespace:TabloidBrowser"
-        Icon="/Aerio;component/Assets/Aerio.png"
+        Icon="/Aerio;component/Assets/Aerio.ico"
         Title="Aerio"
         Width="1280"
         Height="760"
@@ -15,7 +15,7 @@
         ResizeMode="CanResize">
   <shell:WindowChrome.WindowChrome>
     <shell:WindowChrome CaptionHeight="0"
-                        ResizeBorderThickness="6"
+                        ResizeBorderThickness="10"
                         GlassFrameThickness="0"
                         CornerRadius="0"
                         UseAeroCaptionButtons="False" />
@@ -98,6 +98,37 @@
            StaysOpen="True">
       <local:SidebarRailControl x:Name="SidebarRail" />
     </Popup>
+    </Grid>
+
+    <Grid x:Name="ResizeGripLayer" Panel.ZIndex="10">
+      <Border x:Name="ResizeLeftGrip" Width="12" HorizontalAlignment="Left"
+              Background="Transparent" Cursor="SizeWE"
+              PreviewMouseLeftButtonDown="ResizeGrip_PreviewMouseLeftButtonDown" />
+      <Border x:Name="ResizeRightGrip" Width="12" HorizontalAlignment="Right"
+              Background="Transparent" Cursor="SizeWE"
+              PreviewMouseLeftButtonDown="ResizeGrip_PreviewMouseLeftButtonDown" />
+      <Border x:Name="ResizeTopGrip" Height="12" VerticalAlignment="Top"
+              Background="Transparent" Cursor="SizeNS"
+              PreviewMouseLeftButtonDown="ResizeGrip_PreviewMouseLeftButtonDown" />
+      <Border x:Name="ResizeBottomGrip" Height="12" VerticalAlignment="Bottom"
+              Background="Transparent" Cursor="SizeNS"
+              PreviewMouseLeftButtonDown="ResizeGrip_PreviewMouseLeftButtonDown" />
+      <Border x:Name="ResizeTopLeftGrip" Width="16" Height="16"
+              HorizontalAlignment="Left" VerticalAlignment="Top"
+              Background="Transparent" Cursor="SizeNWSE"
+              PreviewMouseLeftButtonDown="ResizeGrip_PreviewMouseLeftButtonDown" />
+      <Border x:Name="ResizeTopRightGrip" Width="16" Height="16"
+              HorizontalAlignment="Right" VerticalAlignment="Top"
+              Background="Transparent" Cursor="SizeNESW"
+              PreviewMouseLeftButtonDown="ResizeGrip_PreviewMouseLeftButtonDown" />
+      <Border x:Name="ResizeBottomLeftGrip" Width="16" Height="16"
+              HorizontalAlignment="Left" VerticalAlignment="Bottom"
+              Background="Transparent" Cursor="SizeNESW"
+              PreviewMouseLeftButtonDown="ResizeGrip_PreviewMouseLeftButtonDown" />
+      <Border x:Name="ResizeBottomRightGrip" Width="16" Height="16"
+              HorizontalAlignment="Right" VerticalAlignment="Bottom"
+              Background="Transparent" Cursor="SizeNWSE"
+              PreviewMouseLeftButtonDown="ResizeGrip_PreviewMouseLeftButtonDown" />
     </Grid>
   </Grid>
 </Window>

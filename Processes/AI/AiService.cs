@@ -162,8 +162,8 @@ public sealed class AiService : IDisposable
         string endpoint,
         string apiKey,
         string provider,
-        CancellationToken ct = default,
-        HttpClient? httpClient = null)
+        HttpClient? httpClient = null,
+        CancellationToken ct = default)
     {
         var trimmedEndpoint = AiEndpoints.EnsureSecure(endpoint).TrimEnd('/');
         var baseUri = new Uri(trimmedEndpoint, UriKind.Absolute);
@@ -940,7 +940,6 @@ public sealed class AiService : IDisposable
             return;
 
         var errorBody = await response.Content.ReadAsStringAsync(ct);
-        Debug.WriteLine($"[AiService] Error body: {errorBody}");
         throw new HttpRequestException(
             $"AI API request failed with HTTP {(int)response.StatusCode} ({response.ReasonPhrase}): {GetErrorDetail(errorBody)}",
             null,

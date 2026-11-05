@@ -209,7 +209,6 @@ public partial class MainWindow
             BrowserTabKind.Downloads => BuildDownloadsPage(tab),
             BrowserTabKind.Settings => BuildSettingsPage(tab),
             BrowserTabKind.AiManagement => BuildAiManagementPage(tab),
-            BrowserTabKind.Hymns => BuildHymnsPage(tab),
             _ => new Grid()
         };
         tab.CachedContent = page;
@@ -269,8 +268,11 @@ public partial class MainWindow
             return string.Empty;
         }
 
+        // Only web URLs are accepted here. Deliberately NOT file: — local
+        // documents must never be loadable from the address bar, new-tab
+        // shortcuts, or AI-driven navigation (local file disclosure risk).
         if (Uri.TryCreate(input, UriKind.Absolute, out var absolute) &&
-            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps || absolute.Scheme == Uri.UriSchemeFile))
+            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
         {
             if (absolute.Scheme == Uri.UriSchemeHttp && !IsLocalAddress(absolute.Host))
             {
@@ -307,13 +309,45 @@ public partial class MainWindow
             : template + escapedQuery;
     }
 
-    private static bool IsLocalAddress(string host)
+    internal static bool IsLocalAddress(string host)
     {
         // Uri.Host keeps IPv6 literals bracketed ("[::1]").
         var bare = host?.Trim('[', ']') ?? "";
-        return string.Equals(bare, "localhost", StringComparison.OrdinalIgnoreCase) ||
-               bare == "127.0.0.1" ||
-               bare == "::1";
+        if (string.Equals(bare, "localhost", StringComparison.OrdinalIgnoreCase) ||
+            bare == "127.0.0.1" ||
+            bare == "::1")
+        {
+            return true;
+        }
+
+        // Private/LAN addresses are treated as local too: routers, printers and
+        // intranet hosts often serve plain HTTP with self-signed certificates,
+        // so the http→https upgrade must never rewrite what the user typed.
+        if (Uri.CheckHostName(bare) == UriHostNameType.IPv4 &&
+            System.Net.IPAddress.TryParse(bare, out var ip))
+        {
+            return IsPrivateIPv4(ip);
+        }
+
+        // mDNS names and bare hostnames ("router.local", "nas") resolve on the
+        // local network only.
+        return bare.EndsWith(".local", StringComparison.OrdinalIgnoreCase) ||
+               (!bare.Contains('.') && !bare.StartsWith('['));
+    }
+
+    private static bool IsPrivateIPv4(System.Net.IPAddress ip)
+    {
+        if (ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            return false;
+        }
+
+        var octets = ip.GetAddressBytes();
+        return octets[0] == 10 ||
+               (octets[0] == 172 && octets[1] is >= 16 and <= 31) ||
+               (octets[0] == 192 && octets[1] == 168) ||
+               (octets[0] == 169 && octets[1] == 254) ||
+               octets[0] == 127;
     }
 
     private static string GetSearchUrlTemplate(string searchEngine, List<SearchEngineDef>? customEngines = null)
@@ -360,11 +394,10 @@ public partial class MainWindow
             "downloads" => BrowserTabKind.Downloads,
             "settings" => BrowserTabKind.Settings,
             "ai" => BrowserTabKind.AiManagement,
-            "hymns" => BrowserTabKind.Hymns,
             _ => BrowserTabKind.Start
         };
 
-        return page is "start" or "bookmarks" or "history" or "downloads" or "settings" or "ai" or "hymns";
+        return page is "start" or "bookmarks" or "history" or "downloads" or "settings" or "ai";
     }
 
     private static string GetNativePageTitle(BrowserTabKind kind)
@@ -376,7 +409,6 @@ public partial class MainWindow
             BrowserTabKind.Downloads => "Downloads",
             BrowserTabKind.Settings => "Settings",
             BrowserTabKind.AiManagement => "AI Management",
-            BrowserTabKind.Hymns => "Hymns",
             _ => "New tab"
         };
     }
@@ -390,7 +422,6 @@ public partial class MainWindow
             BrowserTabKind.Downloads => "tabloid://downloads",
             BrowserTabKind.Settings => "tabloid://settings",
             BrowserTabKind.AiManagement => "tabloid://ai",
-            BrowserTabKind.Hymns => "tabloid://hymns",
             _ => string.Empty
         };
     }

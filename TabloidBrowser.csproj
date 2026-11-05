@@ -12,6 +12,24 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <ApplicationIcon>UI\Assets\Aerio.ico</ApplicationIcon>
     <Version>1.4.0</Version>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditLevel>high</NuGetAuditLevel>
+    <!--
+      Analyzer policy: the security rule categories (CA53xx, CA21xx, CA30xx) and
+      correctness rules stay on. The rules below are either style/perf churn that
+      does not affect behaviour, or a documented false positive for this app.
+      CA1001  MainWindow disposes its IDisposable fields explicitly in
+              MainWindow.Shutdown.cs rather than implementing IDisposable.
+      CA1305  Culture on interpolated ToString - values here are machine data.
+      CA1310  StringComparison - mechanical cleanup, tracked separately.
+      CA1822  "make member static" - partial-class UI members.
+      CA1859  concrete return types in UI builder helpers.
+      CA1861  constant arrays as arguments.
+      CA1866  char overloads of char.Is* helpers.
+    -->
+    <NoWarn>$(NoWarn);CA1001;CA1305;CA1310;CA1822;CA1859;CA1861;CA1866</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,14 +56,14 @@
 
   <ItemGroup>
     <Resource Include="UI\Assets\Aerio.png" Link="Assets\Aerio.png" />
-    <Content Include="UI\Assets\the app icon.ico" Link="Assets\the app icon.ico" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="UI\Assets\The app icon.png" Link="Assets\The app icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="UI\Assets\Aerio.ico" Link="Assets\Aerio.ico" />
+    <Content Include="UI\Assets\Aerio.ico" Link="Assets\Aerio.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="UI\Assets\4578.jpg" Link="Assets\4578.jpg" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="UI\Assets\ddg.png" Link="Assets\ddg.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="UI\Assets\startpage.png" Link="Assets\startpage.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="UI\Assets\brave.png" Link="Assets\brave.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="UI\Assets\searxng.png" Link="Assets\searxng.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="UI\readability.min.js" Link="readability.min.js" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="UI\readability.min.js" Link="readability.min.js" />
     <Content Include="UI\Assets\Fonts\PureMechanic.ttf" Link="Assets\Fonts\PureMechanic.ttf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

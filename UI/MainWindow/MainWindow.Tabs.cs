@@ -24,6 +24,7 @@ namespace TabloidBrowser;
 public partial class MainWindow
 {
     private readonly ObservableCollection<BrowserTab> _tabs = [];
+    private readonly List<(string Title, string Url)> _recentlyClosedTabs = [];
     private BrowserTab? _activeTab;
     private readonly SemaphoreSlim _tabOperationLock = new(1, 1);
     private Point _dragStartPoint;
@@ -151,6 +152,50 @@ public partial class MainWindow
 
         await ActivateTabAsync(tab);
         await NavigateWebAsync(tab, url);
+    }
+
+    /// <summary>
+    /// Restores the most recently closed web tab (Ctrl+Shift+T / context menu).
+    /// </summary>
+    private async Task ReopenLastClosedTabAsync()
+    {
+        if (_recentlyClosedTabs.Count == 0)
+        {
+            SetStatusTextSafe("No recently closed tabs");
+            return;
+        }
+
+        var (_, url) = _recentlyClosedTabs[0];
+        _recentlyClosedTabs.RemoveAt(0);
+
+        await AddWebTabAsync(url);
+        SetStatusTextSafe($"Reopened {TrimUrl(url)}");
+    }
+
+    /// <summary>
+    /// Opens a link in a new tab without stealing focus (middle-click).
+    /// </summary>
+    private async Task OpenLinkInBackgroundAsync(string url)
+    {
+        BrowserTab tab;
+        await _tabOperationLock.WaitAsync();
+        try
+        {
+            tab = new BrowserTab
+            {
+                Kind = BrowserTabKind.Web,
+                Title = "New tab",
+                Address = string.Empty
+            };
+
+            _tabs.Add(tab);
+        }
+        finally { _tabOperationLock.Release(); }
+
+        UpdateMemoryStatus();
+        await EnsureWebViewAsync(tab);
+        await NavigateWebAsync(tab, url);
+        SetStatusTextSafe($"Opened {TrimUrl(url)} in a background tab");
     }
 
     private async Task AddNativePageTabAsync(BrowserTabKind kind)
@@ -360,6 +405,44 @@ public partial class MainWindow
         }
     }
 
+    private async Task<(double X, double Y)> CaptureScrollPositionForFullScreenAsync(BrowserTab? tab)
+    {
+        var fallback = (tab?.ScrollX ?? 0, tab?.ScrollY ?? 0);
+        if (tab?.Kind != BrowserTabKind.Web || tab.WebView?.CoreWebView2 is not { } coreWebView)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            var json = await coreWebView.ExecuteScriptAsync(FullScreenScrollSnapshotScript);
+            using var document = JsonDocument.Parse(json);
+            if (TryGetJsonDouble(document.RootElement, "X", out var x) &&
+                TryGetJsonDouble(document.RootElement, "Y", out var y))
+            {
+                return (Math.Max(0, x), Math.Max(0, y));
+            }
+        }
+        catch (ObjectDisposedException ex)
+        {
+            Log.Error(ex, "Fullscreen scroll capture failed: WebView2 was disposed");
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Error(ex, "Fullscreen scroll capture failed: WebView2 was not ready");
+        }
+        catch (COMException ex)
+        {
+            Log.Error(ex, "Fullscreen scroll capture failed: WebView2 COM error");
+        }
+        catch (JsonException ex)
+        {
+            Log.Error(ex, "Fullscreen scroll capture failed: invalid script response");
+        }
+
+        return fallback;
+    }
+
     private async Task RestoreScrollPositionAsync(BrowserTab tab, bool force = false)
     {
         if ((!force && !tab.PendingScrollRestore) || !HasScrollPosition(tab) || tab.WebView is null)
@@ -367,10 +450,25 @@ public partial class MainWindow
             return;
         }
 
+        await RestoreScrollPositionAsync(tab, tab.ScrollX, tab.ScrollY);
+        tab.PendingScrollRestore = false;
+    }
+
+    private async Task RestoreScrollPositionAsync(BrowserTab tab, double x, double y, bool preferTrackedElement = false)
+    {
+        if (tab.WebView is null)
+        {
+            return;
+        }
+
         var webView = tab.WebView;
-        var x = tab.ScrollX;
-        var y = tab.ScrollY;
-        var script = $"window.scrollTo({FormatScriptNumber(x)}, {FormatScriptNumber(y)});";
+        var scrollCommand = preferTrackedElement
+            ? $"const target = window.__tabloidScrollTarget; " +
+              $"if (target?.isConnected && typeof target.scrollTo === 'function') " +
+              $"target.scrollTo({FormatScriptNumber(x)}, {FormatScriptNumber(y)}); " +
+              $"else window.scrollTo({FormatScriptNumber(x)}, {FormatScriptNumber(y)});"
+            : $"window.scrollTo({FormatScriptNumber(x)}, {FormatScriptNumber(y)});";
+        var script = $"(() => {{ {scrollCommand} }})();";
 
         for (var attempt = 0; attempt < 6; attempt++)
         {
@@ -408,7 +506,6 @@ public partial class MainWindow
             }
         }
 
-        tab.PendingScrollRestore = false;
     }
 
     private static bool HasScrollPosition(BrowserTab tab)
@@ -673,6 +770,19 @@ public partial class MainWindow
             {
                 _activeTab = null;
                 tab.IsActive = false;
+            }
+
+            // Remember user-closed web tabs so Ctrl+Shift+T / the tab context
+            // menu can reopen them. AI-owned and native tabs are excluded.
+            if (tab.Kind == BrowserTabKind.Web &&
+                tab.Owner == TabOwner.User &&
+                BrowserDataStore.IsHttpUrl(tab.Address))
+            {
+                _recentlyClosedTabs.Insert(0, (tab.Title, tab.Address));
+                if (_recentlyClosedTabs.Count > 20)
+                {
+                    _recentlyClosedTabs.RemoveAt(_recentlyClosedTabs.Count - 1);
+                }
             }
 
             if (_isPermissionsPopupOpen)

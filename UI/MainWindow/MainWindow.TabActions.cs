@@ -82,9 +82,30 @@ public partial class MainWindow
         catch (Exception ex) { Log.Error(ex, "Error occurred"); }
     }
 
-    private async void KeepAiTab_Click(object sender, RoutedEventArgs e)
+    private async void Tab_MouseMiddleButtonDown(object sender, MouseButtonEventArgs e)
     {
         try
+        {
+            if (sender is FrameworkElement { Tag: BrowserTab tab })
+            {
+                e.Handled = true;
+                await CloseTabAsync(tab);
+            }
+        }
+        catch (Exception ex) { Log.Error(ex, "Middle-click tab close failed"); }
+    }
+
+    private async void ReopenClosedTab_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            FireAndForget(ReopenLastClosedTabAsync(), "ReopenLastClosedTabAsync");
+        }
+        catch (Exception ex) { Log.Error(ex, "Reopen closed tab failed"); }
+    }
+
+    private async void KeepAiTab_Click(object sender, RoutedEventArgs e)
+    {        try
         {
             if (sender is not FrameworkElement { Tag: BrowserTab tab } || !tab.IsAiOwned)
             {
@@ -257,6 +278,13 @@ public partial class MainWindow
             return;
         }
 
+        if (MatchesShortcut(e, "reopen_closed_tab"))
+        {
+            FireAndForget(ReopenLastClosedTabAsync(), "ReopenLastClosedTabAsync");
+            e.Handled = true;
+            return;
+        }
+
         if (MatchesShortcut(e, "reload"))
         {
             Reload_Click(sender, e);
@@ -340,7 +368,7 @@ public partial class MainWindow
         // Full-screen
         if (e.Key == Key.F11)
         {
-            ToggleFullScreen();
+            await ToggleFullScreenAsync();
             e.Handled = true;
             return;
         }

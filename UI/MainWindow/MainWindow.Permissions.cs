@@ -92,6 +92,13 @@ public partial class MainWindow
 
             if (permission is null)
             {
+                // Unmapped permission kinds must be denied explicitly; leaving
+                // the request unhandled would fall back to WebView2's default
+                // (grant) behavior.
+                Log.Debug("Unknown permission kind denied (kind: {Kind}, origin: {Origin})",
+                    args.PermissionKind, origin);
+                args.State = CoreWebView2PermissionState.Deny;
+                args.Handled = true;
                 return;
             }
 

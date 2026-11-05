@@ -4,6 +4,11 @@ namespace TabloidBrowser;
 
 public sealed class PageInteractionService
 {
+    private static readonly JsonSerializerOptions DeserializeOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly Func<string, Task<string?>> _executeJs;
     private readonly Func<Task> _waitForNavigation;
 
@@ -71,14 +76,13 @@ public sealed class PageInteractionService
 
         try
         {
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             using var document = JsonDocument.Parse(json);
             var elementsJson = document.RootElement.ValueKind == JsonValueKind.String
                 ? document.RootElement.GetString()
                 : json;
             return string.IsNullOrWhiteSpace(elementsJson)
                 ? []
-                : JsonSerializer.Deserialize<List<InteractiveElement>>(elementsJson, options) ?? [];
+                : JsonSerializer.Deserialize<List<InteractiveElement>>(elementsJson, DeserializeOptions) ?? [];
         }
         catch (JsonException)
         {

@@ -25,7 +25,14 @@ jobs:
         run: dotnet restore TabloidBrowser.Tests\TabloidBrowser.Tests.csproj
 
       - name: Check for vulnerable packages
-        run: dotnet list TabloidBrowser.csproj package --vulnerable --include-transitive
+        shell: pwsh
+        run: |
+          $result = dotnet list TabloidBrowser.csproj package --vulnerable --include-transitive | Out-String
+          Write-Output $result
+          if ($result -notmatch "no vulnerable packages") {
+            Write-Error "Vulnerable NuGet packages detected - release blocked."
+            exit 1
+          }
 
       - name: Run tests
         run: dotnet test TabloidBrowser.Tests\TabloidBrowser.Tests.csproj --no-restore --configuration Release --verbosity normal
@@ -67,8 +74,7 @@ jobs:
         run: |
           $requiredFiles = @(
             "Aerio.exe",
-            "readability.min.js",
-            "Assets\the app icon.ico"
+            "Assets\Aerio.ico"
           )
           foreach ($dir in @("release\Aerio-win-x64", "release\Aerio-win-x64-offline")) {
             foreach ($file in $requiredFiles) {
@@ -135,6 +141,23 @@ jobs:
             -Path release\Aerio-win-x64-offline\* `
             -DestinationPath Aerio-win-x64.zip
 
+      - name: Generate SHA256SUMS manifest
+        shell: pwsh
+        run: |
+          $files = @(
+            "release\Aerio-Setup-win-x64.exe",
+            "release\Aerio-Setup-offline-win-x64.exe",
+            "Aerio-win-x64.zip"
+          )
+          $lines = foreach ($file in $files) {
+            if (Test-Path $file) {
+              $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $(Split-Path $file -Leaf)"
+            }
+          }
+          $lines | Set-Content -Path SHA256SUMS.txt -Encoding ascii
+          Write-Host (Get-Content SHA256SUMS.txt | Out-String)
+
       - name: Report artifact sizes
         shell: pwsh
         run: |
@@ -178,3 +201,4 @@ jobs:
             release/Aerio-Setup-win-x64.exe
             release/Aerio-Setup-offline-win-x64.exe
             Aerio-win-x64.zip
+            SHA256SUMS.txt

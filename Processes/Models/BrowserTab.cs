@@ -39,6 +39,9 @@ public class BrowserTab : INotifyPropertyChanged
     private bool _isPlayingAudio;
     private bool _isMuted;
     private bool _hasAudio;
+    private Color? _siteAccentColor;
+    private ImageSource? _favicon;
+    private string? _faviconUri;
     private TabOwner _owner = TabOwner.User;
 
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
@@ -84,6 +87,12 @@ public class BrowserTab : INotifyPropertyChanged
     }
 
     public DateTimeOffset LastActiveUtc { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Throttles accent re-resolution triggered by favicon changes so animated
+    /// favicons cannot cause repeated work.
+    /// </summary>
+    public DateTimeOffset LastFaviconAccentAttemptUtc { get; set; }
 
     public bool IsLoading { get; set; }
 
@@ -140,6 +149,51 @@ public class BrowserTab : INotifyPropertyChanged
             DispatchOnPropertyChanged(nameof(ShowMuteIcon));
             DispatchOnPropertyChanged(nameof(TabBrush));
         }
+    }
+
+    /// <summary>
+    /// Primary color of the site currently playing media. When set, it replaces
+    /// the default green audio accent on the tab. Cleared on navigation.
+    /// </summary>
+    public Color? SiteAccentColor
+    {
+        get => _siteAccentColor;
+        set
+        {
+            if (_siteAccentColor == value) return;
+            _siteAccentColor = value;
+            _cachedAccentBrush = null;
+            DispatchOnPropertyChanged();
+            DispatchOnPropertyChanged(nameof(AccentBrush));
+        }
+    }
+
+    /// <summary>
+    /// The site's favicon, shown in the tab strip. Null means the tab should
+    /// fall back to the accent dot.
+    /// </summary>
+    public ImageSource? Favicon
+    {
+        get => _favicon;
+        set
+        {
+            if (ReferenceEquals(_favicon, value)) return;
+            _favicon = value;
+            DispatchOnPropertyChanged();
+            DispatchOnPropertyChanged(nameof(HasFavicon));
+        }
+    }
+
+    public bool HasFavicon => _favicon is not null;
+
+    /// <summary>
+    /// URI of the currently displayed favicon, used to avoid reloading the
+    /// same image when WebView2 raises repeated FaviconChanged events.
+    /// </summary>
+    public string? FaviconUri
+    {
+        get => _faviconUri;
+        set => _faviconUri = value;
     }
 
     public bool IsMuted
@@ -226,6 +280,9 @@ public class BrowserTab : INotifyPropertyChanged
         {
             if (string.Equals(_address, value, StringComparison.Ordinal)) return;
             _address = value;
+            SiteAccentColor = null;
+            Favicon = null;
+            FaviconUri = null;
             DispatchOnPropertyChanged();
         }
     }
@@ -292,7 +349,7 @@ public class BrowserTab : INotifyPropertyChanged
             var brush = Owner == TabOwner.AI
                 ? new SolidColorBrush(AiAccentColor)
                 : IsPlayingAudio
-                    ? new SolidColorBrush(AudioAccentColor)
+                    ? new SolidColorBrush(ResolvePlayingAccent())
                     : IsSleeping
                         ? new SolidColorBrush(SleepingAccentColor)
                         : _isActive
@@ -302,6 +359,13 @@ public class BrowserTab : INotifyPropertyChanged
             _cachedAccentBrush = brush;
             return brush;
         }
+    }
+
+    private Color ResolvePlayingAccent()
+    {
+        var background = _isActive ? ActiveTabColor : AudioTabColor;
+        var accent = SiteAccentColor ?? AudioAccentColor;
+        return AccentColorAdjuster.AdjustForContrast(accent, background);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

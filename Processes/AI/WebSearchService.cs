@@ -49,7 +49,11 @@ public sealed class WebSearchService : IDisposable
             default:
                 var custom = customEngines?.FirstOrDefault(e => e.Name == searchEngine);
                 if (custom is not null &&
-                    Uri.TryCreate(custom.UrlTemplate, UriKind.Absolute, out var tempUri))
+                    Uri.TryCreate(custom.UrlTemplate, UriKind.Absolute, out var tempUri) &&
+                    // Custom SearXNG endpoints must use HTTPS, or HTTP only for
+                    // loopback instances — search queries must never travel in
+                    // cleartext to a remote host.
+                    (tempUri.Scheme == Uri.UriSchemeHttps || tempUri.IsLoopback))
                 {
                     var host = tempUri.Host;
                     if (host.Contains("searx", StringComparison.OrdinalIgnoreCase) ||
@@ -317,6 +321,14 @@ public sealed class WebSearchService : IDisposable
             endpointUri.Scheme != "http" && endpointUri.Scheme != "https")
             return [];
 
+        // Match the AI endpoint policy: search queries can contain sensitive
+        // intent, so cleartext HTTP is only acceptable for loopback instances.
+        if (endpointUri.Scheme == "http" && !endpointUri.IsLoopback)
+        {
+            Debug.WriteLine("SearXNG endpoint rejected: cleartext HTTP to a non-loopback host.");
+            return [];
+        }
+
         try
         {
             var url = $"{endpointUri.GetLeftPart(UriPartial.Path).TrimEnd('/')}/search?q={Uri.EscapeDataString(query)}&format=json";
@@ -335,8 +347,15 @@ public sealed class WebSearchService : IDisposable
                     var resultUrl = r.TryGetProperty("url", out var u) ? u.GetString() ?? "" : "";
                     var snippet = r.TryGetProperty("content", out var c) ? c.GetString() ?? "" : "";
 
-                    if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(resultUrl))
-                        results.Add(new SearchResult(title, resultUrl, snippet));
+                    // Only web results are returned; the AI opens these URLs in
+                    // tabs, so non-http(s) schemes (file:, javascript:, …) must
+                    // never pass through.
+                    if (!string.IsNullOrWhiteSpace(title) &&
+                        Uri.TryCreate(resultUrl, UriKind.Absolute, out var resultUri) &&
+                        (resultUri.Scheme == Uri.UriSchemeHttp || resultUri.Scheme == Uri.UriSchemeHttps))
+                    {
+                        results.Add(new SearchResult(title, resultUri.ToString(), snippet));
+                    }
                 }
             }
 

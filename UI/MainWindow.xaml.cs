@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoActivate = 0x0010;
+    private bool _minimizeTransitionInProgress;
     private SidebarEdgeToggleWindow _sidebarEdgeToggleWindow = null!;
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -42,6 +43,41 @@ public partial class MainWindow : Window
         int width,
         int height,
         uint flags);
+
+    private const string LinkClickScript =
+        """
+        (() => {
+            if (window.__tabloidLinkTracker) {
+                return;
+            }
+            window.__tabloidLinkTracker = true;
+
+            const findAnchor = (target) =>
+                target && target.closest ? target.closest('a[href]') : null;
+
+            // Middle-click: suppress autoscroll on links and ask the host to
+            // open the target in a background tab (classic browser behavior).
+            document.addEventListener('mousedown', (e) => {
+                if (e.button !== 1) return;
+                const anchor = findAnchor(e.target);
+                if (anchor) {
+                    e.preventDefault();
+                }
+            }, true);
+
+            document.addEventListener('auxclick', (e) => {
+                if (e.button !== 1) return;
+                const anchor = findAnchor(e.target);
+                if (anchor) {
+                    e.preventDefault();
+                    const href = anchor.href;
+                    if (href) {
+                        window.chrome.webview.postMessage({ type: 'open-link', href: href });
+                    }
+                }
+            }, true);
+        })();
+        """;
 
     private const string ScrollTrackingScript =
         """
@@ -86,6 +122,13 @@ public partial class MainWindow : Window
                 requestAnimationFrame(send);
             };
 
+            document.addEventListener('scroll', event => {
+                const root = document.scrollingElement || document.documentElement || document.body;
+                window.__tabloidScrollTarget = event.target instanceof Element
+                    ? event.target
+                    : root;
+                queue();
+            }, { passive: true, capture: true });
             window.addEventListener('scroll', queue, { passive: true });
             window.addEventListener('pagehide', () => {
                 lastSent = -1000;
@@ -101,6 +144,19 @@ public partial class MainWindow : Window
             return {
                 X: Math.max(0, window.scrollX || root?.scrollLeft || 0),
                 Y: Math.max(0, window.scrollY || root?.scrollTop || 0)
+            };
+        })();
+        """;
+    private const string FullScreenScrollSnapshotScript =
+        """
+        (() => {
+            const root = document.scrollingElement || document.documentElement || document.body;
+            const target = window.__tabloidScrollTarget?.isConnected
+                ? window.__tabloidScrollTarget
+                : root;
+            return {
+                X: Math.max(0, target?.scrollLeft || 0),
+                Y: Math.max(0, target?.scrollTop || 0)
             };
         })();
         """;
@@ -205,6 +261,7 @@ public partial class MainWindow : Window
         Activated += (_, _) =>
             Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
             {
+                ResetMinimizeAnimation();
                 ShowSidebarEdgeToggleWindow();
                 UpdateSidebarRailVisibility();
             }));
@@ -224,6 +281,8 @@ public partial class MainWindow : Window
         TitleBar.TabPopOut += PopOutTab_Click;
         TitleBar.MuteToggle += MuteButton_Click;
         TitleBar.TabClose += CloseTab_Click;
+        TitleBar.TabMiddleClick += Tab_MouseMiddleButtonDown;
+        TitleBar.ReopenClosedTab += ReopenClosedTab_Click;
         TitleBar.KeepAiTab += KeepAiTab_Click;
         TitleBar.Minimize += Minimize_Click;
         TitleBar.MaximizeRestore += MaximizeRestore_Click;
@@ -270,7 +329,6 @@ public partial class MainWindow : Window
         NavToolbar.ShowHistory += ShowHistory_Click;
         NavToolbar.ShowDownloads += ShowDownloads_Click;
         NavToolbar.ShowExtensions += ShowExtensions_Click;
-        NavToolbar.ShowHymns += ShowHymns_Click;
         NavToolbar.ZoomIn += ZoomIn_Click;
         NavToolbar.ZoomOut += ZoomOut_Click;
         NavToolbar.ResetZoom += ResetZoom_Click;
@@ -335,7 +393,11 @@ public partial class MainWindow : Window
             {
                 const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
                 int preference = 2; // DWMWCP_ROUND
-                DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+                var result = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+                if (result != 0)
+                {
+                    Log.Debug("Rounded corner preference rejected by DWM: 0x{HResult:X8}", result);
+                }
             }
 
         }
@@ -562,16 +624,22 @@ public partial class MainWindow : Window
                     });
                 }
             }
-            else if (string.Equals(msgType, "install-crx", StringComparison.Ordinal))
+            // Note: there is deliberately no "install-crx" message type here.
+            // Extension installation must only ever go through the gated
+            // tabloid://install-crx/ navigation path (Settings tab + explicit
+            // confirmation), never through a web-reachable postMessage.
+            else if (string.Equals(msgType, "open-link", StringComparison.Ordinal))
             {
-                if (root.TryGetProperty("extensionId", out var extIdProp) &&
-                    extIdProp.ValueKind == JsonValueKind.String)
+                // Middle-click on a link: open it in a background tab. Only
+                // web schemes are honored — the bridge is reachable from any
+                // page, so href is untrusted input.
+                if (root.TryGetProperty("href", out var hrefProp) &&
+                    hrefProp.ValueKind == JsonValueKind.String &&
+                    hrefProp.GetString() is { Length: > 0 } href &&
+                    IsAllowedTopLevelNavigationUri(href) &&
+                    !string.Equals(tab.Address, href, StringComparison.Ordinal))
                 {
-                    var extId = extIdProp.GetString();
-                    if (!string.IsNullOrWhiteSpace(extId))
-                    {
-                        FireAndForget(DownloadAndInstallCrxAsync(extId), "DownloadAndInstallCrxAsync");
-                    }
+                    FireAndForget(OpenLinkInBackgroundAsync(href), "OpenLinkInBackgroundAsync");
                 }
             }
         }

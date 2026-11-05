@@ -104,7 +104,7 @@ public partial class MainWindow
 
                 if (dialog.ShowDialog() == true)
                 {
-                    await InstallCrxAsync(dialog.FileName);
+                    await InstallCrxAsync(dialog.FileName, expectedExtensionId: null, requireSignature: false);
                 }
             }
             catch (Exception ex)
@@ -212,7 +212,7 @@ public partial class MainWindow
                     return;
                 }
 
-                await InstallCrxAsync(crxFile);
+                await InstallCrxAsync(crxFile, expectedExtensionId: null, requireSignature: false);
                 e.Handled = true;
             }
             catch (Exception ex) { Log.Error(ex, "Error occurred"); }
@@ -353,7 +353,7 @@ public partial class MainWindow
         _dataStore.SaveSettings(_dataStore.Settings with { Extensions = updated });
     }
 
-    private async Task InstallCrxAsync(string crxPath)
+    private async Task InstallCrxAsync(string crxPath, string? expectedExtensionId = null, bool requireSignature = true)
     {
         string extractDir;
         string? manifestError = null;
@@ -364,11 +364,34 @@ public partial class MainWindow
         {
             var bytes = await File.ReadAllBytesAsync(crxPath);
 
-            int zipStart = FindZipStart(bytes);
-            if (zipStart < 0)
+            int zipStart;
+            if (requireSignature)
             {
-                await Dispatcher.InvokeAsync(() => StatusBar.StatusText.Text = "Invalid CRX file: ZIP data not found.");
-                return;
+                // Store-sourced CRX payloads: signature and (when the id is
+                // known) extension identity are mandatory.
+                if (!Crx3Verifier.TryVerify(bytes, expectedExtensionId, out var verification, out var verifyError))
+                {
+                    Log.Debug("CRX verification failed for {Path}: {Error}", crxPath, verifyError);
+                    await Dispatcher.InvokeAsync(() =>
+                        StatusBar.StatusText.Text = $"Extension rejected: {verifyError}");
+                    return;
+                }
+
+                zipStart = verification.ZipStart;
+            }
+            else
+            {
+                // User-picked local CRX files: verify when the container is a
+                // well-formed CRX3, but allow legacy unsigned packages because
+                // the user explicitly selected the file.
+                zipStart = Crx3Verifier.TryVerify(bytes, expectedExtensionId, out var verification, out _)
+                    ? verification.ZipStart
+                    : FindZipStart(bytes);
+                if (zipStart < 0)
+                {
+                    await Dispatcher.InvokeAsync(() => StatusBar.StatusText.Text = "Invalid CRX file: ZIP data not found.");
+                    return;
+                }
             }
 
             var crxDirName = Path.GetFileNameWithoutExtension(crxPath);

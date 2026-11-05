@@ -269,11 +269,15 @@ public partial class MainWindow
             var bytes = await File.ReadAllBytesAsync(crxPath);
             try { File.Delete(crxPath); } catch (Exception ex) { Log.Debug(ex, "Failed to delete CRX temp file"); }
 
-            var zipStart = FindZipStart(bytes);
-            if (zipStart < 0)
+            // uBlock comes from the store: its CRX3 signature and identity are
+            // mandatory before anything is extracted.
+            if (!Crx3Verifier.TryVerify(bytes, UblockFolderName, out var verification, out var verifyError))
             {
+                Log.Debug("uBlock CRX verification failed: {Error}", verifyError);
                 return false;
             }
+
+            var zipStart = verification.ZipStart;
 
             if (Directory.Exists(targetDir))
             {

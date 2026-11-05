@@ -347,7 +347,7 @@ public partial class MainWindow
             {
                 await Task.Delay(500, ct);
                 ct.ThrowIfCancellationRequested();
-                var models = await AiService.FetchModelsAsync(ep, key, aiProviderCombo.Text, ct);
+                var models = await AiService.FetchModelsAsync(ep, key, aiProviderCombo.Text, ct: ct);
                 ct.ThrowIfCancellationRequested();
                 if (PresentationSource.FromDependencyObject(aiModelCombo) is null) return;
                 if (models.Count > 0)

@@ -20,10 +20,10 @@
       <StackPanel Grid.Column="0"
                   Orientation="Horizontal"
                   VerticalAlignment="Center"
-                  Margin="8,0,12,0">
+                  Margin="6,0,10,0">
         <Image Source="/Aerio;component/Assets/Aerio.png"
-               Width="24"
-               Height="24"
+               Width="28"
+               Height="28"
                Stretch="Uniform"
                VerticalAlignment="Center"
                ToolTip="Aerio" />
@@ -69,6 +69,7 @@
                         BorderThickness="{Binding TabBorderThickness}"
                         CornerRadius="5,5,0,0"
                         MouseLeftButtonDown="Tab_MouseLeftButtonDown"
+                        MouseDown="Tab_MouseDown"
                         Tag="{Binding}">
                   <Border.ToolTip>
                     <ToolTip>
@@ -93,6 +94,8 @@
                   </Border.ToolTip>
                   <Border.ContextMenu>
                     <ContextMenu Style="{StaticResource BrowserContextMenuStyle}">
+                      <MenuItem Header="Reopen closed tab"
+                                Click="ReopenClosedTab_Click" />
                       <MenuItem Header="Keep tab"
                                 Click="KeepAiTab_Click"
                                 Tag="{Binding}">
@@ -124,10 +127,42 @@
                                 Orientation="Horizontal"
                                 Margin="0,0,6,0"
                                 VerticalAlignment="Center">
-                      <Ellipse Width="7"
-                               Height="7"
-                               Fill="{Binding AccentBrush}"
-                               VerticalAlignment="Center" />
+                      <Grid Width="16"
+                            Height="16"
+                            VerticalAlignment="Center">
+                        <Ellipse Width="7"
+                                 Height="7"
+                                 Fill="{Binding AccentBrush}"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center">
+                          <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                              <Setter Property="Visibility" Value="Visible" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasFavicon}" Value="True">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Ellipse.Style>
+                        </Ellipse>
+                        <Image Source="{Binding Favicon}"
+                               Width="16"
+                               Height="16"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                          <Image.Style>
+                            <Style TargetType="Image">
+                              <Setter Property="Visibility" Value="Collapsed" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasFavicon}" Value="True">
+                                  <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Image.Style>
+                        </Image>
+                      </Grid>
                       <TextBlock Text="AI"
                                  FontSize="8"
                                  FontWeight="Bold"
