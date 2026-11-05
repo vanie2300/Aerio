@@ -387,6 +387,15 @@ public partial class BrowserPaneControl : UserControl
                 removeButton.Click += (_, _) =>
                 {
                     CaptureShortcutEditorInputs();
+                    // The captured index can go stale if the draft list was
+                    // rebuilt since this row was rendered; re-render instead of
+                    // throwing ArgumentOutOfRangeException (seen in crash.log).
+                    if (shortcutIndex < 0 || shortcutIndex >= _shortcutDraft.Count)
+                    {
+                        RenderShortcutEditor();
+                        return;
+                    }
+
                     _shortcutDraft.RemoveAt(shortcutIndex);
                     RenderShortcutEditor();
                 };
@@ -435,6 +444,13 @@ public partial class BrowserPaneControl : UserControl
         private void MoveShortcut(int index, int offset)
         {
             CaptureShortcutEditorInputs();
+            // Same stale-index defense as the remove handler.
+            if (index < 0 || index >= _shortcutDraft.Count)
+            {
+                RenderShortcutEditor();
+                return;
+            }
+
             var target = index + offset;
             if (target < 0 || target >= _shortcutDraft.Count)
             {
