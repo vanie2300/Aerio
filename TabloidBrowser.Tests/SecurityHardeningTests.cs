@@ -154,14 +154,15 @@ public class SecurityHardeningTests
     [InlineData("md5:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
     [InlineData("sha256:not-hex")]
     [InlineData("just-a-hash-value-without-algorithm")]
-    public async Task GetLatestReleaseAsync_WithNonSha256Digest_IgnoresDigest(string digest)
+    public async Task GetLatestReleaseAsync_WithNonSha256DigestAndNoManifest_Throws(string digest)
     {
+        // A non-sha256 digest is never trusted as integrity data. With no
+        // manifest either, the release has no usable integrity information and
+        // must be rejected (fail closed) rather than silently accepted.
         var service = CreateService("installer", BuildReleaseJson(true, digest));
 
-        var release = await service.GetLatestReleaseAsync();
-
-        Assert.NotNull(release);
-        Assert.Null(release.InstallerSha256);
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => service.GetLatestReleaseAsync());
     }
 
     [Fact]
@@ -278,14 +279,17 @@ public class SecurityHardeningTests
     }
 
     [Fact]
-    public void VerifyInstallerDigest_NoExpectedDigest_ReturnsTrue()
+    public void VerifyInstallerDigest_NoExpectedDigest_ReturnsFalse()
     {
+        // Fail closed: when no digest is available the installer must be
+        // rejected, not silently accepted.
         var path = Path.Combine(TempReleaseDirectory(), "installer.exe");
         try
         {
             File.WriteAllText(path, "anything");
 
-            Assert.True(AerioUpdateService.VerifyInstallerDigest(path, expectedSha256: null));
+            Assert.False(AerioUpdateService.VerifyInstallerDigest(path, expectedSha256: null));
+            Assert.False(AerioUpdateService.VerifyInstallerDigest(path, expectedSha256: "  "));
         }
         finally
         {
@@ -330,8 +334,47 @@ public class SecurityHardeningTests
         }
     }
 
-    // ---------- SearXNG endpoint policy ----------
+    [Fact]
+    public async Task GetLatestReleaseAsync_WithoutDigestOrManifest_Throws()
+    {
+        // A release that publishes neither an asset digest nor SHA256SUMS.txt
+        // must be rejected outright — the installer can never be verified.
+        var service = CreateService("installer", BuildReleaseJson(includeDigest: false));
 
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => service.GetLatestReleaseAsync());
+    }
+
+    [Fact]
+    public async Task DownloadInstallerAsync_NoDigestAvailable_ThrowsAndLeavesNoInstaller()
+    {
+        // Defense in depth: DownloadInstallerAsync is public and may be called
+        // with a hand-built release, so it must enforce the digest gate itself.
+        var release = new AerioRelease(
+            new Version(1, 5, 0),
+            new Uri("https://github.com/vanie2300/Aerio/releases/tag/v1.5.0"),
+            new Uri("https://github.com/vanie2300/Aerio/releases/download/v1.5.0/Aerio-Setup-win-x64.exe"),
+            InstallerSha256: null,
+            ChecksumManifestUri: null);
+        var service = CreateService("installer", BuildReleaseJson(includeDigest: false));
+        var directory = TempReleaseDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "Aerio-Setup-win-x64.exe");
+
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => service.DownloadInstallerAsync(release, destination));
+
+            Assert.False(File.Exists(destination));
+            Assert.Empty(Directory.GetFiles(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    // ---------- SearXNG endpoint policy ----------
     [Fact]
     public void ResolveBackend_CustomHttpsEngine_MapsToSearxng()
     {

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using TabloidBrowser;
 using Xunit;
@@ -10,8 +11,10 @@ public class AerioUpdateServiceTests
     [Fact]
     public async Task GetLatestReleaseAsync_ValidRelease_ReturnsVersionAndReleasePage()
     {
+        // Releases must publish integrity information (digest or manifest) to
+        // pass the update gate; the digest value itself is irrelevant here.
         var service = CreateService(HttpStatusCode.OK,
-            """{"tag_name":"v1.5.0","html_url":"https://github.com/vanie2300/Aerio/releases/tag/v1.5.0","assets":[{"name":"Aerio-Setup-win-x64.exe","browser_download_url":"https://github.com/vanie2300/Aerio/releases/download/v1.5.0/Aerio-Setup-win-x64.exe"}]}""");
+            """{"tag_name":"v1.5.0","html_url":"https://github.com/vanie2300/Aerio/releases/tag/v1.5.0","assets":[{"name":"Aerio-Setup-win-x64.exe","browser_download_url":"https://github.com/vanie2300/Aerio/releases/download/v1.5.0/Aerio-Setup-win-x64.exe","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}""");
 
         var release = await service.GetLatestReleaseAsync();
 
@@ -27,12 +30,13 @@ public class AerioUpdateServiceTests
     public async Task DownloadInstallerAsync_SavesInstallerAndReportsProgress()
     {
         var installerBytes = Encoding.UTF8.GetBytes("installer");
+        var digest = Convert.ToHexString(SHA256.HashData(installerBytes)).ToLowerInvariant();
         var handler = new StubHttpMessageHandler(request =>
             request.RequestUri?.AbsolutePath == "/repos/vanie2300/Aerio/releases/latest"
                 ? new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent(
-                        """{"tag_name":"v1.5.0","html_url":"https://github.com/vanie2300/Aerio/releases/tag/v1.5.0","assets":[{"name":"Aerio-Setup-win-x64.exe","browser_download_url":"https://github.com/vanie2300/Aerio/releases/download/v1.5.0/Aerio-Setup-win-x64.exe"}]}""",
+                        $$"""{"tag_name":"v1.5.0","html_url":"https://github.com/vanie2300/Aerio/releases/tag/v1.5.0","assets":[{"name":"Aerio-Setup-win-x64.exe","browser_download_url":"https://github.com/vanie2300/Aerio/releases/download/v1.5.0/Aerio-Setup-win-x64.exe","digest":"sha256:{{digest}}"}]}""",
                         Encoding.UTF8,
                         "application/json")
                 }

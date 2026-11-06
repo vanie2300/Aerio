@@ -125,6 +125,18 @@ public sealed class AerioUpdateService
             throw new InvalidDataException("GitHub release does not include the Aerio installer.");
         }
 
+        // Fail closed: an installer without any published integrity information
+        // (per-asset digest or SHA256SUMS.txt manifest) is never offered for
+        // in-app update. The release workflow always attaches SHA256SUMS.txt,
+        // so only legacy releases predate this gate; those can still be
+        // downloaded manually from the release page.
+        if (installerSha256 is null && checksumManifestUri is null)
+        {
+            throw new InvalidDataException(
+                "GitHub release does not publish SHA-256 integrity information " +
+                "(asset digest or SHA256SUMS.txt); refusing to offer the installer for update.");
+        }
+
         return new AerioRelease(version, releasePageUri, installerDownloadUri, installerSha256, checksumManifestUri);
     }
 
@@ -185,6 +197,16 @@ public sealed class AerioUpdateService
                     release.ChecksumManifestUri,
                     Path.GetFileName(destinationPath),
                     cancellationToken);
+            }
+
+            // Fail closed: this method is public and may be called with a
+            // hand-built AerioRelease, so the digest gate is repeated here even
+            // though GetLatestReleaseAsync already enforces it.
+            if (string.IsNullOrWhiteSpace(expectedSha256))
+            {
+                throw new InvalidDataException(
+                    "No SHA-256 digest is available for this installer; " +
+                    "refusing to install an unverified binary.");
             }
 
             if (!VerifyInstallerDigest(temporaryPath, expectedSha256))
@@ -249,12 +271,12 @@ public sealed class AerioUpdateService
 
     /// <summary>
     /// Verifies a downloaded installer against its expected SHA-256 digest.
-    /// A missing expectation is allowed (older releases); a present expectation
-    /// must match exactly.
+    /// A missing expectation fails closed — an installer whose integrity cannot
+    /// be verified is never accepted.
     /// </summary>
     public static bool VerifyInstallerDigest(string filePath, string? expectedSha256)
     {
-        if (string.IsNullOrWhiteSpace(expectedSha256)) return true;
+        if (string.IsNullOrWhiteSpace(expectedSha256)) return false;
         if (!File.Exists(filePath)) return false;
 
         using var stream = File.OpenRead(filePath);

@@ -19,3 +19,6 @@ WebView2/
 err.txt
 out.txt
 test-output*.txt
+
+# Test run artifacts (CI uploads TRX files; local copies go stale)
+TestResults/

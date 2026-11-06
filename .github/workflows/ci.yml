@@ -6,12 +6,18 @@ on:
   pull_request:
     branches: [ main ]
 
-permissions:
-  contents: write
-
 jobs:
   build-and-test:
     runs-on: windows-latest
+
+    # Read-only: building and testing never needs write access. Publishing the
+    # release is a separate job (publish-release) scoped to contents: write.
+    permissions:
+      contents: read
+
+    outputs:
+      version: ${{ steps.release_version.outputs.version }}
+      tag: ${{ steps.release_version.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v4
@@ -65,9 +71,20 @@ jobs:
       - name: Check for vulnerable packages
         shell: pwsh
         run: |
-          $result = dotnet list TabloidBrowser.csproj package --vulnerable --include-transitive | Out-String
-          Write-Output $result
-          if ($result -notmatch "no vulnerable packages") {
+          $projects = @("TabloidBrowser.csproj", "TabloidBrowser.Tests\TabloidBrowser.Tests.csproj")
+          $vulnerable = $false
+          foreach ($project in $projects) {
+            $output = dotnet list $project package --vulnerable --include-transitive | Out-String
+            Write-Output "=== $project ==="
+            Write-Output $output
+            # Recent SDKs exit non-zero when vulnerable packages are found.
+            if ($LASTEXITCODE -ne 0) { $vulnerable = $true }
+            # Older SDKs only report via text; treat any output that does not
+            # explicitly say "no vulnerable packages" as a finding, so a
+            # wording change fails the build instead of silently passing.
+            if ($output -notmatch "(?i)no vulnerable packages") { $vulnerable = $true }
+          }
+          if ($vulnerable) {
             Write-Error "Vulnerable NuGet packages detected - update before merging."
             exit 1
           }
@@ -239,19 +256,16 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish automatic GitHub release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+      - name: Upload GitHub release assets
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.release_version.outputs.tag }}
-          target_commitish: ${{ github.sha }}
-          name: Aerio v${{ steps.release_version.outputs.version }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            artifacts/Aerio-Setup-win-x64.exe
-            artifacts/Aerio-Setup-offline-win-x64.exe
-            artifacts/Aerio-win-x64.zip
+          name: github-release-assets
+          path: |
+            artifacts\Aerio-Setup-win-x64.exe
+            artifacts\Aerio-Setup-offline-win-x64.exe
+            artifacts\Aerio-win-x64.zip
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload test results
         if: always()
@@ -260,3 +274,33 @@ jobs:
           name: test-results
           path: '**/test-results.trx'
           retention-days: 7
+
+  publish-release:
+    # Only main pushes publish. This job is the only one granted write access,
+    # so PR and dev builds run entirely with read-only tokens.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: github-release-assets
+          path: release-assets
+
+      - name: Publish automatic GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build-and-test.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Aerio v${{ needs.build-and-test.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/Aerio-Setup-win-x64.exe
+            release-assets/Aerio-Setup-offline-win-x64.exe
+            release-assets/Aerio-win-x64.zip

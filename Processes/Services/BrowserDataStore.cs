@@ -573,22 +573,41 @@ public sealed class BrowserDataStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// Serializes settings writes (encrypt → write → publish to memory) so two
+    /// concurrent SaveSettings calls keep last-writer-wins ordering on both
+    /// disk and memory. Only SaveSettings takes this gate, always before
+    /// _lock, so the gate → _lock ordering cannot deadlock.
+    /// </summary>
+    private readonly object _settingsWriteGate = new();
+
     public bool SaveSettings(BrowserSettings settings)
     {
-        _lock.EnterWriteLock();
         var tmp = $"{_settingsPath}.{Guid.NewGuid():N}.tmp";
         try
         {
-            // Write to disk FIRST; only mutate the in-memory settings after the
-            // write succeeded, so memory and disk never diverge on failure.
-            var forDisk = settings with
+            lock (_settingsWriteGate)
             {
-                AiApiKey = EncryptApiKeyForDisk("", settings.AiApiKey),
-                AiApiKeys = settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => EncryptApiKeyForDisk(kv.Key, kv.Value))
-            };
-            File.WriteAllText(tmp, JsonSerializer.Serialize(forDisk, JsonOptions));
-            MoveWithRetry(tmp, _settingsPath);
-            Settings = settings;
+                // Encrypt + serialize + write OUTSIDE the data lock: a slow
+                // disk (antivirus scans, MoveWithRetry backoff) must not stall
+                // bookmark/history readers or the UI thread. Concurrent saves
+                // remain ordered by _settingsWriteGate.
+                //
+                // Write to disk FIRST; only mutate the in-memory settings after
+                // the write succeeded, so memory and disk never diverge on
+                // failure.
+                var forDisk = settings with
+                {
+                    AiApiKey = EncryptApiKeyForDisk("", settings.AiApiKey),
+                    AiApiKeys = settings.AiApiKeys?.ToDictionary(kv => kv.Key, kv => EncryptApiKeyForDisk(kv.Key, kv.Value))
+                };
+                File.WriteAllText(tmp, JsonSerializer.Serialize(forDisk, JsonOptions));
+                MoveWithRetry(tmp, _settingsPath);
+
+                _lock.EnterWriteLock();
+                try { Settings = settings; }
+                finally { _lock.ExitWriteLock(); }
+            }
             return true;
         }
         catch (Exception ex)
@@ -600,7 +619,6 @@ public sealed class BrowserDataStore : IDisposable
             catch (Exception delEx) { Log.Debug(delEx, "Failed to delete settings temp file"); }
             return false;
         }
-        finally { _lock.ExitWriteLock(); }
     }
 
     private bool SaveBookmarks()

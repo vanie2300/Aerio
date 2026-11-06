@@ -27,9 +27,20 @@ jobs:
       - name: Check for vulnerable packages
         shell: pwsh
         run: |
-          $result = dotnet list TabloidBrowser.csproj package --vulnerable --include-transitive | Out-String
-          Write-Output $result
-          if ($result -notmatch "no vulnerable packages") {
+          $projects = @("TabloidBrowser.csproj", "TabloidBrowser.Tests\TabloidBrowser.Tests.csproj")
+          $vulnerable = $false
+          foreach ($project in $projects) {
+            $output = dotnet list $project package --vulnerable --include-transitive | Out-String
+            Write-Output "=== $project ==="
+            Write-Output $output
+            # Recent SDKs exit non-zero when vulnerable packages are found.
+            if ($LASTEXITCODE -ne 0) { $vulnerable = $true }
+            # Older SDKs only report via text; treat any output that does not
+            # explicitly say "no vulnerable packages" as a finding, so a
+            # wording change fails the build instead of silently passing.
+            if ($output -notmatch "(?i)no vulnerable packages") { $vulnerable = $true }
+          }
+          if ($vulnerable) {
             Write-Error "Vulnerable NuGet packages detected - release blocked."
             exit 1
           }

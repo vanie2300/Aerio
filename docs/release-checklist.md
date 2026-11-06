@@ -6,7 +6,9 @@ builds both installers automatically on every push to `main`; tagged pushes run
 
 ## 1. Pre-flight
 
-- [ ] `dotnet test TabloidBrowser.Tests` — full suite green (expect ≥ 348 tests).
+- [ ] `dotnet test TabloidBrowser.Tests` — full suite green. Record the test
+      count from the CI run on the release commit in the release notes; do not
+      rely on cached local artifacts (old TRX files go stale as the suite grows).
 - [ ] `dotnet list package --vulnerable --include-transitive` — clean.
 - [ ] Version bumped in `TabloidBrowser.csproj` (`<Version>`) and installer
       default in `installer/Aerio.iss` (`AppVersion`).

@@ -3,7 +3,9 @@
 ; Build modes:
 ;   Online (default)  : framework-dependent app payload. The .NET 10 Desktop
 ;                       Runtime and WebView2 Runtime are detected and downloaded
-;                       during setup only if missing.
+;                       during setup only if missing. Downloaded runtime
+;                       installers are Authenticode-verified (Microsoft
+;                       signature) before they are executed.
 ;   Offline           : define the "OfflineInstaller" preprocessor symbol to
 ;                       bundle a self-contained app payload plus the offline
 ;                       WebView2 Runtime installer.
@@ -156,6 +158,37 @@ begin
   Result := not DotNetDesktop10Installed;
 end;
 
+{ Verifies that a downloaded runtime installer carries a valid Authenticode
+  signature from Microsoft before it is ever executed. This mirrors the
+  signature check the CI workflow performs on the offline-bundled WebView2
+  installer, and closes the gap where a compromised network path (TLS
+  interception proxy, hijacked redirect) could substitute a binary that setup
+  would otherwise run hidden with admin rights.
+
+  Returns True only when:
+    - the file's Authenticode signature status is "valid", and
+    - the signer certificate subject contains "Microsoft Corporation".
+  Any other outcome (unsigned, hash-invalid, untrusted root, wrong publisher)
+  returns False so the caller can abort the update. }
+function VerifyDownloadedRuntimeSignature(const FilePath: String): Boolean;
+var
+  Params: String;
+  ResultCode: Integer;
+begin
+  Params :=
+    '-NoProfile -NonInteractive -Command ' +
+    '"$sig = Get-AuthenticodeSignature -LiteralPath ''" + FilePath + '''; ' +
+    'if ($sig.Status -ne ''Valid'') { exit 1 }; ' +
+    'if ($null -eq $sig.SignerCertificate) { exit 2 }; ' +
+    'if ($sig.SignerCertificate.Subject -notlike ''*Microsoft Corporation*'') { exit 3 }; ' +
+    'exit 0"';
+  Result :=
+    Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '',
+         SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+  if not Result then
+    Log(Format('Signature verification failed for %s (PowerShell exit code %d)', [FilePath, ResultCode]));
+end;
+
 #ifndef OfflineInstaller
 var
   DownloadPage: TDownloadWizardPage;
@@ -183,6 +216,17 @@ begin
       try
         try
           DownloadPage.Download;
+          // Verify Authenticode signatures before either runtime installer is
+          // executed. A failed check aborts the update; the downloaded files
+          // are left in {tmp}, which Inno Setup cleans up automatically.
+          if requireDotNet and (not VerifyDownloadedRuntimeSignature(ExpandConstant('{tmp}\windowsdesktop-runtime-win-x64.exe'))) then begin
+            SuppressibleMsgBox('The downloaded .NET Desktop Runtime installer failed its digital signature check and was not run. Setup cannot continue.', mbCriticalError, MB_OK, IDOK);
+            Result := False;
+          end;
+          if Result and requireWebView2 and (not VerifyDownloadedRuntimeSignature(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'))) then begin
+            SuppressibleMsgBox('The downloaded WebView2 Runtime installer failed its digital signature check and was not run. Setup cannot continue.', mbCriticalError, MB_OK, IDOK);
+            Result := False;
+          end;
         except
           if DownloadPage.AbortedByUser then
             Log('Runtime download aborted by user.')
