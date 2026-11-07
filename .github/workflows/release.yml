@@ -1,4 +1,4 @@
-﻿name: Release
+name: Release
 
 on:
   push:
@@ -199,7 +199,7 @@ jobs:
           }
 
       - name: Upload Windows app artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Aerio-Windows-x64
           path: release\Aerio-win-x64-offline\*
