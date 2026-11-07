@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -235,7 +235,7 @@ jobs:
           }
 
       - name: Upload Windows app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Aerio-Windows-x64
           path: artifacts\Aerio-win-x64-offline\*
@@ -243,7 +243,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Windows online installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Aerio-Installer-win-x64
           path: artifacts\Aerio-Setup-win-x64.exe
@@ -251,7 +251,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Windows offline installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Aerio-Installer-offline-win-x64
           path: artifacts\Aerio-Setup-offline-win-x64.exe
@@ -259,7 +259,7 @@ jobs:
           retention-days: 30
 
       - name: Upload GitHub release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: github-release-assets
           path: |
@@ -271,7 +271,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: '**/test-results.trx'
