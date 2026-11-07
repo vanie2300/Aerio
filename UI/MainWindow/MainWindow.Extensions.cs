@@ -393,6 +393,8 @@ public partial class MainWindow
                 await TryLoadExtensionAsync(ext);
             }
         }
+
+        LogStartupPhase("extensions loaded");
     }
 
     private async Task<CoreWebView2BrowserExtension?> TryLoadExtensionAsync(ExtensionInfo ext)

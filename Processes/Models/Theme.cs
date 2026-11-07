@@ -42,6 +42,13 @@ public sealed record Theme
     public required Color TabSleepingAccent { get; init; }
     public required Color TabAudioAccent { get; init; }
 
+    /// <summary>
+    /// Whether playing tabs tint their background with the site's accent
+    /// (appearance setting). Carried on the theme so tabs receive it with the
+    /// rest of their colours.
+    /// </summary>
+    public bool TintPlayingTabs { get; init; } = true;
+
     public void ApplyTo(ResourceDictionary resources)
     {
         resources["AppBg"] = new SolidColorBrush(AppBg);

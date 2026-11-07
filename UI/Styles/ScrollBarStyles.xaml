@@ -8,6 +8,7 @@
           <ControlTemplate TargetType="ScrollBar">
             <Border Background="Transparent">
               <Track x:Name="PART_Track"
+                     IsDirectionReversed="True"
                      Orientation="{TemplateBinding Orientation}">
                 <Track.Thumb>
                   <Thumb BorderThickness="0"
@@ -34,6 +35,11 @@
                 </Track.Thumb>
               </Track>
             </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="Orientation" Value="Horizontal">
+                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+              </Trigger>
+            </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>

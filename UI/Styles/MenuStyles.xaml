@@ -5,6 +5,9 @@
       <Setter Property="BorderBrush" Value="{DynamicResource GlassEdge}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="4" />
+      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="UseLayoutRounding" Value="True" />
       <Setter Property="SnapsToDevicePixels" Value="True" />
       <Setter Property="Template">
         <Setter.Value>
@@ -14,10 +17,16 @@
                     BorderThickness="{TemplateBinding BorderThickness}"
                     CornerRadius="12"
                     Padding="{TemplateBinding Padding}"
-                    Margin="0,4,12,12"
+                    Margin="8"
                     Effect="{DynamicResource PopupShadow}"
+                    Grid.IsSharedSizeScope="True"
                     SnapsToDevicePixels="True">
-              <ItemsPresenter />
+              <ScrollViewer Style="{DynamicResource MenuScrollViewerStyle}"
+                            CanContentScroll="False"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+              </ScrollViewer>
             </Border>
           </ControlTemplate>
         </Setter.Value>
@@ -27,28 +36,39 @@
     <Style x:Key="BrowserMenuItemStyle" TargetType="MenuItem">
       <Setter Property="OverridesDefaultStyle" Value="True" />
       <Setter Property="Foreground" Value="{DynamicResource Text}" />
-      <Setter Property="Background" Value="{DynamicResource GlassSurface}" />
-      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="10,7" />
       <Setter Property="MinWidth" Value="240" />
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="MenuItem">
             <Grid SnapsToDevicePixels="True">
               <Border x:Name="templateRoot"
                       Background="{TemplateBinding Background}"
+                      CornerRadius="6"
                       Padding="{TemplateBinding Padding}">
                 <Grid>
                   <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="22" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MenuGesture" />
+                    <ColumnDefinition Width="18" />
                   </Grid.ColumnDefinitions>
-                  <Border Grid.ColumnSpan="3"
+                  <Border Grid.ColumnSpan="4"
                           x:Name="HoverOverlay"
                           Background="{DynamicResource ButtonHover}"
                           CornerRadius="4"
                           Opacity="0"
-                          Margin="-14,-8,-14,-8" />
+                          Margin="-10,-7,-10,-7" />
+                  <ContentPresenter x:Name="IconPresenter"
+                                    Grid.Column="0"
+                                    ContentSource="Icon"
+                                    TextElement.FontFamily="Segoe MDL2 Assets"
+                                    TextElement.FontSize="14"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Left" />
                   <TextBlock x:Name="CheckMark"
                              Grid.Column="0"
                              Text="&#xE73E;"
@@ -63,6 +83,12 @@
                                     RecognizesAccessKey="True"
                                     VerticalAlignment="Center" />
                   <TextBlock Grid.Column="2"
+                             x:Name="GestureText"
+                             Text="{TemplateBinding InputGestureText}"
+                             Foreground="{DynamicResource Muted}"
+                             Margin="20,0,0,0"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3"
                              x:Name="SubmenuArrow"
                              Text="&#xE76C;"
                              FontFamily="Segoe MDL2 Assets"
@@ -70,20 +96,28 @@
                              Foreground="{DynamicResource Muted}"
                              VerticalAlignment="Center"
                              Visibility="Collapsed"
-                             Margin="12,0,0,0" />
+                             HorizontalAlignment="Right" />
                 </Grid>
               </Border>
               <Popup x:Name="PART_Popup"
                      AllowsTransparency="True"
                      IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
                      Placement="Right"
-                     HorizontalOffset="-4"
+                     HorizontalOffset="-8"
+                     VerticalOffset="-8"
                      PopupAnimation="{DynamicResource {x:Static SystemParameters.MenuPopupAnimationKey}}">
                 <Border Background="{DynamicResource GlassSurface}"
                         BorderBrush="{DynamicResource GlassEdge}"
                         BorderThickness="1"
-                        Padding="2">
-                  <ScrollViewer Style="{DynamicResource MenuScrollViewerStyle}">
+                        CornerRadius="12"
+                        Padding="4"
+                        Margin="8"
+                        Grid.IsSharedSizeScope="True"
+                        Effect="{DynamicResource PopupShadow}">
+                  <ScrollViewer Style="{DynamicResource MenuScrollViewerStyle}"
+                                CanContentScroll="False"
+                                HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
                     <ItemsPresenter x:Name="ItemsPresenter"
                                     KeyboardNavigation.DirectionalNavigation="Cycle" />
                   </ScrollViewer>
@@ -93,6 +127,10 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsChecked" Value="True">
                 <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                <Setter TargetName="IconPresenter" Property="Visibility" Value="Collapsed" />
+              </Trigger>
+              <Trigger Property="InputGestureText" Value="">
+                <Setter TargetName="GestureText" Property="Visibility" Value="Collapsed" />
               </Trigger>
               <Trigger Property="IsHighlighted" Value="True">
                 <Trigger.EnterActions>
@@ -130,7 +168,6 @@
     </Style>
 
     <Style x:Key="BrowserSubMenuItemStyle" TargetType="MenuItem" BasedOn="{StaticResource BrowserMenuItemStyle}">
-      <Setter Property="Padding" Value="18,7,14,7" />
       <Setter Property="MinWidth" Value="200" />
     </Style>
 
@@ -168,20 +205,11 @@
     </Style>
 
     <Style TargetType="ScrollViewer" x:Key="MenuScrollViewerStyle">
-      <Setter Property="Background" Value="{DynamicResource GlassSurface}" />
+      <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="ScrollViewer">
-            <Grid Background="{TemplateBinding Background}">
-              <ScrollContentPresenter Margin="{TemplateBinding Padding}" />
-            </Grid>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
     </Style>
 
-    <Style TargetType="MenuItem" x:Key="SubMenuSeparatorStyle">
+    <Style TargetType="Separator" x:Key="SubMenuSeparatorStyle">
       <Setter Property="OverridesDefaultStyle" Value="True" />
       <Setter Property="Template">
         <Setter.Value>

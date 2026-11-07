@@ -95,12 +95,13 @@
                   <Border.ContextMenu>
                     <ContextMenu Style="{StaticResource BrowserContextMenuStyle}">
                       <MenuItem Header="Reopen closed tab"
+                                Style="{StaticResource BrowserSubMenuItemStyle}"
                                 Click="ReopenClosedTab_Click" />
                       <MenuItem Header="Keep tab"
                                 Click="KeepAiTab_Click"
                                 Tag="{Binding}">
                         <MenuItem.Style>
-                          <Style TargetType="MenuItem">
+                          <Style TargetType="MenuItem" BasedOn="{StaticResource BrowserSubMenuItemStyle}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                               <DataTrigger Binding="{Binding IsAiOwned}" Value="True">
@@ -111,6 +112,7 @@
                         </MenuItem.Style>
                       </MenuItem>
                       <MenuItem Header="Pop out tab"
+                                Style="{StaticResource BrowserSubMenuItemStyle}"
                                 Click="PopOutTab_Click"
                                 Tag="{Binding}" />
                     </ContextMenu>

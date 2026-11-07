@@ -90,6 +90,13 @@
 
     <local:FindBarControl x:Name="FindBar" />
 
+    <local:DownloadShelfControl Grid.Row="2"
+                                x:Name="DownloadShelf"
+                                Panel.ZIndex="5"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Margin="0,0,18,54" />
+
     <Canvas x:Name="TabDragOverlay" Grid.RowSpan="3" IsHitTestVisible="False" />
 
     <Popup x:Name="SidebarRailPopup"

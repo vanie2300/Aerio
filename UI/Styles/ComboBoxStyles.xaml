@@ -57,7 +57,8 @@
       <Setter Property="Background" Value="{DynamicResource GlassInset}" />
       <Setter Property="BorderBrush" Value="{DynamicResource Stroke}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Padding" Value="8,0,30,0" />
+      <Setter Property="Padding" Value="12,0,36,0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
       <Setter Property="MaxDropDownHeight" Value="220" />
       <Setter Property="Template">
         <Setter.Value>
@@ -73,6 +74,7 @@
                 <ToggleButton.Template>
                   <ControlTemplate TargetType="ToggleButton">
                     <Border x:Name="Chrome"
+                            CornerRadius="9"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}">
@@ -83,7 +85,7 @@
                               Height="4"
                               HorizontalAlignment="Right"
                               VerticalAlignment="Center"
-                              Margin="0,0,10,0" />
+                              Margin="0,0,14,0" />
                       </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -98,27 +100,42 @@
                 </ToggleButton.Template>
               </ToggleButton>
 
-              <ContentPresenter x:Name="ContentSite"
-                                IsHitTestVisible="False"
-                                Content="{TemplateBinding SelectionBoxItem}"
-                                ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                Margin="{TemplateBinding Padding}"
-                                VerticalAlignment="Center"
-                                HorizontalAlignment="Left" />
+              <Grid Margin="{TemplateBinding BorderThickness}">
+                <!-- Match the inset applied by WPF's editable text view. -->
+                <Border Margin="{TemplateBinding Padding}"
+                        Padding="2,0"
+                        IsHitTestVisible="False">
+                  <ContentPresenter x:Name="ContentSite"
+                                    IsHitTestVisible="False"
+                                    Content="{TemplateBinding SelectionBoxItem}"
+                                    ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                    ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Left"
+                                    ClipToBounds="True" />
+                </Border>
 
-              <TextBox x:Name="PART_EditableTextBox"
-                       Margin="{TemplateBinding Padding}"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Stretch"
-                       Background="Transparent"
-                       BorderThickness="0"
-                       Foreground="{TemplateBinding Foreground}"
-                       CaretBrush="{TemplateBinding Foreground}"
-                       IsReadOnly="{TemplateBinding IsReadOnly}"
-                       Visibility="Collapsed" />
+                <TextBox x:Name="PART_EditableTextBox"
+                         Margin="{TemplateBinding Padding}"
+                         VerticalAlignment="Center"
+                         HorizontalAlignment="Stretch"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="0"
+                         VerticalContentAlignment="Center"
+                         Foreground="{TemplateBinding Foreground}"
+                         CaretBrush="{TemplateBinding Foreground}"
+                         IsReadOnly="{TemplateBinding IsReadOnly}"
+                         Visibility="Collapsed">
+                  <TextBox.Template>
+                    <ControlTemplate TargetType="TextBox">
+                      <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
+                    </ControlTemplate>
+                  </TextBox.Template>
+                </TextBox>
+              </Grid>
 
-              <Popup x:Name="Popup"
+              <Popup x:Name="PART_Popup"
                      Placement="Bottom"
                      AllowsTransparency="True"
                      Focusable="False"
@@ -142,6 +159,15 @@
               <Trigger Property="IsEditable" Value="True">
                 <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden" />
                 <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{DynamicResource StrokeStrong}" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{DynamicResource Accent}" />
+              </Trigger>
+              <Trigger Property="IsDropDownOpen" Value="True">
+                <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{DynamicResource Accent}" />
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.45" />

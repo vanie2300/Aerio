@@ -1,0 +1,129 @@
+<UserControl x:Class="TabloidBrowser.MediaControlChip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Visibility="Collapsed">
+
+  <Border x:Name="ChipRoot"
+          Width="188"
+          Height="30"
+          CornerRadius="15"
+          ClipToBounds="True"
+          Background="{DynamicResource GlassInset}"
+          BorderBrush="{DynamicResource GlassEdge}"
+          BorderThickness="1"
+          ToolTip="{Binding Title}">
+    <Grid>
+      <!-- Cover art fills the chip exactly. -->
+      <Image x:Name="ArtworkImage"
+             Stretch="UniformToFill"
+             Opacity="0.9"
+             Visibility="Collapsed"
+             RenderOptions.BitmapScalingMode="HighQuality" />
+      <!-- Dark scrim keeps the text legible over busy artwork. -->
+      <Rectangle x:Name="ArtworkScrim" Visibility="Collapsed">
+        <Rectangle.Fill>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="#B3000000" />
+            <GradientStop Offset="0.55" Color="#73000000" />
+            <GradientStop Offset="1" Color="#40000000" />
+          </LinearGradientBrush>
+        </Rectangle.Fill>
+      </Rectangle>
+
+      <!-- Idle state: what is playing. -->
+      <Grid x:Name="InfoLayer" Margin="6,0,8,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Grid Grid.Column="0" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,8,0">
+          <TextBlock Text="&#xE8B9;"
+                     FontFamily="Segoe MDL2 Assets"
+                     FontSize="13"
+                     Foreground="{DynamicResource Muted}"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center" />
+          <Image Source="{Binding Favicon}"
+                 Width="18"
+                 Height="18"
+                 Stretch="Uniform" />
+        </Grid>
+
+        <Button Grid.Column="1"
+                Content="{Binding Title}"
+                Click="Activate_Click"
+                Style="{StaticResource IconButton}"
+                FontFamily="Segoe UI"
+                FontSize="12"
+                Width="Auto"
+                Height="26"
+                Padding="0"
+                HorizontalContentAlignment="Left"
+                Background="Transparent"
+                BorderThickness="0"
+                Foreground="{DynamicResource Text}"
+                ToolTip="{Binding Title}" />
+      </Grid>
+
+      <!-- Hover state: transport controls. -->
+      <StackPanel x:Name="ControlsLayer"
+                  Orientation="Horizontal"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Opacity="0">
+        <Button Content="&#x23EE;"
+                Click="SkipPrevious_Click"
+                Style="{StaticResource IconButton}"
+                FontFamily="Segoe UI Emoji"
+                FontSize="12"
+                Width="32"
+                Height="26"
+                Background="Transparent"
+                BorderThickness="0"
+                ToolTip="Previous track" />
+        <Button Content="&#x23F8;"
+                Click="TogglePlayPause_Click"
+                Style="{StaticResource IconButton}"
+                FontFamily="Segoe UI Emoji"
+                FontSize="14"
+                Width="32"
+                Height="26"
+                Background="Transparent"
+                BorderThickness="0"
+                ToolTip="Pause" />
+        <Button Content="&#x23ED;"
+                Click="SkipNext_Click"
+                Style="{StaticResource IconButton}"
+                FontFamily="Segoe UI Emoji"
+                FontSize="12"
+                Width="32"
+                Height="26"
+                Background="Transparent"
+                BorderThickness="0"
+                ToolTip="Next track" />
+        <Button Content="&#xE8B9;"
+                Click="PictureInPicture_Click"
+                Style="{StaticResource IconButton}"
+                FontFamily="Segoe MDL2 Assets"
+                FontSize="12"
+                Width="32"
+                Height="26"
+                Background="Transparent"
+                BorderThickness="0"
+                ToolTip="Picture-in-Picture" />
+        <Button Content="{Binding MuteIcon}"
+                Click="ToggleMute_Click"
+                Style="{StaticResource IconButton}"
+                FontFamily="Segoe UI Emoji"
+                FontSize="12"
+                Width="32"
+                Height="26"
+                Background="Transparent"
+                BorderThickness="0"
+                Foreground="{Binding MuteForeground}"
+                ToolTip="{Binding MuteToolTip}" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>

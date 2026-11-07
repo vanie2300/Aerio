@@ -341,6 +341,8 @@ public partial class MainWindow
         });
         stack.Children.Add(siteHeader);
 
+        stack.Children.Add(BuildBlockedRequestsRow());
+
         stack.Children.Add(SettingRow("Switch site", "Choose a saved site from the list.", siteCombo));
 
         var grouped = PermissionGroupDefinitions
@@ -378,6 +380,65 @@ public partial class MainWindow
 
         TextElement.SetFontFamily(popupBorder, new System.Windows.Media.FontFamily("Segoe UI"));
         return popupBorder;
+    }
+
+    /// <summary>
+    /// Session blocked-request summary shown at the top of the site-permissions
+    /// popup. The popup has room for the exact count (unlike the toolbar), so
+    /// no compact formatting is applied. Snapshot taken when the popup opens;
+    /// the shield tooltip remains the live-updating surface while browsing.
+    /// </summary>
+    private FrameworkElement BuildBlockedRequestsRow()
+    {
+        var tracking = _dataStore.Settings.BlockTrackers;
+        var blockingOn = tracking || _dataStore.Settings.EnableAdBlock;
+
+        var row = new Border
+        {
+            Background = GetBrush("ChromeBg"),
+            BorderBrush = GetBrush("SubtleStroke"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var text = new StackPanel();
+        text.Children.Add(new TextBlock
+        {
+            Text = "Ad & tracker blocking",
+            Foreground = GetBrush("Text"),
+            FontWeight = FontWeights.SemiBold
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = blockingOn
+                ? $"Blocked {_blockedTrackerCount:N0} request{(_blockedTrackerCount == 1 ? "" : "s")} this session"
+                : "Blocking is off for this window",
+            Foreground = GetBrush("Muted"),
+            FontSize = 12,
+            Margin = new Thickness(0, 4, 0, 0)
+        });
+        Grid.SetColumn(text, 0);
+        grid.Children.Add(text);
+
+        var state = new TextBlock
+        {
+            Text = blockingOn ? "On" : "Off",
+            Foreground = blockingOn ? GetBrush("Lime") : GetBrush("Muted"),
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(state, 1);
+        grid.Children.Add(state);
+
+        row.Child = grid;
+        return row;
     }
 
     private Border BuildEntry(string title, string detail, string primaryText, RoutedEventHandler primaryAction, string? secondaryText = null, RoutedEventHandler? secondaryAction = null)

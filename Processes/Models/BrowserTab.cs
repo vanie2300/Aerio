@@ -42,6 +42,7 @@ public class BrowserTab : INotifyPropertyChanged
     private Color? _siteAccentColor;
     private ImageSource? _favicon;
     private string? _faviconUri;
+    private ImageSource? _mediaArtwork;
     private TabOwner _owner = TabOwner.User;
 
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
@@ -163,8 +164,13 @@ public class BrowserTab : INotifyPropertyChanged
             if (_siteAccentColor == value) return;
             _siteAccentColor = value;
             _cachedAccentBrush = null;
+
+            // The playing-tab background is tinted with this accent, so the tab
+            // brush must be rebuilt too.
+            _cachedTabBrush = null;
             DispatchOnPropertyChanged();
             DispatchOnPropertyChanged(nameof(AccentBrush));
+            DispatchOnPropertyChanged(nameof(TabBrush));
         }
     }
 
@@ -185,6 +191,24 @@ public class BrowserTab : INotifyPropertyChanged
     }
 
     public bool HasFavicon => _favicon is not null;
+
+    /// <summary>
+    /// Album art / video poster advertised by the playing tab's Media Session,
+    /// used as the media chip's background.
+    /// </summary>
+    public ImageSource? MediaArtwork
+    {
+        get => _mediaArtwork;
+        set
+        {
+            if (ReferenceEquals(_mediaArtwork, value)) return;
+            _mediaArtwork = value;
+            DispatchOnPropertyChanged();
+        }
+    }
+
+    /// <summary>URL the current <see cref="MediaArtwork"/> came from (change detection).</summary>
+    public string? MediaArtworkUrl { get; set; }
 
     /// <summary>
     /// URI of the currently displayed favicon, used to avoid reloading the
@@ -329,7 +353,7 @@ public class BrowserTab : INotifyPropertyChanged
         {
             if (_cachedTabBrush is not null) return _cachedTabBrush;
             var brush = _isActive ? new SolidColorBrush(ActiveTabColor)
-                : IsPlayingAudio ? new SolidColorBrush(AudioTabColor)
+                : IsPlayingAudio ? new SolidColorBrush(ResolvePlayingBackground())
                 : new SolidColorBrush(InactiveTabColor);
             brush.Freeze();
             _cachedTabBrush = brush;
@@ -361,9 +385,30 @@ public class BrowserTab : INotifyPropertyChanged
         }
     }
 
+    /// <summary>How much of the site accent bleeds into a playing tab's background.</summary>
+    private const double PlayingBackgroundTint = 0.15;
+
+    /// <summary>Appearance setting (from the theme): tint playing tabs by site accent.</summary>
+    private bool _tintPlayingTabs = true;
+
+    /// <summary>
+    /// Background for a playing (non-active) tab: the neutral audio tint blended
+    /// with the site's accent so the tab carries the site's hue, subtly.
+    /// </summary>
+    private Color ResolvePlayingBackground()
+    {
+        if (!_tintPlayingTabs)
+        {
+            return AudioTabColor;
+        }
+
+        var accent = SiteAccentColor ?? AudioAccentColor;
+        return AccentColorAdjuster.Blend(AudioTabColor, accent, PlayingBackgroundTint);
+    }
+
     private Color ResolvePlayingAccent()
     {
-        var background = _isActive ? ActiveTabColor : AudioTabColor;
+        var background = _isActive ? ActiveTabColor : ResolvePlayingBackground();
         var accent = SiteAccentColor ?? AudioAccentColor;
         return AccentColorAdjuster.AdjustForContrast(accent, background);
     }
@@ -379,6 +424,7 @@ public class BrowserTab : INotifyPropertyChanged
         InactiveAccentColor = theme.TabInactiveAccent;
         SleepingAccentColor = theme.TabSleepingAccent;
         AudioAccentColor = theme.TabAudioAccent;
+        _tintPlayingTabs = theme.TintPlayingTabs;
     }
 
     public void RefreshVisuals()

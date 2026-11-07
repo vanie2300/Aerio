@@ -210,7 +210,19 @@ public sealed class AdBlockEngine
         {
             try
             {
-                var compiled = Compile(SplitLines(File.ReadAllText(cacheFile)));
+                // Compile off the caller's thread: RefreshOnceAsync is kicked
+                // off from the UI thread at startup, and without this the
+                // cache read + compile (measured 88 ms for ~50k rules) would
+                // run synchronously before the first await and stall launch.
+                var compiled = await Task.Run(() =>
+                {
+                    var compileWatch = System.Diagnostics.Stopwatch.StartNew();
+                    var result = Compile(SplitLines(File.ReadAllText(cacheFile)));
+                    compileWatch.Stop();
+                    Log.Debug("AdBlock cache compiled {RuleCount} rules in {Ms} ms",
+                        result.RuleCount, compileWatch.ElapsedMilliseconds);
+                    return result;
+                });
                 if (compiled.RuleCount > 0) _current = compiled;
             }
             catch (Exception ex)

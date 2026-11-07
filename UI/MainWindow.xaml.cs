@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -336,6 +337,31 @@ public partial class MainWindow : Window
         NavToolbar.SiteData += SiteData_Click;
         NavToolbar.UblockToggle += UblockToggle_Click;
         NavToolbar.ShowSettings += ShowSettings_Click;
+        NavToolbar.CaptureScreenshot += (_, _) => FireAndForget(CaptureScreenshotAsync(), "CaptureScreenshotAsync");
+        NavToolbar.PictureInPicture += (_, _) => FireAndForget(TogglePictureInPictureAsync(_activeTab), "TogglePictureInPictureAsync");
+
+        DownloadShelf.ShowAllRequested += () =>
+            FireAndForget(AddNativePageTabAsync(BrowserTabKind.Downloads), "ShowDownloads");
+        DownloadShelf.OpenRequested += OpenShelfItem;
+        DownloadShelf.RevealRequested += RevealShelfItem;
+        DownloadShelf.CancelRequested += CancelShelfItem;
+
+        NavToolbar.MediaChip.ActivateRequested += () =>
+        {
+            if (NavToolbar.MediaChip.Tab is { } mediaTab)
+            {
+                FireAndForget(ActivateTabAsync(mediaTab), "ActivateTabAsync");
+            }
+        };
+        NavToolbar.MediaChip.TogglePlayPauseRequested += () =>
+            FireAndForget(ToggleMediaPlayPauseAsync(NavToolbar.MediaChip.Tab), "ToggleMediaPlayPauseAsync");
+        NavToolbar.MediaChip.SkipPreviousRequested += () =>
+            FireAndForget(SkipMediaAsync(NavToolbar.MediaChip.Tab, forward: false), "SkipMediaAsync");
+        NavToolbar.MediaChip.SkipNextRequested += () =>
+            FireAndForget(SkipMediaAsync(NavToolbar.MediaChip.Tab, forward: true), "SkipMediaAsync");
+        NavToolbar.MediaChip.ToggleMuteRequested += ToggleMediaMute;
+        NavToolbar.MediaChip.PictureInPictureRequested += () =>
+            FireAndForget(TogglePictureInPictureAsync(NavToolbar.MediaChip.Tab), "TogglePictureInPictureAsync");
         SidebarRail.HomeRequested += Home_Click;
         SidebarRail.BookmarksRequested += ShowBookmarks_Click;
         SidebarRail.HistoryRequested += ShowHistory_Click;
@@ -346,6 +372,8 @@ public partial class MainWindow : Window
         BrowserPane.StartSearchKeyDown += StartSearchBox_PreviewKeyDown;
         BrowserPane.StartSearchGo += StartSearchGo_Click;
         BrowserPane.NewTabDialogSubmit += NewTabDialogSubmit_Click;
+        BrowserPane.NewTabDialogAddressTextChanged += NewTabDialogAddressBox_TextChanged;
+        BrowserPane.NewTabDialogSuggestionSelected += NewTabDialogSuggestionSelected;
         BrowserPane.NewTabShortcutSelected += NewTabShortcutSelected;
         BrowserPane.NewTabShortcutsChanged += SaveNewTabShortcuts;
         AiSidebar.AiClearChat += AiClearChat_Click;
@@ -494,6 +522,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            LogStartupPhase("window loaded, fading in");
             UpdateSidebarRailPosition();
             var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.3))
             {
@@ -503,6 +532,7 @@ public partial class MainWindow : Window
 
             NotifySettingsChanged();
             await InitializeEnvironmentAsync();
+            LogStartupPhase("webview environment ready");
 
             var currentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "";
             var lastSeen = _dataStore.Settings.LastSeenVersion;
@@ -526,6 +556,7 @@ public partial class MainWindow : Window
             {
                 await RestoreSessionOrOpenStartAsync();
             }
+            LogStartupPhase("startup tabs ready");
         }
         catch (Exception ex)
         {
@@ -538,6 +569,16 @@ public partial class MainWindow : Window
     {
         FocusStartSearchIfActive();
     }
+
+    /// <summary>
+    /// Process-wide startup clock for the phase timeline written to the debug
+    /// log; lets cold-start decompositions be read straight from the log file
+    /// without attaching a profiler.
+    /// </summary>
+    private static readonly Stopwatch StartupStopwatch = Stopwatch.StartNew();
+
+    private static void LogStartupPhase(string phase) =>
+        Log.Debug("Startup timeline: {Phase} at {Ms} ms", phase, StartupStopwatch.ElapsedMilliseconds);
 
     private void WebMessageReceived(BrowserTab tab, CoreWebView2WebMessageReceivedEventArgs args)
     {
@@ -631,7 +672,7 @@ public partial class MainWindow : Window
             else if (string.Equals(msgType, "open-link", StringComparison.Ordinal))
             {
                 // Middle-click on a link: open it in a background tab. Only
-                // web schemes are honored — the bridge is reachable from any
+                // web schemes are honored â€” the bridge is reachable from any
                 // page, so href is untrusted input.
                 if (root.TryGetProperty("href", out var hrefProp) &&
                     hrefProp.ValueKind == JsonValueKind.String &&
@@ -728,7 +769,12 @@ public partial class MainWindow : Window
             : Theme.Dark;
 
         var accentColor = GetAccentColor();
-        var theme = baseTheme with { Accent = accentColor, TabActiveAccent = accentColor };
+        var theme = baseTheme with
+        {
+            Accent = accentColor,
+            TabActiveAccent = accentColor,
+            TintPlayingTabs = _dataStore.Settings.TintPlayingTabsEffective
+        };
         theme.ApplyTo(Resources);
         Background = GetBrush("AppBg");
 
@@ -841,7 +887,7 @@ public partial class MainWindow : Window
     [
         ("1.4.0",
         [
-            "AI streaming responses — tokens appear in real-time",
+            "AI streaming responses â€” tokens appear in real-time",
             "Structured logging with daily file rotation",
             "AI prompt injection protection",
             "AI management settings page",

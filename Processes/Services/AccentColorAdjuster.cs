@@ -75,6 +75,22 @@ public static class AccentColorAdjuster
         (0.7152 * Linearize(color.G)) +
         (0.0722 * Linearize(color.B));
 
+    /// <summary>
+    /// Linear blend between two colours. <paramref name="amount"/> is how much of
+    /// <paramref name="overlay"/> to mix in (0 = base colour, 1 = overlay).
+    /// </summary>
+    public static Color Blend(Color baseColor, Color overlay, double amount)
+    {
+        var t = Math.Clamp(amount, 0.0, 1.0);
+        return Color.FromRgb(
+            BlendChannel(baseColor.R, overlay.R, t),
+            BlendChannel(baseColor.G, overlay.G, t),
+            BlendChannel(baseColor.B, overlay.B, t));
+    }
+
+    private static byte BlendChannel(byte from, byte to, double t) =>
+        (byte)Math.Clamp((int)Math.Round(from + ((to - from) * t)), 0, 255);
+
     private static double Linearize(byte channel)
     {
         var value = channel / 255.0;

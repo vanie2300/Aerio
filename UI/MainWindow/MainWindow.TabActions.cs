@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -309,6 +309,13 @@ public partial class MainWindow
         if (MatchesShortcut(e, "reader_mode"))
         {
             FireAndForget(ToggleReaderModeAsync(), "ToggleReaderModeAsync");
+            e.Handled = true;
+            return;
+        }
+
+        if (MatchesShortcut(e, "capture_screenshot"))
+        {
+            FireAndForget(CaptureScreenshotAsync(), "CaptureScreenshotAsync");
             e.Handled = true;
             return;
         }

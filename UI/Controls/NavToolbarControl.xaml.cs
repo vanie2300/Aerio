@@ -28,6 +28,8 @@ public partial class NavToolbarControl : UserControl
     public event RoutedEventHandler? NewTab;
     public event RoutedEventHandler? FullScreen;
     public event RoutedEventHandler? ToggleBrowserChrome;
+    public event RoutedEventHandler? CaptureScreenshot;
+    public event RoutedEventHandler? PictureInPicture;
     public event RoutedEventHandler? ForceDarkChecked;
     public event RoutedEventHandler? ForceDarkUnchecked;
     public event RoutedEventHandler? FindInPage;
@@ -155,6 +157,8 @@ public partial class NavToolbarControl : UserControl
     private void NewTab_Click(object s, RoutedEventArgs e) => NewTab?.Invoke(s, e);
     private void FullScreen_Click(object s, RoutedEventArgs e) => FullScreen?.Invoke(s, e);
     private void ToggleBrowserChrome_Click(object s, RoutedEventArgs e) => ToggleBrowserChrome?.Invoke(s, e);
+    private void CaptureScreenshot_Click(object s, RoutedEventArgs e) => CaptureScreenshot?.Invoke(s, e);
+    private void PictureInPicture_Click(object s, RoutedEventArgs e) => PictureInPicture?.Invoke(s, e);
     private void ForceDarkMenu_Checked(object s, RoutedEventArgs e) => ForceDarkChecked?.Invoke(s, e);
     private void ForceDarkMenu_Unchecked(object s, RoutedEventArgs e) => ForceDarkUnchecked?.Invoke(s, e);
     private void FindInPage_Click(object s, RoutedEventArgs e) => FindInPage?.Invoke(s, e);

@@ -14,6 +14,12 @@ public partial class MainWindow
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
+        // Stop the hibernation timer before teardown begins: a tick firing
+        // during dispose raced the lock disposal (observed as an
+        // ObjectDisposedException from UpdateMemoryStatus on close).
+        try { _sleepTimer.Stop(); }
+        catch (Exception ex) { Log.Debug(ex, "Sleep timer stop on close failed"); }
+
         try { _aiCts?.Cancel(); }
         catch (Exception ex) { Log.Debug(ex, "AI cancellation on close failed"); }
 

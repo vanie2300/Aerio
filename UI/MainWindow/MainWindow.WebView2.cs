@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -51,10 +51,10 @@ public partial class MainWindow
         public int uCallbackMessage;
         public int uEdge;
         public RECT rc;
-        public int lParam;
+        public IntPtr lParam;
     }
 
-    private const int ABM_GETAUTOHIDEBAR = 7;
+    private const int ABM_GETAUTOHIDEBAREX = 11;
     private const int ABE_LEFT = 0;
     private const int ABE_TOP = 1;
     private const int ABE_RIGHT = 2;
@@ -78,6 +78,16 @@ public partial class MainWindow
         public int Bottom;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MINMAXINFO
+    {
+        public Win32Point ptReserved;
+        public Win32Point ptMaxSize;
+        public Win32Point ptMaxPosition;
+        public Win32Point ptMinTrackSize;
+        public Win32Point ptMaxTrackSize;
+    }
+
     private const uint WM_SYSCOMMAND = 0x0112;
     private const uint SC_MINIMIZE = 0xF020;
     private const uint SC_MAXIMIZE = 0xF030;
@@ -85,6 +95,7 @@ public partial class MainWindow
     private const uint MONITOR_DEFAULTTONEAREST = 2;
     private const uint DWMWA_SNAP_LAYOUT = 0x100;
     private const int WM_NCHITTEST = 0x0084;
+    private const int WM_GETMINMAXINFO = 0x0024;
     private const uint WM_NCLBUTTONDOWN = 0x00A1;
     private const int HTLEFT = 10;
     private const int HTRIGHT = 11;
@@ -108,6 +119,7 @@ public partial class MainWindow
     private volatile CoreWebView2Profile? _profile;
     private bool _extensionsLoaded;
     private readonly Dictionary<string, CoreWebView2BrowserExtension> _loadedExtensions = [];
+    private readonly Dictionary<string, CoreWebView2DownloadOperation> _downloadOperations = [];
     private readonly System.Collections.Concurrent.ConcurrentDictionary<CoreWebView2, BrowserTab> _webViewToTabMap = [];
     private Microsoft.Web.WebView2.Wpf.WebView2? _carouselWebView;
     private readonly HashSet<BrowserTab> _initializingTabs = [];
@@ -137,6 +149,7 @@ public partial class MainWindow
         };
 
         _environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
+        LogStartupPhase("CoreWebView2Environment created");
     }
 
     private static void FireAndForget(Task? task, string context = "")
@@ -587,6 +600,7 @@ public partial class MainWindow
         {
             tab.Kind = BrowserTabKind.Web;
             tab.Address = e.Uri;
+            ApplySavedSiteZoom(tab);
             tab.Title = "Loading...";
             tab.IsLoading = true;
             tab.HasAudio = false;
@@ -791,6 +805,7 @@ public partial class MainWindow
                 var playing = cwv.IsDocumentPlayingAudio;
                 if (playing) tab.HasAudio = true;
                 tab.IsPlayingAudio = playing;
+                RefreshMediaChip();
                 if (playing) FireAndForget(ResolveSiteAccentAsync(tab), "ResolveSiteAccentAsync");
             }
             catch (Exception ex) { Log.Error(ex, "Error occurred"); }
@@ -1109,17 +1124,41 @@ public partial class MainWindow
         var sourceUrl = operation.Uri;
         Dispatcher.BeginInvoke(() => StatusBar.StatusText.Text = $"Downloading {fileName}");
 
+        // Live state for the downloads shelf (feature parity with the page list).
+        var shelfItem = new DownloadShelfItem(
+            fileName,
+            sourceUrl,
+            ToByteCount(operation.TotalBytesToReceive),
+            resultFilePath);
+        _downloadOperations[shelfItem.Id] = operation;
+        DownloadShelf.Add(shelfItem);
+
+        void OnDownloadProgress(object? _, object? __)
+        {
+            var received = ToByteCount(operation.BytesReceived);
+            var total = ToByteCount(operation.TotalBytesToReceive);
+            Dispatcher.BeginInvoke(() => shelfItem.UpdateProgress(received, total));
+        }
+
+        operation.BytesReceivedChanged += OnDownloadProgress;
         operation.StateChanged += OnDownloadCompleted;
+
         void OnDownloadCompleted(object? _, object? __)
         {
             if (operation.State == CoreWebView2DownloadState.Interrupted)
             {
-                // Cancelled/failed downloads: detach the handler so it doesn't
+                // Cancelled/failed downloads: detach the handlers so they don't
                 // leak for the process lifetime, and tell the user what happened
                 // instead of failing silently.
                 operation.StateChanged -= OnDownloadCompleted;
+                operation.BytesReceivedChanged -= OnDownloadProgress;
+                _downloadOperations.Remove(shelfItem.Id);
                 Dispatcher.BeginInvoke(() =>
-                    StatusBar.StatusText.Text = $"Download interrupted: {fileName}");
+                {
+                    shelfItem.Interrupt();
+                    DownloadShelf.NotifyStateChanged(shelfItem);
+                    StatusBar.StatusText.Text = $"Download interrupted: {fileName}";
+                });
                 return;
             }
 
@@ -1129,8 +1168,12 @@ public partial class MainWindow
             }
 
             operation.StateChanged -= OnDownloadCompleted;
+            operation.BytesReceivedChanged -= OnDownloadProgress;
+            _downloadOperations.Remove(shelfItem.Id);
             Dispatcher.BeginInvoke(() =>
             {
+                shelfItem.Complete(resultFilePath);
+                DownloadShelf.NotifyStateChanged(shelfItem);
                 if (_dataStore.AddDownload(fileName, resultFilePath, sourceUrl))
                 {
                     StatusBar.StatusText.Text = $"Downloaded {fileName}";
@@ -1140,6 +1183,549 @@ public partial class MainWindow
                     StatusBar.StatusText.Text = $"Downloaded {fileName}, but couldn't save it to the downloads list";
                 }
             });
+        }
+    }
+
+    /// <summary>
+    /// WebView2 reports download counters with mixed signedness; the shelf model
+    /// uses non-negative signed counts (0 = unknown).
+    /// </summary>
+    private static long ToByteCount(long value) => value < 0 ? 0 : value;
+
+    private static long ToByteCount(ulong? value) =>
+        value is { } count && count <= long.MaxValue ? (long)count : 0;
+
+    /// <summary>Targets the first video on the page for PIP.</summary>
+    private const string PictureInPictureScript =
+        """
+        (async () => {
+            try {
+                if (!document.pictureInPictureEnabled) {
+                    return JSON.stringify({ ok: false, reason: 'not-supported' });
+                }
+                const videos = Array.from(document.querySelectorAll('video'));
+                const video = videos.find(v => !v.paused && !v.ended && v.readyState > 0)
+                    || videos.find(v => v.readyState > 0)
+                    || videos[0];
+                if (!video) {
+                    return JSON.stringify({ ok: false, reason: 'no-video' });
+                }
+                if (document.pictureInPictureElement === video) {
+                    await document.exitPictureInPicture();
+                    return JSON.stringify({ ok: true, action: 'exited' });
+                }
+                await video.requestPictureInPicture();
+                return JSON.stringify({ ok: true, action: 'entered' });
+            } catch (e) {
+                return JSON.stringify({ ok: false, reason: (e && e.name) ? e.name : 'failed' });
+            }
+        })();
+        """;
+
+    /// <summary>Pauses or resumes every media element on the page.</summary>
+    private const string MediaPlayPauseScript =
+        """
+        (() => {
+            const media = Array.from(document.querySelectorAll('video,audio'));
+            if (media.length === 0) {
+                return 'none';
+            }
+            const anyPlaying = media.some(m => !m.paused && !m.ended);
+            const tasks = media.map(m => {
+                if (anyPlaying) {
+                    m.pause();
+                    return null;
+                }
+                return m.play().catch(() => null);
+            });
+            return Promise.all(tasks).then(() => anyPlaying ? 'paused' : 'played');
+        })();
+        """;
+
+    private async Task TogglePictureInPictureAsync(BrowserTab? tab)
+    {
+        var cwv = tab?.WebView?.CoreWebView2;
+        if (cwv is null)
+        {
+            SetStatusTextSafe("Picture-in-Picture isn't available on this tab.");
+            return;
+        }
+
+        try
+        {
+            var raw = await cwv.ExecuteScriptAsync(PictureInPictureScript);
+            var (ok, reason, action) = ParseScriptResult(raw);
+            if (ok)
+            {
+                SetStatusTextSafe(action == "exited" ? "Picture-in-Picture closed" : "Picture-in-Picture on");
+                return;
+            }
+
+            SetStatusTextSafe(reason switch
+            {
+                "no-video" => "No video found on this page",
+                "not-supported" => "This page doesn't support Picture-in-Picture",
+                "NotAllowedError" => "Click the video once, then try Picture-in-Picture",
+                _ => "Picture-in-Picture isn't available here"
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Picture-in-Picture toggle failed");
+            SetStatusTextSafe("Picture-in-Picture isn't available here");
+        }
+    }
+
+    private async Task ToggleMediaPlayPauseAsync(BrowserTab? tab)
+    {
+        var cwv = tab?.WebView?.CoreWebView2;
+        if (cwv is null) return;
+
+        try
+        {
+            var raw = await cwv.ExecuteScriptAsync(MediaPlayPauseScript);
+            var result = string.IsNullOrWhiteSpace(raw) ? null : JsonSerializer.Deserialize<string>(raw);
+            SetStatusTextSafe(result switch
+            {
+                "paused" => "Media paused",
+                "played" => "Media playing",
+                _ => "No media on this page"
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Media play/pause failed");
+        }
+    }
+
+    /// <summary>Clicks the playing page's previous/next transport control.</summary>
+    private async Task SkipMediaAsync(BrowserTab? tab, bool forward)
+    {
+        var cwv = tab?.WebView?.CoreWebView2;
+        if (cwv is null) return;
+
+        try
+        {
+            var script = MediaSkipScript.Replace("'__SKIP__'", forward ? "'next'" : "'previous'");
+            var raw = await cwv.ExecuteScriptAsync(script);
+            var (ok, _, action) = ParseScriptResult(raw);
+            if (!ok)
+            {
+                SetStatusTextSafe("This player has no next/previous control");
+                return;
+            }
+
+            SetStatusTextSafe(action == "next" ? "Next track" : "Previous track");
+
+            // A track change usually swaps the cover art; give the page a moment
+            // to publish new Media Session metadata, then refresh the chip.
+            FireAndForget(RefreshMediaArtworkAfterSkipAsync(tab), "RefreshMediaArtworkAfterSkipAsync");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Media skip failed");
+        }
+    }
+
+    private async Task RefreshMediaArtworkAfterSkipAsync(BrowserTab tab)
+    {
+        await Task.Delay(1500);
+        await ResolveMediaArtworkAsync(tab);
+    }
+
+    /// <summary>Shows the media chip for whichever tab is currently playing.</summary>
+    private void RefreshMediaChip()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(RefreshMediaChip);
+            return;
+        }
+
+        var playing = _tabs.FirstOrDefault(t => t.IsPlayingAudio && t.Kind == BrowserTabKind.Web);
+        NavToolbar.MediaChip.Update(playing);
+
+        if (playing is null)
+        {
+            StopMediaArtworkTimer();
+            return;
+        }
+
+        // Keep polling while media plays so cover art follows track changes.
+        EnsureMediaArtworkTimer();
+        if (playing.MediaArtwork is null)
+        {
+            FireAndForget(ResolveMediaArtworkAsync(playing), "ResolveMediaArtworkAsync");
+        }
+    }
+
+    private void ToggleMediaMute()
+    {
+        if (NavToolbar.MediaChip.Tab is not { } tab || tab.WebView?.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        tab.IsMuted = !tab.IsMuted;
+        tab.WebView.CoreWebView2.IsMuted = tab.IsMuted;
+    }
+
+    /// <summary>
+    /// Clicks the page's own next/previous control. The Media Session API lets
+    /// pages *receive* transport actions but has no way to invoke them, so known
+    /// players are targeted by their stable hooks plus accessible labels.
+    /// </summary>
+    private const string MediaSkipScript =
+        """
+        (() => {
+            const direction = '__SKIP__';
+            const visible = (el) => el && !el.disabled && (el.offsetParent !== null || el.getClientRects().length > 0);
+            const byLabel = (words) => {
+                for (const w of words) {
+                    const el = document.querySelector(
+                        'button[aria-label*="' + w + '" i], [role="button"][aria-label*="' + w + '" i], [title*="' + w + '" i]');
+                    if (visible(el)) return el;
+                }
+                return null;
+            };
+            try {
+                let el;
+                if (direction === 'next') {
+                    el = document.querySelector('.ytp-next-button')
+                      || document.querySelector('[data-testid="control-button-skip-forward"]')
+                      || byLabel(['next track', 'next song', 'skip forward', 'next video', 'next']);
+                } else {
+                    el = document.querySelector('.ytp-prev-button')
+                      || document.querySelector('[data-testid="control-button-skip-back"]')
+                      || byLabel(['previous track', 'previous song', 'skip back', 'previous video', 'previous']);
+                }
+                if (visible(el)) { el.click(); return JSON.stringify({ ok: true, action: direction }); }
+            } catch (e) { }
+            return JSON.stringify({ ok: false, reason: 'no-control' });
+        })();
+        """;
+
+    /// <summary>Reads the current media artwork URL from the page's Media Session.</summary>
+    private const string MediaArtworkScript =
+        """
+        (() => {
+            try {
+                const meta = navigator.mediaSession && navigator.mediaSession.metadata;
+                if (meta && meta.artwork && meta.artwork.length) {
+                    let best = null, bestSize = -1;
+                    for (const art of meta.artwork) {
+                        if (!art || !art.src) continue;
+                        const size = parseInt(art.sizes ? art.sizes : '0', 10) || 0;
+                        if (size >= bestSize) { best = art; bestSize = size; }
+                    }
+                    if (best) return JSON.stringify({ art: best.src });
+                }
+                const video = document.querySelector('video');
+                if (video && video.poster) return JSON.stringify({ art: video.poster });
+            } catch (e) { }
+            return JSON.stringify({ art: null });
+        })();
+        """;
+
+    private static readonly HttpClient ArtworkHttpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(10),
+        MaxResponseContentBufferSize = MediaArtworkResolver.MaxArtworkBytes
+    };
+
+    private const string BrowserUserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+        "Chrome/131.0.0.0 Safari/537.36";
+
+    private readonly Dictionary<string, ImageSource> _artworkCache = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _failedArtworkUrls = new(StringComparer.Ordinal);
+    private string? _lastArtworkMissAddress;
+    private DispatcherTimer? _mediaArtworkTimer;
+
+    private void EnsureMediaArtworkTimer()
+    {
+        if (_mediaArtworkTimer is not null) return;
+
+        _mediaArtworkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+        _mediaArtworkTimer.Tick += (_, _) =>
+        {
+            if (NavToolbar.MediaChip.Tab is { } tab)
+            {
+                FireAndForget(ResolveMediaArtworkAsync(tab), "ResolveMediaArtworkAsync");
+            }
+        };
+        _mediaArtworkTimer.Start();
+    }
+
+    private void StopMediaArtworkTimer()
+    {
+        _mediaArtworkTimer?.Stop();
+        _mediaArtworkTimer = null;
+    }
+
+    /// <summary>
+    /// Resolves the playing tab's cover art: evaluate the page metadata, fetch
+    /// the (untrusted, validated) image once, cache it, and hand it to the chip.
+    /// </summary>
+    private async Task ResolveMediaArtworkAsync(BrowserTab tab)
+    {
+        var cwv = tab.WebView?.CoreWebView2;
+        if (cwv is null) return;
+
+        var address = tab.Address;
+        try
+        {
+            var raw = await cwv.ExecuteScriptAsync(MediaArtworkScript);
+            var url = ParseArtworkUrl(raw);
+            if (url is null || !MediaArtworkResolver.IsAllowedArtworkUrl(url))
+            {
+                if (url is not null)
+                {
+                    Log.Debug("Media artwork URL rejected: {Url}", url);
+                }
+                else if (!string.Equals(_lastArtworkMissAddress, address, StringComparison.Ordinal))
+                {
+                    _lastArtworkMissAddress = address;
+                    Log.Debug("No media artwork advertised by {Address}", address);
+                }
+
+                return;
+            }
+
+            ImageSource? image;
+            lock (_artworkCache)
+            {
+                _artworkCache.TryGetValue(url, out image);
+            }
+
+            if (image is null)
+            {
+                lock (_failedArtworkUrls)
+                {
+                    if (_failedArtworkUrls.Contains(url)) return;
+                }
+
+                // Many artwork CDNs require a browser-like user agent and a
+                // referrer (the page itself loads the same image).
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.UserAgent.ParseAdd(BrowserUserAgent);
+                if (Uri.TryCreate(address, UriKind.Absolute, out var pageUri))
+                {
+                    request.Headers.Referrer = pageUri;
+                }
+
+                using var response = await ArtworkHttpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Log.Debug("Media artwork request failed ({Status}) for {Url}", (int)response.StatusCode, url);
+                    MarkArtworkFailed(url);
+                    return;
+                }
+
+                if (response.Content.Headers.ContentLength is > MediaArtworkResolver.MaxArtworkBytes)
+                {
+                    MarkArtworkFailed(url);
+                    return;
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync();
+                image = FaviconImageDecoder.Decode(stream);
+                if (image is null)
+                {
+                    Log.Debug("Media artwork could not be decoded: {Url}", url);
+                    MarkArtworkFailed(url);
+                    return;
+                }
+
+                Log.Debug("Media artwork loaded: {Url}", url);
+
+                lock (_artworkCache)
+                {
+                    if (_artworkCache.Count >= 32)
+                    {
+                        _artworkCache.Clear();
+                    }
+
+                    _artworkCache[url] = image;
+                }
+            }
+
+            // The tab may have navigated while the image was downloading.
+            if (!string.Equals(tab.Address, address, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            tab.MediaArtworkUrl = url;
+            tab.MediaArtwork = image;
+
+            if (ReferenceEquals(NavToolbar.MediaChip.Tab, tab))
+            {
+                NavToolbar.MediaChip.SetArtwork(image);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Media artwork resolution failed");
+        }
+    }
+
+    private void MarkArtworkFailed(string url)
+    {
+        lock (_failedArtworkUrls)
+        {
+            if (_failedArtworkUrls.Count >= 64)
+            {
+                _failedArtworkUrls.Clear();
+            }
+
+            _failedArtworkUrls.Add(url);
+        }
+    }
+
+    private static string? ParseArtworkUrl(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        // ExecuteScriptAsync returns the JSON encoding of the script's value,
+        // and the script returns JSON.stringify(...) - so decode twice.
+        var inner = raw;
+        try { inner = JsonSerializer.Deserialize<string>(raw) ?? raw; }
+        catch (JsonException) { /* not a JSON string; try the raw text */ }
+
+        try
+        {
+            using var document = JsonDocument.Parse(inner);
+            if (document.RootElement.TryGetProperty("art", out var art) && art.ValueKind == JsonValueKind.String)
+            {
+                var value = art.GetString();
+                return string.IsNullOrWhiteSpace(value) ? null : value;
+            }
+        }
+        catch (JsonException) { }
+
+        return null;
+    }
+
+    /// <summary>Captures the visible page area to a PNG in the Downloads folder.</summary>
+    private async Task CaptureScreenshotAsync()
+    {
+        var tab = _activeTab;
+        var cwv = tab?.WebView?.CoreWebView2;
+        if (tab is null || cwv is null)
+        {
+            SetStatusTextSafe("Open a web page before capturing.");
+            return;
+        }
+
+        try
+        {
+            var directory = GetCaptureDirectory();
+            Directory.CreateDirectory(directory);
+            var fileName = $"Aerio capture {DateTime.Now:yyyy-MM-dd HH-mm-ss}.png";
+            var path = Path.Combine(directory, fileName);
+
+            await using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await cwv.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
+            }
+
+            _dataStore.AddDownload(fileName, path, tab.Address);
+
+            var shelfItem = new DownloadShelfItem(fileName, tab.Address, null, path);
+            shelfItem.Complete(path);
+            DownloadShelf.Add(shelfItem);
+
+            SetStatusTextSafe($"Screenshot saved: {fileName}");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Screenshot capture failed");
+            SetStatusTextSafe("Couldn't capture the page.");
+        }
+    }
+
+    private static string GetCaptureDirectory()
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var downloads = Path.Combine(profile, "Downloads");
+
+        // Only keep it in Downloads when the user actually has one; otherwise
+        // fall back to the profile directory rather than creating a stray path.
+        return Directory.Exists(downloads) ? downloads : profile;
+    }
+
+    private void OpenShelfItem(DownloadShelfItem item)
+    {
+        if (item.FilePath is not { Length: > 0 } path || !File.Exists(path))
+        {
+            SetStatusTextSafe("That file is no longer on disk.");
+            return;
+        }
+
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Failed to open downloaded file");
+            SetStatusTextSafe("Couldn't open the file.");
+        }
+    }
+
+    private void RevealShelfItem(DownloadShelfItem item)
+    {
+        var folder = item.FilePath is { Length: > 0 } path ? Path.GetDirectoryName(path) : null;
+        if (!string.IsNullOrEmpty(folder))
+        {
+            OpenDownloadFolder(folder);
+        }
+    }
+
+    private void CancelShelfItem(DownloadShelfItem item)
+    {
+        if (_downloadOperations.TryGetValue(item.Id, out var operation))
+        {
+            try { operation.Cancel(); }
+            catch (Exception ex) { Log.Debug(ex, "Failed to cancel download"); }
+        }
+    }
+
+    private static (bool Ok, string? Reason, string? Action) ParseScriptResult(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return (false, null, null);
+        }
+
+        // ExecuteScriptAsync returns the JSON encoding of the script's value,
+        // and these scripts return JSON.stringify(...) - so decode twice.
+        var inner = raw;
+        try { inner = JsonSerializer.Deserialize<string>(raw) ?? raw; }
+        catch (JsonException) { /* not a JSON string; try the raw text */ }
+
+        try
+        {
+            using var document = JsonDocument.Parse(inner);
+            var root = document.RootElement;
+            var ok = root.TryGetProperty("ok", out var okProp) && okProp.ValueKind == JsonValueKind.True;
+            var reason = root.TryGetProperty("reason", out var reasonProp) && reasonProp.ValueKind == JsonValueKind.String
+                ? reasonProp.GetString()
+                : null;
+            var action = root.TryGetProperty("action", out var actionProp) && actionProp.ValueKind == JsonValueKind.String
+                ? actionProp.GetString()
+                : null;
+            return (ok, reason, action);
+        }
+        catch (JsonException)
+        {
+            return (false, null, null);
         }
     }
 }

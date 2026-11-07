@@ -884,10 +884,10 @@ window.chrome.webview.postMessage(JSON.stringify({type:'ready'}));
         }
         wv = new Microsoft.Web.WebView2.Wpf.WebView2
         {
-            Width = 660,
+            MaxWidth = 660,
             Height = 330,
             DefaultBackgroundColor = System.Drawing.Color.Transparent,
-            HorizontalAlignment = HorizontalAlignment.Center
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
         _carouselWebView = wv;
 

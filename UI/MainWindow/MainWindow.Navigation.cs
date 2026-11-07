@@ -452,6 +452,36 @@ public partial class MainWindow
         NavToolbar.SetAddressSuggestions(matches);
     }
 
+    private void NewTabDialogAddressBox_TextChanged(object? sender, EventArgs e)
+    {
+        if (!BrowserPane.NewTabDialogAddressBox.IsKeyboardFocusWithin)
+        {
+            BrowserPane.CloseNewTabDialogSuggestions();
+            return;
+        }
+
+        var matches = AddressSuggestionService.FindMatches(
+            BrowserPane.NewTabDialogAddressBox.Text,
+            _dataStore.Bookmarks,
+            _dataStore.History);
+        BrowserPane.SetNewTabDialogSuggestions(matches);
+    }
+
+    private async void NewTabDialogSuggestionSelected(AddressSuggestion suggestion)
+    {
+        try
+        {
+            BrowserPane.HideNewTabDialog();
+            await AddWebTabAsync(suggestion.Url);
+            Keyboard.ClearFocus();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open address suggestion from the new-tab dialog");
+            StatusBar.StatusText.Text = "Couldn't open that address";
+        }
+    }
+
     private async void AddressSuggestionSelected(AddressSuggestion suggestion)
     {
         try

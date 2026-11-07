@@ -10,8 +10,10 @@ namespace TabloidBrowser;
 
 /// <summary>
 /// Resolves the primary brand/accent color of the site a tab is playing media
-/// from. Resolution order: curated brand map → page theme-color (meta/manifest)
-/// → favicon dominant color. Results are cached per origin.
+/// from. Resolution is dynamic-first: page-declared colors (theme-color,
+/// mask-icon, tile color, CSS custom properties, header/nav background,
+/// manifest theme_color)  favicon dominant color  curated brand map (last
+/// resort)  none. Results are cached per origin.
 /// </summary>
 public static partial class SiteAccentService
 {
@@ -21,6 +23,32 @@ public static partial class SiteAccentService
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, Lazy<Task<Color?>>> InFlight =
         new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Upper bound on cached origins. Entries are tiny, but the cache had no
+    /// eviction at all — over a long session every visited origin accumulated
+    /// forever. Insertion-order FIFO keeps the set bounded.
+    /// </summary>
+    internal const int MaxCachedOrigins = 256;
+
+    /// <summary>
+    /// Insertion order for FIFO eviction. Re-resolving an origin enqueues a
+    /// duplicate marker; dequeuing an already-removed key is a harmless no-op.
+    /// </summary>
+    private static readonly ConcurrentQueue<string> CacheInsertionOrder = new();
+
+    internal static int CacheCountForTests => Cache.Count;
+
+    private static void StoreCacheEntry(string origin, CacheEntry entry)
+    {
+        Cache[origin] = entry;
+        CacheInsertionOrder.Enqueue(origin);
+        while (CacheInsertionOrder.Count > MaxCachedOrigins &&
+               CacheInsertionOrder.TryDequeue(out var oldest))
+        {
+            Cache.TryRemove(oldest, out _);
+        }
+    }
 
     private sealed record CacheEntry(Color? Color, DateTimeOffset CachedAt);
 
@@ -47,7 +75,7 @@ public static partial class SiteAccentService
         if (forceRefresh)
         {
             var refreshed = await ResolveCoreAsync(core, url);
-            Cache[origin] = new CacheEntry(refreshed, DateTimeOffset.UtcNow);
+            StoreCacheEntry(origin, new CacheEntry(refreshed, DateTimeOffset.UtcNow));
             return refreshed;
         }
 
@@ -86,6 +114,7 @@ public static partial class SiteAccentService
     public static void ClearCache()
     {
         Cache.Clear();
+        CacheInsertionOrder.Clear();
         InFlight.Clear();
     }
 
@@ -95,7 +124,7 @@ public static partial class SiteAccentService
         string origin)
     {
         var color = await ResolveCoreAsync(core, url);
-        Cache[origin] = new CacheEntry(color, DateTimeOffset.UtcNow);
+        StoreCacheEntry(origin, new CacheEntry(color, DateTimeOffset.UtcNow));
         return color;
     }
 
@@ -103,19 +132,25 @@ public static partial class SiteAccentService
     {
         Color? color = null;
 
-        if (BrandColorMap.TryGetColor(url, out var brand) && IsUsableAccent(brand))
-        {
-            color = brand;
-        }
-
-        if (color is null && core is not null)
+        // Dynamic signals first: whatever the page itself declares (theme-color,
+        // mask-icon, tile color, CSS variables, header colour, manifest) or, if
+        // it declares nothing, its favicon's dominant colour.
+        if (core is not null)
         {
             color = await ResolveFromPageAsync(core);
+
+            if (color is null)
+            {
+                color = await ResolveFromFaviconAsync(core);
+            }
         }
 
-        if (color is null && core is not null)
+        // The curated map is now only a last-resort fallback for sites that
+        // expose no colour signal at all (and is the sole source when no
+        // WebView is available, e.g. during tests or early startup).
+        if (color is null && BrandColorMap.TryGetColor(url, out var brand) && IsUsableAccent(brand))
         {
-            color = await ResolveFromFaviconAsync(core);
+            color = brand;
         }
 
         return color;
@@ -164,7 +199,7 @@ public static partial class SiteAccentService
         }
     }
 
-    private static Color? ParsePageColors(string? json)
+    internal static Color? ParsePageColors(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -206,6 +241,23 @@ public static partial class SiteAccentService
             return null;
         }
 
+        // The page script returns every dynamic candidate in priority order;
+        // the first one that parses as a usable accent wins.
+        if (root.TryGetProperty("candidates", out var candidates) &&
+            candidates.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var candidate in candidates.EnumerateArray())
+            {
+                if (candidate.ValueKind == JsonValueKind.String &&
+                    TryParseCssColor(candidate.GetString(), out var candidateColor) &&
+                    IsUsableAccent(candidateColor))
+                {
+                    return candidateColor;
+                }
+            }
+        }
+
+        // Legacy fields (older payloads / defensive fallback).
         foreach (var name in new[] { "meta", "manifestTheme" })
         {
             if (root.TryGetProperty(name, out var property) &&
@@ -304,15 +356,72 @@ public static partial class SiteAccentService
         RegexOptions.IgnoreCase)]
     private static partial Regex RgbRegex();
 
-    // Runs in the page: reads <meta name="theme-color"> and the web app
-    // manifest's theme_color, returning a small JSON object. ExecuteScriptAsync
-    // awaits the returned promise before serializing the result.
+    // Runs in the page and collects every dynamic colour signal it can find,
+    // in priority order: theme-color tags (media-matched first), Safari's
+    // mask-icon colour, the legacy Windows tile colour, brand-ish CSS custom
+    // properties, coloured header/nav bars, then the web-app manifest's
+    // theme_color. ExecuteScriptAsync awaits the returned promise before
+    // serializing the result.
     private const string PageColorScript = """
         (async () => {
-          try {
-            const meta = document.querySelector('meta[name="theme-color"]');
-            const metaColor = meta && meta.content ? meta.content.trim() : null;
+          const candidates = [];
+          const push = (value) => {
+            if (value && typeof value === 'string') {
+              const v = value.trim();
+              if (!v || v === 'transparent' || v === 'rgba(0, 0, 0, 0)') return;
+              candidates.push(v);
+            }
+          };
 
+          try {
+            // 1) theme-color tags, preferring ones whose media query matches now.
+            const metas = Array.from(document.querySelectorAll('meta[name="theme-color"]'));
+            if (metas.length) {
+              const matches = (m) => {
+                const media = m.getAttribute('media');
+                if (!media) return true;
+                try { return window.matchMedia(media).matches; } catch (_) { return false; }
+              };
+              metas.filter(matches).forEach(m => push(m.content));
+              metas.forEach(m => push(m.content));
+            }
+
+            // 2) Safari pinned-tab colour.
+            const mask = document.querySelector('link[rel="mask-icon"]');
+            if (mask) push(mask.getAttribute('color'));
+
+            // 3) Legacy Windows tile colour.
+            const tile = document.querySelector('meta[name="msapplication-TileColor"]');
+            if (tile) push(tile.content);
+
+            // 4) CSS custom properties that commonly hold the brand colour.
+            const names = ['--accent-color','--accent','--primary-color','--primary',
+                           '--brand-color','--brand','--theme-color','--color-primary',
+                           '--main-color','--clr-primary'];
+            const roots = [document.documentElement, document.body].filter(Boolean);
+            for (const name of names) {
+              for (const el of roots) {
+                try { push(getComputedStyle(el).getPropertyValue(name)); } catch (_) { }
+              }
+            }
+
+            // 5) Coloured header/nav bars are the brand on many sites.
+            const headerSelectors = ['header','nav','[role="banner"]','.navbar',
+                                     '.site-header','.topbar','.app-header','#header'];
+            for (const selector of headerSelectors) {
+              const el = document.querySelector(selector);
+              if (!el) continue;
+              try {
+                const style = getComputedStyle(el);
+                push(style.backgroundColor);
+                if (style.backgroundImage && style.backgroundImage.indexOf('gradient') >= 0) {
+                  const match = style.backgroundImage.match(/(#[0-9a-f]{3,8}|rgba?\([^)]+\))/i);
+                  if (match) push(match[1]);
+                }
+              } catch (_) { }
+            }
+
+            // 6) manifest theme_color (async).
             let manifestTheme = null;
             const link = document.querySelector('link[rel="manifest"]');
             if (link && link.href && typeof fetch === 'function') {
@@ -322,14 +431,16 @@ public static partial class SiteAccentService
                   const manifest = await response.json();
                   if (manifest && typeof manifest.theme_color === 'string') {
                     manifestTheme = manifest.theme_color.trim();
+                    push(manifestTheme);
                   }
                 }
               } catch (_) { }
             }
 
-            return JSON.stringify({ meta: metaColor, manifestTheme });
+            const meta = metas.length ? metas[0].content : null;
+            return JSON.stringify({ candidates, meta, manifestTheme });
           } catch (_) {
-            return JSON.stringify({ meta: null, manifestTheme: null });
+            return JSON.stringify({ candidates: [], meta: null, manifestTheme: null });
           }
         })()
         """;

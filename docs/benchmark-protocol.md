@@ -66,6 +66,70 @@ in the same order with the same wait times.
 | Offline installer | 258.7 MB (self-contained + WebView2 runtime bundled) |
 | Portable ZIP | 70.7 MB |
 
+## Recorded results (2026-11-06, installed release build)
+
+Environment: AMD Ryzen 7 7435HS (8C/16T), 8 GB RAM, NVIDIA RTX 2050,
+Windows 11 build 26300. Cold-start runs reset the session file; observation
+windows are 30 s via `measure-browser.ps1 -ObserveRunning`; microbenchmarks
+are the `PerformanceRegressionTests` ad-block cases against the real cached
+EasyList (53,233 candidate rules, 430 in the fallback scan lists).
+
+| Metric | Value | Method |
+|---|---|---|
+| Cold start, window created | **1.20 s** median of 3 (1.08–1.88) | harness cold-start, session reset per run |
+| Cold start, fully settled | **3.22 s** median of 3 | CPU-idle heuristic + 12 s floor |
+| Startup RAM (main process) | ~176 MB private | harness snapshot at settle |
+| Idle CPU, Start page (particles on) | **0.2% of one core** | 30 s ObserveRunning |
+| YouTube playback CPU | **42% of one core** steady (79% during page-load burst) | ObserveRunning during active playback |
+| YouTube playback RAM | ~1.5 GB tree private, 13 processes (renderer 376 MB + GPU 374 MB dominate) | parent-based tree snapshot |
+| Ad-block lookup, worst case | **~48 µs/request** (19.2 ms / 400 non-matching lookups) | unit microbenchmark |
+| Ad-block compile at startup | 46.3 ms (UI thread, before first await) | unit microbenchmark |
+| 20 tabs, hibernated steady state | **~1.0 GB tree private, 3.3% of one core idle** — only 2–3 renderers alive; background tabs suspended/discarded by the 2-min timer + memory pressure | 30 s ObserveRunning + tree snapshot after batch-opening 20 real sites |
+| Online installer | 8.9 MB | file size |
+| Offline installer | 261.0 MB | file size |
+| App payload on disk | ~59 MB (53 files) | build output |
+
+### ReadyToRun A/B (2026-11-06, same source, same machine, harness 3-run medians)
+
+`PublishReadyToRun=true` pre-compiles the app's assemblies at publish time,
+removing most app-side JIT work from every launch. Framework-dependent R2R
+precompiles only the app's own code (the shared runtime keeps its JIT), so
+the size cost is small.
+
+| Metric | R2R off | R2R on | Delta |
+|---|---:|---:|---|
+| Window created (median) | 1.16 s | **1.00 s** | −14% |
+| Window created (cold-cache first run) | 2.07 s | **1.54 s** | −26% |
+| Fully settled (median) | 3.18 s | **3.02 s** | −5% |
+| Startup CPU (median core-seconds) | 4.41 | **3.23** | −27% |
+| Publish size | 28.7 MB | 31.1 MB | +2.4 MB (+8%) |
+| Startup RAM (main, private) | ~175 MB | ~179 MB | +4 MB |
+
+Every paired run favored R2R (1.54<2.07, 0.99<1.16, 1.00<1.12); the startup
+CPU reduction is the most robust signal (least scheduling noise). Adopted in
+`ci.yml` and `release.yml` publish steps. The settle window (≈3 s) is
+dominated by WebView2 environment creation and async startup, not app JIT —
+the next startup lever to probe is deferring extension loading until after
+first paint.
+
+### Published reference points (for context, not same-hardware comparisons)
+
+- **Engine**: Aerio renders with the WebView2 Evergreen runtime — the same
+  Blink engine as Microsoft Edge. Speedometer 3.1 aggregations place Edge at
+  #2 of 17 Windows browsers (BrowseRating, 2026-10-03: Edge 20.23, Chrome
+  19.37, Firefox 19.18); Aerio inherits that position by construction.
+- **Cold start**: published lab figures of Edge 1.6 s / Chrome 1.8 s /
+  Firefox 2.1 s (GuideTechly, 2026-06-02, i5-12400 + NVMe) — different
+  hardware, so band comparison only; Aerio's 1.20 s window-create sits at the
+  favorable end of that band.
+- **RAM by tab count** (architecture-based estimates, SuperchargeBrowser,
+  2026-07-12): Firefox ~0.8/2.0/3.8 GB, Edge ~1.1/2.8/4.5 GB, Chrome
+  ~1.2/3.5/6.5 GB at 10/30/50 tabs. Aerio's hibernation implements the same
+  sleep→discard chain as Edge's Sleeping Tabs (suspend first, full WebView
+  disposal under memory pressure) with a 2-minute default timer, and its
+  measured ~1.5 GB tree **during active YouTube playback** sits in Edge's
+  10-idle-tab band under a heavier workload.
+
 ## Known measurement pitfalls
 
 - **Framework-dependent builds** need the .NET 10 Desktop Runtime installed
@@ -74,8 +138,9 @@ in the same order with the same wait times.
   Use `-DotNetRoot` for local runs against a user-dir runtime.
 - **Locked desktop / secure desktop**: WPF pauses rendering and WebView2
   environment creation can stall; cursor probes fail. Never benchmark locked.
-- **Background load**: regex compilation of the ad-block list (48k rules) at
-  startup stretches under CPU contention and will skew settle-time numbers.
+- **Background load**: regex compilation of the ad-block list (50k+ rules,
+  ~46 ms measured) at startup stretches under CPU contention and will skew
+  settle-time numbers.
 - **Session state changes startup**: the harness resets the session file for
   cold-start runs; for ObserveRunning runs, let the browser fully restore first.
 - Measure installer size, installed size, and runtime RAM as **separate**

@@ -45,6 +45,9 @@ public partial class MainWindow
         var autoHideBrowserChrome = SettingsToggleRow("Auto-hide browser controls",
             "Hide the tabs, address bar, and status bar until you move your pointer to the top edge. Restart Aerio for changes to take effect.",
             settings.AutoHideBrowserChrome);
+        var tintPlayingTabs = SettingsToggleRow("Tint playing tabs with the site color",
+            "While a tab is playing audio, blend that site's accent into the tab background.",
+            settings.TintPlayingTabsEffective);
         var customBgPath = settings.Background is not "Default" && File.Exists(settings.Background)
             ? settings.Background
             : null;
@@ -147,7 +150,7 @@ public partial class MainWindow
             }
         };
 
-        var uploadLine = new StackPanel
+        var uploadLine = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 12, 0, 0),
@@ -159,7 +162,7 @@ public partial class MainWindow
 
         var backgroundOptions = SettingsRow2(
             "Custom image",
-            "Choose an image for the new-tab page.",
+            null,
             StackOf(uploadLine, bgPreview));
         backgroundOptions.Visibility = customBgPath is not null ? Visibility.Visible : Visibility.Collapsed;
 
@@ -261,13 +264,16 @@ public partial class MainWindow
         allowlistPanel.Child = allowlistStack;
 
         var aiEnabled = SettingsToggleRow("Enable AI assistant",
-            "Connect to Ollama, OpenAI, or any OpenAI-compatible local or hosted API.",
+            "Use chat in the browser sidebar.",
             settings.AiEnabled);
 
         var aiProviderCombo = new ComboBox
         {
             Height = 42,
             FontSize = 14,
+            Background = GetBrush("FieldBg"),
+            Foreground = GetBrush("Text"),
+            BorderBrush = GetBrush("StrokeStrong"),
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         aiProviderCombo.ItemsSource = BrowserSettings.AiProviderPresets.Keys.ToList();
@@ -293,7 +299,7 @@ public partial class MainWindow
             Background = GetBrush("FieldBg"),
             Foreground = GetBrush("Text"),
             BorderBrush = GetBrush("StrokeStrong"),
-            Padding = new Thickness(10, 8, 10, 0)
+            Padding = new Thickness(12, 0, 12, 0)
         };
 
         var aiModelCombo = new ComboBox
@@ -302,6 +308,9 @@ public partial class MainWindow
             Text = settings.AiModel,
             Height = 42,
             FontSize = 14,
+            Background = GetBrush("FieldBg"),
+            Foreground = GetBrush("Text"),
+            BorderBrush = GetBrush("StrokeStrong"),
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         aiModelCombo.SelectionChanged += (_, _) =>
@@ -318,7 +327,7 @@ public partial class MainWindow
             Background = GetBrush("FieldBg"),
             Foreground = GetBrush("Text"),
             BorderBrush = GetBrush("StrokeStrong"),
-            Padding = new Thickness(10, 6, 10, 0)
+            Padding = new Thickness(12, 0, 12, 0)
         };
         aiApiKeyBox.Password = BrowserSettings.GetApiKey(settings, settings.AiProvider);
 
@@ -499,6 +508,7 @@ public partial class MainWindow
                 AiToolsEnabled: _dataStore.Settings.AiToolsEnabled,
                 LastSeenVersion: _dataStore.Settings.LastSeenVersion,
                 AutoHideBrowserChrome: autoHideBrowserChrome.Toggle.IsChecked == true,
+                TintPlayingTabs: tintPlayingTabs.Toggle.IsChecked == true,
                 NewTabShortcuts: _dataStore.Settings.NewTabShortcuts);
 
             _dataStore.SaveSettings(saved);
@@ -585,6 +595,8 @@ public partial class MainWindow
         enableDevTools.Toggle.Unchecked += (_, _) => Save();
         forceDark.Toggle.Checked += (_, _) => Save();
         forceDark.Toggle.Unchecked += (_, _) => Save();
+        tintPlayingTabs.Toggle.Checked += (_, _) => Save();
+        tintPlayingTabs.Toggle.Unchecked += (_, _) => Save();
 
         blocklist.LostFocus += (_, _) => Save();
         allowlist.LostFocus += (_, _) => Save();
@@ -635,7 +647,7 @@ public partial class MainWindow
         aiTemperature.Input.LostFocus += (_, _) => Save();
         aiMaxOpenTabs.Input.LostFocus += (_, _) => Save();
 
-        var clearData = SettingsButton("Clear local browsing data");
+        var clearData = SettingsButton("Clear data", destructive: true);
         clearData.Click += async (_, _) =>
         {
             try
@@ -669,7 +681,7 @@ public partial class MainWindow
                 savedSitesStatus,
                 new TextBlock
                 {
-                    Text = "Domains are collected from cookies in this browser profile. Third-party services may appear even if you did not open them directly.",
+                    Text = "Third-party domains may appear without a direct visit. A cookie does not confirm that you signed in.",
                     Foreground = GetBrush("Muted"),
                     FontSize = 12,
                     TextWrapping = TextWrapping.Wrap,
@@ -919,7 +931,7 @@ public partial class MainWindow
 
         FireAndForget(RefreshSavedSitesAsync(), "Load saved-cookie sites in settings");
 
-        var resetAll = SettingsButton("Reset all settings...", destructive: true);
+        var resetAll = SettingsButton("Reset", destructive: true);
         resetAll.Click += (_, _) =>
         {
             _dataStore.SaveSettings(BrowserSettings.Default);
@@ -960,92 +972,91 @@ public partial class MainWindow
         {
             ["Appearance"] = ("Appearance", "Choose how Aerio looks and feels.",
             [
-                // Keep related appearance controls together instead of creating
-                // a separate section for every setting.
-                PrefSection("Browser appearance", "Choose how the browser interface looks.",
-                    SettingsRow2("Color mode", "Switch between the dark and light browser themes.", theme.Control),
+                PrefSection(null, null,
+                    SettingsRow2("Theme", null, theme.Control),
                     SettingsRow2("Accent color", "Used for selected tabs, active controls, and focus states.", accent.Control),
-                    autoHideBrowserChrome.Row),
-                PrefSection("New tab page", "Customize what you see when you open a tab.",
-                    SettingsRow2("Background", "Use a simple background or your own image.", background.Control),
+                    autoHideBrowserChrome.Row,
+                    tintPlayingTabs.Row),
+                PrefSection("New tab page", null,
+                    SettingsRow2("Background", null, background.Control),
                     backgroundOptions,
                     bgOpacity.Control)
             ]),
-            ["Engine"] = ("Search engine", "Choose your default search provider and set quick-search keywords.",
+            ["Engine"] = ("Search engine", "Choose the provider used for address-bar searches.",
             [
-                PrefSection("Default search engine", "Choose which provider the address bar uses for searches.", searchCtrl.Control),
-                PrefSection("Quick-search keywords", "Type a keyword followed by a search in the address bar. Leave a keyword blank to disable its shortcut.",
+                PrefSection(null, null, searchCtrl.Control),
+                PrefSection("Quick-search keywords", "Type a keyword followed by a search. Leave it blank to disable the shortcut.",
                     SettingsRow2("YouTube", "Example: yt cats", youtubeKeyword),
                     SettingsRow2("Wikipedia", "Example: wiki octopus", wikipediaKeyword))
             ]),
-            ["Tabs"] = ("Tabs & memory", "Manage tabs and reduce resource use.",
+            ["Tabs"] = ("Tabs & memory", "Hibernate inactive tabs to reduce memory use.",
             [
-                PrefSection("Memory saver", "Free up memory when tabs are not being used.",
+                PrefSection(null, null,
                     SettingsRow2("Hibernate after",
-                        "Minutes of inactivity before Aerio unloads a background tab.",
+                        "Unload a background tab after this many minutes of inactivity.",
                         sleep.Control),
-                    SettingsNote("About hibernation",
+                    SettingsNote("Resuming a tab",
                         "Some pages may need to reload before you can resume working. Hibernated tabs restore their last URL and scroll position."))
             ]),
-            ["Privacy && Security"] = ("Privacy & security", "Control tracking protection and browsing permissions.",
+            ["Privacy && Security"] = ("Privacy & security", "Control trackers, ads, passwords, and autofill.",
             [
-                PrefSection("Tracking protection", "Built-in controls for ads and common tracking domains.",
+                PrefSection("Tracking protection", null,
                     blockTrackers.Row,
                     adBlock.Row),
-                PrefSection("Exceptions", "Manage domains blocked or allowed by the built-in filter.",
+                PrefSection("Domain rules", "Applies to Aerio's built-in tracker filter.",
                     blocklistPanel,
                     allowlistPanel),
                 PrefSection("Passwords & forms", null,
                     enableAutofill.Row,
                     enablePasswordSave.Row)
             ]),
-            ["Saved sites"] = ("Saved sites", "These are cookie domains stored in this browser profile, not a list of sites you directly visited. Pages can load third-party services that store cookies too. A cookie does not confirm that you signed in.",
+            ["Saved sites"] = ("Saved sites", "Cookie domains stored in this browser profile.",
             [
-                PrefSection("Cookies in this profile", "Select a domain to open it in a new tab. Cookie values are never displayed. Clearing cookies may sign you out of websites.",
+                PrefSection(null, "Select a domain to open it in a new tab. Cookie values are never displayed. Clearing cookies may sign you out of websites.",
                     savedSitesSummary,
                     savedSitesListFrame,
                     StackOf(refreshSavedSites, clearSavedSites))
             ]),
-            ["Data"] = ("Browsing data", "Manage history, local files, and session information.",
+            ["Data"] = ("Browsing data", "Control what Aerio keeps and remove stored data.",
             [
-                PrefSection("Data retention", null, clearOnExit.Row),
-                PrefSection("Clear data", "Choose which data types to remove.",
-                    SettingsRow2("Clear local browsing data",
-                        "Review data categories before clearing them.",
+                PrefSection(null, null,
+                    clearOnExit.Row,
+                    SettingsRow2("Clear browsing data",
+                        "Clear history, download records, session recovery, and website data. This may sign you out.",
                         clearData)),
-                PrefSection("Reset", null,
+                PrefSection(null, null,
                     SettingsRow2("Reset all settings",
-                        "Restore Aerio settings to their defaults. This is separate from clearing browsing data.",
-                        resetAll),
-                    "dangerTitle")
+                        "Restore defaults without clearing browsing data.",
+                        resetAll))
             ]),
-            ["Extensions"] = ("Extensions", "Manage optional tools that extend your browser.",
+            ["Extensions"] = ("Extensions", "Manage uBlock Origin and extensions added from a folder or CRX file.",
             [
-                PrefSection("Installed extensions", "Built-in content blocking and extensions you have added manually.",
+                PrefSection(null, null,
                     BuildExtensionsContent(settings))
             ]),
-            ["Advanced"] = ("Advanced", "Developer settings and keyboard shortcuts.",
+            ["Advanced"] = ("Advanced", "Browser debugging, updates, and keyboard shortcuts.",
             [
-                PrefSection("Developer settings", null,
+                PrefSection(null, null,
                     enableDevTools.Row,
                     forceDark.Row),
-                PrefSection("Updates", "Check for updates and download the installer without opening GitHub.",
+                PrefSection("Updates", null,
                     StackOf(checkForUpdates, downloadUpdate, updateStatus)),
-                PrefSection("Keyboard shortcuts", "Common browser commands.",
+                PrefSection("Keyboard shortcuts", null,
                     BuildShortcutRows(shortcutOverrides, () => onChange()))
             ]),
-            ["AI"] = ("AI assistant", "Configure the assistant available in the browser sidebar.",
+            ["AI"] = ("AI assistant", "Configure chat, models, and browser tools.",
             [
-                PrefSection("Assistant", null, aiEnabled.Row),
-                PrefSection("Connection", "Select a service and enter its credentials.",
-                    FieldLabelRow("Provider", aiProviderCombo),
-                    FieldLabelRow("API endpoint", aiEndpointBox),
-                    FieldLabelRow("Model", aiModelCombo),
-                    FieldLabelRow("API key", StackOf(aiApiKeyBox, aiApiKeyHint)),
-                    StackOf(testConnectionBtn, aiConnectionFeedback)),
-                PrefSection("Assistant instructions", null,
+                PrefSection(null, null, aiEnabled.Row),
+                PrefSection("Connection", null,
+                    StackOf(
+                        FieldLabelRow("Provider", aiProviderCombo),
+                        FieldLabelRow("API endpoint", aiEndpointBox),
+                        FieldLabelRow("Model", aiModelCombo),
+                        FieldLabelRow("API key", StackOf(aiApiKeyBox, aiApiKeyHint)),
+                        StackOf(testConnectionBtn, aiConnectionFeedback))),
+                PrefSection(null, null,
                     FieldLabelRow("System prompt", aiSystemPrompt)),
-                PrefSection("Response settings", "Adjust how the assistant generates its answers.",
+                PrefSection("Response settings", null,
                     aiMaxTokens.Control,
                     aiTemperature.Control,
                     aiMaxOpenTabs.Control)
@@ -1084,6 +1095,8 @@ public partial class MainWindow
             FontSize = 28,
             FontWeight = FontWeights.SemiBold,
             Foreground = GetBrush("Text"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            TextAlignment = TextAlignment.Left,
             TextWrapping = TextWrapping.Wrap,
             LayoutTransform = new ScaleTransform(1, 1)
         };
@@ -1091,6 +1104,8 @@ public partial class MainWindow
         {
             FontSize = 14,
             Foreground = GetBrush("InkSecondary"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            TextAlignment = TextAlignment.Left,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 9, 0, 0)
         };
@@ -1403,7 +1418,7 @@ public partial class MainWindow
 
         // ScrollViewer can measure its contents at their natural width.
         // Bind the page to the actual viewport so every category occupies
-        // the same 720px column (or the available space on small windows).
+        // the same bounded column (or the available space on small windows).
         void UpdateSettingsContentWidth()
         {
             var available = contentScroll.ViewportWidth;
@@ -1471,6 +1486,9 @@ public partial class MainWindow
         void ApplyResponsiveWidth(double width)
         {
             var compact = width < 860;
+            contentScroll.Padding = width < 600
+                ? new Thickness(20, 28, 20, 48)
+                : new Thickness(36, 44, 36, 72);
             root.ColumnDefinitions[0].Width = new GridLength(compact ? 62 : 224);
             sidebarTitle.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
             sidebarScroll.Padding = compact
@@ -1506,26 +1524,29 @@ public partial class MainWindow
     private Border SectionDivider() => new Border
     {
         Height = 1,
-        Background = GetBrush("SubtleStroke"),
-        Opacity = 0.70,
-        Margin = new Thickness(0, 4, 0, 4)
+        Background = GetBrush("Stroke"),
+        Opacity = 0.55,
+        Margin = new Thickness(0, 5, 0, 5)
     };
 
-    /// <summary>Settings section with a shared full-width heading and aligned rows.</summary>
-    private FrameworkElement PrefSection(string title, string? description, params object[] children)
+    /// <summary>Settings group with optional heading, description, and aligned rows.</summary>
+    private FrameworkElement PrefSection(string? title, string? description, params object[] children)
     {
         bool dangerTitle = children.Contains("dangerTitle");
         var items = children.Where(c => c is UIElement).Cast<UIElement>().ToArray();
 
         var head = new StackPanel();
-        head.Children.Add(new TextBlock
+        if (!string.IsNullOrEmpty(title))
         {
-            Text = title,
-            FontSize = 17,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = dangerTitle ? GetBrush("Danger") : GetBrush("Text"),
-            TextWrapping = TextWrapping.Wrap
-        });
+            head.Children.Add(new TextBlock
+            {
+                Text = title,
+                FontSize = 17,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = dangerTitle ? GetBrush("Danger") : GetBrush("Text"),
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
         if (!string.IsNullOrEmpty(description))
         {
             head.Children.Add(new TextBlock
@@ -1533,14 +1554,19 @@ public partial class MainWindow
                 Text = description,
                 FontSize = 13,
                 Foreground = GetBrush("InkSecondary"),
-                Margin = new Thickness(0, 6, 0, 0),
+                Margin = new Thickness(0, head.Children.Count > 0 ? 6 : 0, 0, 0),
                 MaxWidth = 790,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                TextAlignment = TextAlignment.Left,
                 TextWrapping = TextWrapping.Wrap
             });
         }
 
-        // This gap separates the group label from its individual controls.
-        var rows = new StackPanel { Margin = new Thickness(0, 20, 0, 0) };
+        // Heading-free groups start directly with their controls.
+        var rows = new StackPanel
+        {
+            Margin = new Thickness(0, head.Children.Count > 0 ? 12 : 0, 0, 0)
+        };
         var separators = new List<Border>();
         for (int i = 0; i < items.Length; i++)
         {
@@ -1572,7 +1598,8 @@ public partial class MainWindow
         UpdateSeparators();
 
         var content = new StackPanel();
-        content.Children.Add(head);
+        if (head.Children.Count > 0)
+            content.Children.Add(head);
         content.Children.Add(rows);
 
         var border = new Border
@@ -1580,7 +1607,7 @@ public partial class MainWindow
             Child = content,
             BorderBrush = GetBrush("Stroke"),
             BorderThickness = new Thickness(0, 1, 0, 0),
-            Padding = new Thickness(0, 32, 0, 36),
+            Padding = new Thickness(0, 28, 0, 16),
             Margin = new Thickness(0)
         };
         return border;
@@ -1620,20 +1647,22 @@ public partial class MainWindow
             });
         }
 
-        var grid = new Grid { MinHeight = 56 };
+        // Pad the whole row so wrapped descriptions have the same breathing
+        // room as short labels; control margins alone cannot provide this.
+        var grid = new Grid { MinHeight = 44, Margin = new Thickness(0, 12, 0, 12) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(text, 0);
         grid.Children.Add(text);
         control.VerticalAlignment = VerticalAlignment.Center;
-        control.Margin = new Thickness(24, 8, 0, 8);
+        control.Margin = new Thickness(24, 0, 0, 0);
         Grid.SetColumn(control, 1);
         grid.Children.Add(control);
 
         bool? lastStackedLayout = null;
         void ApplyResponsiveLayout(double width)
         {
-            var stacked = width < 560;
+            var stacked = width < Math.Max(560, control.DesiredSize.Width + 264);
             if (lastStackedLayout == stacked) return;
             lastStackedLayout = stacked;
             grid.RowDefinitions.Clear();
@@ -1647,7 +1676,7 @@ public partial class MainWindow
                 Grid.SetRow(control, 1);
                 Grid.SetColumn(control, 0);
                 Grid.SetColumnSpan(control, 2);
-                control.Margin = new Thickness(0, 12, 0, 8);
+                control.Margin = new Thickness(0, 12, 0, 0);
                 control.HorizontalAlignment = HorizontalAlignment.Left;
             }
             else
@@ -1657,7 +1686,7 @@ public partial class MainWindow
                 Grid.SetRow(control, 0);
                 Grid.SetColumn(control, 1);
                 Grid.SetColumnSpan(control, 1);
-                control.Margin = new Thickness(24, 8, 0, 8);
+                control.Margin = new Thickness(24, 0, 0, 0);
                 control.HorizontalAlignment = HorizontalAlignment.Right;
             }
         }
@@ -1746,7 +1775,7 @@ public partial class MainWindow
     {
         var selectedValue = names.Contains(selected) ? selected : names[0];
         var buttons = new List<Button>();
-        var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        var panel = new WrapPanel { Orientation = Orientation.Horizontal };
 
         // Single source of truth for the selection ring, opacity, and check glyph.
         void Refresh()
@@ -1775,7 +1804,7 @@ public partial class MainWindow
                     Text = "\uE73E",
                     FontFamily = new FontFamily("Segoe MDL2 Assets"),
                     FontSize = 12,
-                    Foreground = Brushes.White,
+                    Foreground = name == "White" ? Brushes.Black : Brushes.White,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                     Visibility = Visibility.Collapsed
@@ -1785,6 +1814,7 @@ public partial class MainWindow
             {
                 Content = swatch,
                 Tag = name,
+                ToolTip = name,
                 Style = FindResource("ColorDotButton") as Style,
                 // Reference .color-options gap between swatches.
                 Margin = i < names.Length - 1 ? new Thickness(0, 0, 12, 0) : new Thickness(0)

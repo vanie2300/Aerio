@@ -113,4 +113,65 @@ public class PerformanceRegressionTests
             Directory.Delete(tempDir, recursive: true);
         }
     }
+
+    // ---------- Ad-block engine (per-request + startup cost) ----------
+
+    /// <summary>
+    /// EasyList-sized fixture: the real cached filter list when available
+    /// (dev machines), otherwise a synthetic set with the same shape — tens of
+    /// thousands of indexed ||host^ rules plus a few hundred wildcard fallback
+    /// rules — so CI without the cache exercises the same code paths.
+    /// </summary>
+    private static IEnumerable<string> LoadEasyListSizedLines()
+    {
+        var cacheFile = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TabloidBrowser", "AdBlock", "easylist.txt");
+        if (File.Exists(cacheFile))
+        {
+            return File.ReadAllLines(cacheFile);
+        }
+
+        var lines = new List<string>(50_300);
+        for (var i = 0; i < 50_000; i++)
+        {
+            lines.Add($"||ad-host{i}.example.com^");
+        }
+        for (var i = 0; i < 300; i++)
+        {
+            lines.Add($"/ads/pattern{i}*.js");
+        }
+        return lines;
+    }
+
+    [Fact]
+    public void AdBlockEngine_Compile_EasyListSizedRules_CompletesQuickly()
+    {
+        // Runs on the UI thread at startup (RefreshAsync compiles the cache
+        // before its first await), so compile cost is launch latency.
+        var lines = LoadEasyListSizedLines();
+        AssertUnderMs(() =>
+        {
+            var snapshot = AdBlockEngine.Compile(lines);
+            Assert.True(snapshot.RuleCount > 1_000);
+        }, limitMs: 2_000);
+    }
+
+    [Fact]
+    public void AdBlockEngine_ShouldBlock_FallbackScan_CompletesQuickly()
+    {
+        var snapshot = AdBlockEngine.Compile(LoadEasyListSizedLines());
+
+        // Worst case per network request: a URL that matches no host rule,
+        // forcing the full fallback regex scan (HostRegexes + UrlRegexes).
+        // WebResourceRequested runs on the UI thread, so this cost is jank.
+        AssertUnderMs(() =>
+        {
+            for (var i = 0; i < 400; i++)
+            {
+                snapshot.ShouldBlock($"https://unblocked{i}.example.com/assets/pixel-{i}.js");
+            }
+        }, limitMs: 500);
+    }
 }
+

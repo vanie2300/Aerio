@@ -285,6 +285,7 @@ public partial class MainWindow
 
             UpdateAddressBar();
             UpdateNavigationButtons();
+            RefreshMediaChip();
             UpdateMemoryStatus();
             UpdateReaderUi(tab.IsReaderMode);
             UpdateReloadStopButton();
@@ -380,6 +381,12 @@ public partial class MainWindow
             var json = await coreWebView.ExecuteScriptAsync(ScrollSnapshotScript);
             if (json is null) return;
             using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                // The snapshot script legitimately returns null when the page
+                // has no scrollable state yet; nothing to capture.
+                return;
+            }
             if (TryGetJsonDouble(document.RootElement, "X", out var x) &&
                 TryGetJsonDouble(document.RootElement, "Y", out var y))
             {
@@ -791,6 +798,7 @@ public partial class MainWindow
             }
 
             _tabs.Remove(tab);
+            RefreshMediaChip();
 
             if (tab.IsAiOwned)
             {

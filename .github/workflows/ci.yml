@@ -114,6 +114,7 @@ jobs:
             --configuration Release `
             --runtime win-x64 `
             --self-contained false `
+            -p:PublishReadyToRun=true `
             "-p:Version=$env:RELEASE_VERSION" `
             --output artifacts\Aerio-win-x64
           if ($LASTEXITCODE -ne 0) {
@@ -127,6 +128,7 @@ jobs:
             --configuration Release `
             --runtime win-x64 `
             --self-contained true `
+            -p:PublishReadyToRun=true `
             "-p:Version=$env:RELEASE_VERSION" `
             --output artifacts\Aerio-win-x64-offline
           if ($LASTEXITCODE -ne 0) {

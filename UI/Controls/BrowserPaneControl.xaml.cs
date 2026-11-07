@@ -35,6 +35,8 @@ public partial class BrowserPaneControl : UserControl
     public event KeyEventHandler? StartSearchKeyDown;
     public event RoutedEventHandler? StartSearchGo;
     public event RoutedEventHandler? NewTabDialogSubmit;
+    public event EventHandler? NewTabDialogAddressTextChanged;
+    public event Action<AddressSuggestion>? NewTabDialogSuggestionSelected;
     public event Action<string>? NewTabShortcutSelected;
     public event Func<List<NewTabShortcut>, bool>? NewTabShortcutsChanged;
 
@@ -578,7 +580,9 @@ public partial class BrowserPaneControl : UserControl
     public void ShowNewTabDialog()
     {
         NewTabDialogAddressBox.Clear();
+        CloseNewTabDialogSuggestions();
         UpdateNewTabDialogCardWidth();
+
         NewTabDialog.IsOpen = true;
         NewTabDialogCard.Opacity = 0;
         var transform = new TranslateTransform(0, 12);
@@ -663,8 +667,24 @@ public partial class BrowserPaneControl : UserControl
 
     public void HideNewTabDialog()
     {
+        CloseNewTabDialogSuggestions();
         NewTabDialog.IsOpen = false;
     }
+
+    /// <summary>
+    /// Shows history/bookmark suggestions under the new-tab dialog's address
+    /// field, mirroring the main address bar's dropdown (same sources, same
+    /// item template, same keyboard model).
+    /// </summary>
+    public void SetNewTabDialogSuggestions(IReadOnlyList<AddressSuggestion> suggestions)
+    {
+        NewTabDialogSuggestionsList.ItemsSource = suggestions;
+        NewTabDialogSuggestionsPopup.IsOpen = suggestions.Count > 0;
+        NewTabDialogSuggestionsBorder.Width = Math.Max(280, NewTabDialogAddressBorder.ActualWidth);
+        NewTabDialogSuggestionsList.SelectedIndex = -1;
+    }
+
+    public void CloseNewTabDialogSuggestions() => NewTabDialogSuggestionsPopup.IsOpen = false;
 
     private void NewTabDialogCancel_Click(object sender, RoutedEventArgs e) => HideNewTabDialog();
 
@@ -679,8 +699,47 @@ public partial class BrowserPaneControl : UserControl
 
     private void NewTabDialogCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
 
+    private void NewTabDialogAddressBox_TextChanged(object sender, TextChangedEventArgs e) =>
+        NewTabDialogAddressTextChanged?.Invoke(sender, EventArgs.Empty);
+
     private void NewTabDialogAddressBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // While the suggestion dropdown is open it owns the arrow keys,
+        // Escape (closes just the dropdown; a second Escape closes the
+        // dialog) and Enter (opens the highlighted suggestion).
+        if (NewTabDialogSuggestionsPopup.IsOpen)
+        {
+            if (e.Key is Key.Down or Key.Up)
+            {
+                var count = NewTabDialogSuggestionsList.Items.Count;
+                if (count > 0)
+                {
+                    var step = e.Key == Key.Down ? 1 : -1;
+                    var selected = NewTabDialogSuggestionsList.SelectedIndex;
+                    NewTabDialogSuggestionsList.SelectedIndex = selected < 0
+                        ? (step > 0 ? 0 : count - 1)
+                        : (selected + step + count) % count;
+                    NewTabDialogSuggestionsList.ScrollIntoView(NewTabDialogSuggestionsList.SelectedItem);
+                    e.Handled = true;
+                    return;
+                }
+            }
+            else if (e.Key == Key.Escape)
+            {
+                CloseNewTabDialogSuggestions();
+                e.Handled = true;
+                return;
+            }
+            else if ((e.Key is Key.Enter or Key.Return) &&
+                     NewTabDialogSuggestionsList.SelectedItem is AddressSuggestion suggestion)
+            {
+                NewTabDialogSuggestionSelected?.Invoke(suggestion);
+                CloseNewTabDialogSuggestions();
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Key.Enter || e.Key == Key.Return)
         {
             e.Handled = true;
@@ -690,6 +749,16 @@ public partial class BrowserPaneControl : UserControl
         {
             e.Handled = true;
             HideNewTabDialog();
+        }
+    }
+
+    private void NewTabDialogSuggestions_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (ItemsControl.ContainerFromElement(NewTabDialogSuggestionsList, e.OriginalSource as DependencyObject) is ListBoxItem item &&
+            item.DataContext is AddressSuggestion suggestion)
+        {
+            NewTabDialogSuggestionSelected?.Invoke(suggestion);
+            CloseNewTabDialogSuggestions();
         }
     }
 

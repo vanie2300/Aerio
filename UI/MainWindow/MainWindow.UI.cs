@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -35,6 +35,7 @@ public partial class MainWindow
     private bool _isFullScreen;
     private bool _fullScreenTransitionInProgress;
     private RECT _fullScreenRestoreBounds;
+    private RECT _fullScreenNormalBounds;
     private bool _windowBoundsTransitionInProgress;
     private RECT _windowRestoreBounds;
     private WindowState _previousWindowState;
@@ -513,17 +514,27 @@ public partial class MainWindow
     private void UpdateMemoryStatus()
     {
         List<BrowserTab> snapshot;
-        if (!_tabOperationLock.Wait(0))
+        try
         {
-            if (!_memoryUpdatePending)
+            if (!_tabOperationLock.Wait(0))
             {
-                _memoryUpdatePending = true;
-                Dispatcher.BeginInvoke(() =>
+                if (!_memoryUpdatePending)
                 {
-                    _memoryUpdatePending = false;
-                    UpdateMemoryStatus();
-                }, DispatcherPriority.Background);
+                    _memoryUpdatePending = true;
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        _memoryUpdatePending = false;
+                        UpdateMemoryStatus();
+                    }, DispatcherPriority.Background);
+                }
+                return;
             }
+        }
+        catch (ObjectDisposedException)
+        {
+            // Teardown disposed the tab lock while a queued update was still
+            // pending (observed as a Dispatcher unhandled exception during
+            // window close); nothing left to refresh.
             return;
         }
         try
@@ -832,6 +843,7 @@ public partial class MainWindow
 
     private void MainWindow_StateChanged(object? sender, EventArgs e)
     {
+        UpdateResizeBandInset();
         UpdateResizeGripVisibility();
         if (WindowState == WindowState.Minimized)
         {
@@ -864,6 +876,26 @@ public partial class MainWindow
             TitleBar.MaximizeGlyph.Visibility = Visibility.Collapsed;
             TitleBar.RestoreGlyph.Visibility = Visibility.Visible;
             TitleBar.MaximizeRestoreBtn.ToolTip = "Restore";
+        }
+    }
+
+    /// <summary>
+    /// Reserves the WindowChrome resize band (10 DIPs, left/right/bottom) so
+    /// the WebView2 child HWND never covers it. The OS hit-tests the deepest
+    /// window under the cursor: when the child overlapped the band, real mouse
+    /// drags on the border reached the child and returned HTCLIENT — the
+    /// border was dead even though the top-level WM_NCHITTEST path reported
+    /// HTBOTTOM. Maximized and fullscreen windows cannot be resized, so they
+    /// stay edge-to-edge.
+    /// </summary>
+    private void UpdateResizeBandInset()
+    {
+        var inset = WindowState == WindowState.Normal && !_isFullScreen
+            ? new Thickness(10, 0, 10, 10)
+            : new Thickness(0);
+        if (BrowserHost.Margin != inset)
+        {
+            BrowserHost.Margin = inset;
         }
     }
 
@@ -915,6 +947,12 @@ public partial class MainWindow
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == WM_GETMINMAXINFO)
+        {
+            UpdateMaximizedBounds(hwnd, lParam);
+            // Let WPF apply MinWidth/MinHeight and its normal resize limits.
+        }
+
         if (msg == WM_NCHITTEST &&
             WindowState == WindowState.Normal &&
             !_isFullScreen &&
@@ -957,35 +995,64 @@ public partial class MainWindow
 
     private void UpdateMaximizedMargins()
     {
-        var monitor = MonitorFromWindow(_windowHandle, MONITOR_DEFAULTTONEAREST);
+        // The native maximized bounds already fit the work area. A content
+        // margin cannot expose the taskbar because it leaves the HWND in place.
+        RootGrid.Margin = new Thickness(0);
+    }
+
+    internal static void UpdateMaximizedBounds(IntPtr hwnd, IntPtr lParam)
+    {
+        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         var info = new MONITORINFO { cbSize = (uint)Marshal.SizeOf<MONITORINFO>() };
-        GetMonitorInfoW(monitor, ref info);
-
-        var dpi = VisualTreeHelper.GetDpi(this);
-        var sx = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1.0;
-        var sy = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1.0;
-        var border = 6.0;
-
-        var left = (info.rcWork.Left - info.rcMonitor.Left) / sx + border;
-        var top = (info.rcWork.Top - info.rcMonitor.Top) / sy + border;
-        var right = (info.rcMonitor.Right - info.rcWork.Right) / sx + border;
-        var bottom = (info.rcMonitor.Bottom - info.rcWork.Bottom) / sy + border;
-
-        var abd = new APPBARDATA { cbSize = Marshal.SizeOf<APPBARDATA>() };
-        int[] edges = [ABE_LEFT, ABE_TOP, ABE_RIGHT, ABE_BOTTOM];
-        int[] autoHideEdges = [0, 0, 0, 0];
-        for (int i = 0; i < edges.Length; i++)
+        if (!GetMonitorInfoW(monitor, ref info))
         {
-            abd.uEdge = edges[i];
-            autoHideEdges[i] = SHAppBarMessage(ABM_GETAUTOHIDEBAR, ref abd) != IntPtr.Zero ? 1 : 0;
+            return;
         }
 
-        if (autoHideEdges[0] != 0 && left <= border) left = 3 / sx;
-        if (autoHideEdges[1] != 0 && top <= border) top = 3 / sy;
-        if (autoHideEdges[2] != 0 && right <= border) right = 3 / sx;
-        if (autoHideEdges[3] != 0 && bottom <= border) bottom = 3 / sy;
+        var bounds = GetMaximizedWorkArea(info);
+        var minMax = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+        minMax.ptMaxPosition.X = bounds.Left - info.rcMonitor.Left;
+        minMax.ptMaxPosition.Y = bounds.Top - info.rcMonitor.Top;
+        minMax.ptMaxSize.X = bounds.Right - bounds.Left;
+        minMax.ptMaxSize.Y = bounds.Bottom - bounds.Top;
+        Marshal.StructureToPtr(minMax, lParam, false);
+    }
 
-        RootGrid.Margin = new Thickness(left, top, right, bottom);
+    private static RECT GetMaximizedWorkArea(MONITORINFO info)
+    {
+        var bounds = info.rcWork;
+        var abd = new APPBARDATA
+        {
+            cbSize = Marshal.SizeOf<APPBARDATA>(),
+            rc = info.rcMonitor
+        };
+        // Keep two physical pixels available for the shell's auto-hide trigger.
+        // Query this monitor, including when it is left/above the primary one.
+        for (var edge = ABE_LEFT; edge <= ABE_BOTTOM; edge++)
+        {
+            abd.uEdge = edge;
+            if (SHAppBarMessage(ABM_GETAUTOHIDEBAREX, ref abd) == IntPtr.Zero)
+            {
+                continue;
+            }
+
+            switch (edge)
+            {
+                case ABE_LEFT:
+                    bounds.Left = Math.Max(bounds.Left, info.rcMonitor.Left + 2);
+                    break;
+                case ABE_TOP:
+                    bounds.Top = Math.Max(bounds.Top, info.rcMonitor.Top + 2);
+                    break;
+                case ABE_RIGHT:
+                    bounds.Right = Math.Min(bounds.Right, info.rcMonitor.Right - 2);
+                    break;
+                case ABE_BOTTOM:
+                    bounds.Bottom = Math.Min(bounds.Bottom, info.rcMonitor.Bottom - 2);
+                    break;
+            }
+        }
+        return bounds;
     }
 
     private async Task ToggleMaximizeRestoreAsync()
@@ -1013,7 +1080,11 @@ public partial class MainWindow
                     throw new Win32Exception(Marshal.GetLastWin32Error());
                 }
 
-                await AnimateWindowBoundsAsync(currentBounds, monitorInfo.rcWork);
+                await AnimateWindowBoundsAsync(currentBounds, GetMaximizedWorkArea(monitorInfo));
+                // Animation runs in Normal state and updates WPF's RestoreBounds.
+                // Restore the original normal geometry before maximizing so F11
+                // and OS restore commands cannot leave a monitor-sized Normal window.
+                SetWindowBounds(_windowRestoreBounds);
                 WindowState = WindowState.Maximized;
             }
             else
@@ -1244,29 +1315,71 @@ public partial class MainWindow
 
     private void ApplyZoom(BrowserTab tab, double delta)
     {
-        tab.ZoomLevel = Math.Clamp(tab.ZoomLevel + delta, 0.25, 5.0);
-        if (tab.WebView is not null)
-            tab.WebView.ZoomFactor = tab.ZoomLevel;
-        UpdateZoomDisplay(showToast: true);
+        SetZoom(tab, tab.ZoomLevel + delta, persist: true);
     }
 
     private void ResetZoom()
     {
         var tab = _activeTab;
         if (tab is null) return;
-        tab.ZoomLevel = 1.0;
+        SetZoom(tab, 1.0, persist: true);
+    }
+
+    /// <summary>
+    /// Applies a zoom level to a tab, mirrors it onto the WebView, and (when
+    /// persisting) saves it for the site's origin so it survives navigation.
+    /// </summary>
+    private void SetZoom(BrowserTab tab, double zoom, bool persist)
+    {
+        tab.ZoomLevel = Math.Clamp(zoom, BrowserDataStore.MinSiteZoom, BrowserDataStore.MaxSiteZoom);
         if (tab.WebView is not null)
-            tab.WebView.ZoomFactor = 1.0;
+        {
+            tab.WebView.ZoomFactor = tab.ZoomLevel;
+        }
+
+        if (persist)
+        {
+            _dataStore.SetSiteZoom(tab.Address, tab.ZoomLevel);
+        }
+
         UpdateZoomDisplay(showToast: true);
+    }
+
+    /// <summary>
+    /// Restores the zoom level saved for the site a tab just navigated to.
+    /// </summary>
+    private void ApplySavedSiteZoom(BrowserTab tab)
+    {
+        var saved = _dataStore.GetSiteZoom(tab.Address);
+        tab.ZoomLevel = saved;
+        if (tab.WebView is not null)
+        {
+            tab.WebView.ZoomFactor = saved;
+        }
+
+        if (_activeTab == tab && Math.Abs(saved - 1.0) > 0.001)
+        {
+            UpdateZoomDisplay(showToast: true);
+        }
     }
 
     private void UpdateZoomDisplay(bool showToast = false)
     {
-        var z = _activeTab?.ZoomLevel ?? 1.0;
-        if (showToast)
+        if (!showToast)
         {
-            StatusBar.StatusText.Text = $"Zoom: {(int)(z * 100)}%";
+            return;
         }
+
+        var tab = _activeTab;
+        var z = tab?.ZoomLevel ?? 1.0;
+        var hasOverride = Math.Abs(z - 1.0) > 0.001;
+        var host = tab is not null && Uri.TryCreate(tab.Address, UriKind.Absolute, out var uri)
+            ? uri.Host
+            : null;
+
+        StatusBar.StatusText.Text = hasOverride && !string.IsNullOrEmpty(host)
+            ? $"Zoom: {(int)(z * 100)}% (saved for {host})"
+            : $"Zoom: {(int)(z * 100)}%";
     }
 
     private async Task ToggleFullScreenAsync()
@@ -1290,7 +1403,22 @@ public partial class MainWindow
                 }
 
                 _fullScreenRestoreBounds = currentBounds;
+                // Preserve the window's TRUE normal bounds before the
+                // fullscreen geometry is applied. SetWindowBounds below runs
+                // while WindowState is Normal, so entering fullscreen from a
+                // maximized window would otherwise write the maximized rect
+                // into the normal bounds — observed as a "restored" window
+                // stuck at full-monitor size that blocked the taskbar reveal
+                // strip and the bottom resize border.
+                _fullScreenNormalBounds = WindowState == WindowState.Maximized
+                    ? ResolveRestoreBounds(default)
+                    : currentBounds;
+                if (!HasUsableSize(_fullScreenNormalBounds))
+                {
+                    _fullScreenNormalBounds = currentBounds;
+                }
                 _isFullScreen = true;
+                UpdateResizeBandInset();
                 UpdateResizeGripVisibility();
                 _chromeHiddenBeforeFullScreen = _browserChromeHidden;
                 _chromeManuallyPinnedVisible = false;
@@ -1317,8 +1445,23 @@ public partial class MainWindow
                 }
 
                 await AnimateWindowBoundsAsync(currentBounds, _fullScreenRestoreBounds);
-                WindowState = _previousWindowState;
+                // Repair the normal bounds BEFORE applying the previous state:
+                // the fullscreen window ran in Normal state at monitor size, so
+                // WPF's tracked restore geometry is the fullscreen rect.
+                // Restoring through it would leave a full-monitor "normal"
+                // window (blocked taskbar, dead bottom resize border).
+                WindowState = WindowState.Normal;
+                if (HasUsableSize(_fullScreenNormalBounds))
+                {
+                    SetWindowBounds(_fullScreenNormalBounds);
+                }
+
+                if (_previousWindowState == WindowState.Maximized)
+                {
+                    WindowState = WindowState.Maximized;
+                }
                 _isFullScreen = false;
+                UpdateResizeBandInset();
                 UpdateResizeGripVisibility();
                 if (WindowState == WindowState.Maximized)
                 {

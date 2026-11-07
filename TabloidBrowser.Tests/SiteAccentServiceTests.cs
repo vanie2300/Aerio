@@ -64,4 +64,35 @@ public class SiteAccentServiceTests
 
         Assert.Null(color);
     }
+
+    [Fact]
+    public async Task ResolveAsync_CacheStaysBounded_AfterManyOrigins()
+    {
+        // Long-session hygiene: the accent cache previously grew without
+        // bound — one entry per visited origin, never evicted. Inserting more
+        // origins than the cap must evict the oldest instead.
+        SiteAccentService.ClearCache();
+        try
+        {
+            for (var i = 0; i < SiteAccentService.MaxCachedOrigins + 50; i++)
+            {
+                await SiteAccentService.ResolveAsync(null, $"https://site{i}.example.com/");
+            }
+
+            Assert.True(
+                SiteAccentService.CacheCountForTests <= SiteAccentService.MaxCachedOrigins,
+                $"Cache grew to {SiteAccentService.CacheCountForTests} entries (cap {SiteAccentService.MaxCachedOrigins})");
+
+            // The oldest origin was evicted; resolving it again must still
+            // work (re-cached on demand, cache stays within the cap).
+            await SiteAccentService.ResolveAsync(null, "https://site0.example.com/");
+            Assert.True(
+                SiteAccentService.CacheCountForTests <= SiteAccentService.MaxCachedOrigins,
+                "Re-resolving an evicted origin exceeded the cap");
+        }
+        finally
+        {
+            SiteAccentService.ClearCache();
+        }
+    }
 }

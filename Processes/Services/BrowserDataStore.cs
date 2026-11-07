@@ -13,6 +13,10 @@ public sealed class BrowserDataStore : IDisposable
         WriteIndented = false
     };
 
+    /// <summary>Zoom range shared by per-site persistence and the UI.</summary>
+    internal const double MinSiteZoom = 0.25;
+    internal const double MaxSiteZoom = 5.0;
+
     private readonly string _dataFolder;
     private readonly string _bookmarksPath;
     private readonly string _historyPath;
@@ -760,6 +764,7 @@ public sealed class BrowserDataStore : IDisposable
                 CustomEngines = settings.CustomEngines ?? [],
                 SearchKeywords = settings.SearchKeywords ?? new Dictionary<string, string>(BrowserSettings.DefaultSearchKeywords, StringComparer.OrdinalIgnoreCase),
                 NewTabShortcuts = settings.NewTabShortcuts ?? [.. BrowserSettings.DefaultNewTabShortcuts],
+                SiteZoomLevels = NormalizeSiteZoomLevels(settings.SiteZoomLevels),
                 AiEndpoint = string.IsNullOrWhiteSpace(settings.AiEndpoint) || !AiEndpoints.IsSecure(settings.AiEndpoint)
                     ? BrowserSettings.Default.AiEndpoint
                     : settings.AiEndpoint,
@@ -941,6 +946,82 @@ public sealed class BrowserDataStore : IDisposable
         return SitePermissionPolicy.NormalizeRules(rules);
     }
 
+    /// <summary>
+    /// Per-site zoom levels keyed by normalized origin. Values are clamped to
+    /// the supported range and 100% entries are dropped (that is the default).
+    /// </summary>
+    private static Dictionary<string, double> NormalizeSiteZoomLevels(Dictionary<string, double>? levels)
+    {
+        var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        if (levels is null)
+        {
+            return result;
+        }
+
+        foreach (var (key, zoom) in levels)
+        {
+            var origin = SitePermissionPolicy.NormalizeOrigin(key);
+            if (origin is null || double.IsNaN(zoom) || double.IsInfinity(zoom))
+            {
+                continue;
+            }
+
+            var clamped = Math.Clamp(zoom, MinSiteZoom, MaxSiteZoom);
+            if (Math.Abs(clamped - 1.0) < 0.001)
+            {
+                continue;
+            }
+
+            result[origin] = Math.Round(clamped, 2);
+        }
+
+        return result;
+    }
+
+    /// <summary>Returns the saved zoom for a URL's origin, or 1.0 (100%).</summary>
+    public double GetSiteZoom(string? url)
+    {
+        var origin = SitePermissionPolicy.NormalizeOrigin(url);
+        if (origin is null)
+        {
+            return 1.0;
+        }
+
+        return Settings.SiteZoomLevels?.TryGetValue(origin, out var zoom) == true ? zoom : 1.0;
+    }
+
+    /// <summary>
+    /// Saves the zoom level for a URL's origin. 100% removes the entry so the
+    /// settings file only carries deliberate overrides.
+    /// </summary>
+    public void SetSiteZoom(string? url, double zoom)
+    {
+        var origin = SitePermissionPolicy.NormalizeOrigin(url);
+        if (origin is null || double.IsNaN(zoom) || double.IsInfinity(zoom))
+        {
+            return;
+        }
+
+        var clamped = Math.Clamp(zoom, MinSiteZoom, MaxSiteZoom);
+        var levels = new Dictionary<string, double>(
+            Settings.SiteZoomLevels ?? [],
+            StringComparer.OrdinalIgnoreCase);
+
+        if (Math.Abs(clamped - 1.0) < 0.001)
+        {
+            levels.Remove(origin);
+        }
+        else
+        {
+            levels[origin] = Math.Round(clamped, 2);
+        }
+
+        if (!SaveSettings(Settings with { SiteZoomLevels = levels }))
+        {
+            Log.Debug("Failed to persist site zoom for {Origin}", origin);
+        }
+    }
+
     public static bool IsHttpUrl(string url)
     {
         return Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
@@ -1029,8 +1110,17 @@ public sealed record BrowserSettings(
     Dictionary<string, string>? SearchKeywords = null,
     bool AutoHideBrowserChrome = false,
     List<NewTabShortcut>? NewTabShortcuts = null,
-    bool? BlockLocalNetworkAccess = null)
+    bool? BlockLocalNetworkAccess = null,
+    Dictionary<string, double>? SiteZoomLevels = null,
+    bool? TintPlayingTabs = null)
 {
+    /// <summary>
+    /// Whether a playing tab's background is tinted with the site's accent.
+    /// Stored as nullable so absent (older settings files) means ON.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool TintPlayingTabsEffective => TintPlayingTabs ?? true;
+
     /// <summary>
     /// Whether web content from public sites may fetch LAN/intranet resources.
     /// Stored as nullable so that absent (older settings files) means ON —
@@ -1078,8 +1168,9 @@ public sealed record BrowserSettings(
         ["reload"] = "Ctrl+R",
         ["history"] = "Ctrl+H",
         ["find"] = "Ctrl+F",
-        ["print"] = "Ctrl+P",
-        ["reader_mode"] = "Ctrl+Shift+R",
+          ["print"] = "Ctrl+P",
+          ["capture_screenshot"] = "Ctrl+Shift+S",
+          ["reader_mode"] = "Ctrl+Shift+R",
         ["ai_toggle"] = "Ctrl+Shift+A",
     };
 
