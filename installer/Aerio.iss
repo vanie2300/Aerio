@@ -173,11 +173,16 @@ end;
 function VerifyDownloadedRuntimeSignature(const FilePath: String): Boolean;
 var
   Params: String;
+  EscapedFilePath: String;
   ResultCode: Integer;
 begin
+  // PowerShell single-quoted paths escape apostrophes by doubling them.
+  EscapedFilePath := FilePath;
+  StringChangeEx(EscapedFilePath, #39, #39 + #39, True);
   Params :=
     '-NoProfile -NonInteractive -Command ' +
-    '"$sig = Get-AuthenticodeSignature -LiteralPath ''" + FilePath + '''; ' +
+    '"$sig = Get-AuthenticodeSignature -LiteralPath ' + #39 +
+    EscapedFilePath + #39 + '; ' +
     'if ($sig.Status -ne ''Valid'') { exit 1 }; ' +
     'if ($null -eq $sig.SignerCertificate) { exit 2 }; ' +
     'if ($sig.SignerCertificate.Subject -notlike ''*Microsoft Corporation*'') { exit 3 }; ' +
